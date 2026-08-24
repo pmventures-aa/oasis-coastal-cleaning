@@ -1,10 +1,11 @@
 # Oasis Coastal Cleaning — website
 
 Static site. Plain HTML, CSS and vanilla JavaScript — no framework, no build step,
-no `npm install`. What is in this folder is exactly what gets served.
+no `npm install`. What is in this repository is exactly what gets served.
 
-It is a **separate Cloudflare Pages project** from anything else in this repository.
-Nothing here shares a project, a domain or a binding with the rest of the repo.
+It stands entirely on its own: its own repository, its own Cloudflare Pages project,
+its own domain and its own secrets. It shares no code, database, storage binding or
+environment variable with any other site.
 
 ---
 
@@ -59,12 +60,28 @@ for a day, so a normal refresh may show the old version.
 4. Build settings:
    - Framework preset: **None**
    - Build command: **leave empty**
-   - Build output directory: `oasis-coastal-cleaning`
-   - Root directory: `/`
+   - Build output directory: `/`
+   - Root directory: **leave empty**
 5. Save and deploy.
 6. Add the custom domain and the `www` variant under **Custom domains**.
 
-Or from a terminal, inside this folder:
+**Both directory settings matter.** Cloudflare looks for the `functions/` folder at
+the *root directory*, which is how `/api/quote` gets served. Point the root directory
+somewhere else and the form handler silently stops existing — or, worse, a different
+project's `functions/` gets attached to this site.
+
+Confirm it after the first deploy. The first request should answer, the second
+should not:
+
+```sh
+curl -i https://oasis-coastal-cleaning.pages.dev/api/quote
+#  → 405, "Send this form with POST."   ← the form handler is live
+
+curl -i https://oasis-coastal-cleaning.pages.dev/api/health
+#  → 404                                ← nothing else is attached
+```
+
+Or deploy straight from a terminal, in the repository root:
 
 ```sh
 npx wrangler pages deploy . --project-name oasis-coastal-cleaning
@@ -110,7 +127,8 @@ functions/api/quote.js      the form handler
 logo/ favicon/ social/      brand images, already sized
 _headers _redirects         caching, security headers, old-URL redirects
 sitemap.xml robots.txt      search engines
-wrangler.toml               deploy config for this project only
+wrangler.toml               deploy config
+docs/                       brand book and email signature
 ```
 
 ## 6. Notes on the build

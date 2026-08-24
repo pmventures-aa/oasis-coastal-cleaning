@@ -1,14 +1,16 @@
-# Oasis Coastal Cleaning — its own Cloudflare Pages project.
+# Oasis Coastal Cleaning — Cloudflare Pages.
 #
-# This is a SEPARATE project from anything else in this repository. Create it
-# once in the Cloudflare dashboard (Workers & Pages → Create → Pages), name it
-# "oasis-coastal-cleaning", and point it at this folder.
+# Create the project once in the dashboard (Workers & Pages → Create → Pages)
+# and connect it to this repository.
 #
-# Build settings in the dashboard:
+# Build settings:
 #   Framework preset    None
 #   Build command       (leave empty — there is no build step)
-#   Build output dir    oasis-coastal-cleaning
-#   Root directory      /
+#   Build output dir    /
+#   Root directory      (leave empty)
+#
+# Root directory must stay at the repository root: that is where Cloudflare
+# looks for functions/, which serves /api/quote.
 #
 # Or deploy straight from a terminal:
 #   npx wrangler pages deploy . --project-name oasis-coastal-cleaning
