@@ -1,0 +1,23 @@
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=(), interest-cohort=()
+
+# Logos, favicons and social images never change — cache them hard.
+/logo/*
+  Cache-Control: public, max-age=31536000, immutable
+/favicon/*
+  Cache-Control: public, max-age=31536000, immutable
+/social/*
+  Cache-Control: public, max-age=31536000, immutable
+/print/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Styles and scripts: revalidate daily so edits to data.js show up quickly.
+/css/*
+  Cache-Control: public, max-age=86400, must-revalidate
+/js/*
+  Cache-Control: public, max-age=86400, must-revalidate
+/tokens.css
+  Cache-Control: public, max-age=86400, must-revalidate

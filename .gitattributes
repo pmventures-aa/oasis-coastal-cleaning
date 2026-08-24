@@ -1,0 +1,4 @@
+# Brand images are already optimized — keep git from trying to diff them.
+*.png binary
+*.webp binary
+*.ico binary

@@ -1,0 +1,14 @@
+{
+  "name": "Oasis Coastal Cleaning",
+  "short_name": "Oasis",
+  "description": "Cleaning, organizing and laundry for South Florida homes and offices.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FBF9F3",
+  "theme_color": "#02595F",
+  "icons": [
+    { "src": "/favicon/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/favicon/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/logo/logo-square-transparent.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

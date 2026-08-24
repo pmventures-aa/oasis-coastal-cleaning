@@ -1,0 +1,19 @@
+# Old or guessed URLs land somewhere useful instead of a 404.
+/home            /                    301
+/index           /                    301
+/get-a-quote     /quote.html          301
+/quote           /quote.html          301
+/estimate        /quote.html          301
+/book            /quote.html          301
+/booking         /quote.html          301
+/services        /services.html       301
+/pricing         /pricing.html        301
+/prices          /pricing.html        301
+/about          /about.html           301
+/areas           /service-areas.html  301
+/service-area    /service-areas.html  301
+/service-areas   /service-areas.html  301
+/locations       /service-areas.html  301
+/faq             /faq.html            301
+/contact         /contact.html        301
+/thank-you       /thank-you.html      301

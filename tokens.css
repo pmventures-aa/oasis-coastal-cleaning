@@ -1,0 +1,145 @@
+/* ==========================================================================
+   Oasis Coastal Cleaning — design tokens
+   Drop this in first. Every other stylesheet should reference these vars
+   and never hard-code a hex value.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Cinzel:wght@400;600&family=Montserrat:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ---- brand color, sampled directly from the logo artwork ---- */
+  --oasis-teal:        #02595F;  /* the script "Oasis" — primary brand color */
+  --oasis-navy:        #094045;  /* COASTAL CLEANING caps — headings, body text */
+  --oasis-gold:        #C89C53;  /* the double ring — rules, accents, hover */
+  --oasis-sea:         #27BDCE;  /* the water — highlights, small fills */
+  --oasis-palm:        #455E03;  /* palm fronds — use sparingly */
+  --oasis-sand:        #F5D9B9;  /* beach — soft section backgrounds */
+  --oasis-cream:       #FBF9F3;  /* page background */
+  --oasis-white:       #FFFFFF;
+
+  /* ---- derived / interface ---- */
+  --oasis-teal-hover:  #01444A;
+  --oasis-gold-soft:   #E8D3AE;
+  --oasis-line:        rgba(9, 64, 69, 0.14);
+  --oasis-muted:       rgba(9, 64, 69, 0.66);
+  --oasis-shadow:      0 8px 30px rgba(9, 64, 69, 0.10);
+
+  /* ---- type ---- */
+  --font-script: 'Great Vibes', cursive;      /* the name ONLY — never body copy */
+  --font-display: 'Cinzel', Georgia, serif;   /* headings, section titles */
+  --font-body: 'Montserrat', -apple-system, 'Segoe UI', sans-serif;
+
+  --step--1: clamp(0.82rem, 0.79rem + 0.14vw, 0.9rem);
+  --step-0:  clamp(1rem, 0.95rem + 0.22vw, 1.12rem);
+  --step-1:  clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  --step-2:  clamp(1.6rem, 1.4rem + 1vw, 2.2rem);
+  --step-3:  clamp(2.1rem, 1.7rem + 2vw, 3.2rem);
+
+  --tracking-caps: 0.16em;   /* Cinzel headings and the services line */
+  --tracking-body: 0.01em;
+
+  /* ---- layout ---- */
+  --radius: 14px;
+  --radius-pill: 999px;
+  --gutter: clamp(1.25rem, 4vw, 3.5rem);
+  --max-width: 1180px;
+}
+
+/* --------------------------------------------------------------- base */
+body {
+  margin: 0;
+  background: var(--oasis-cream);
+  color: var(--oasis-navy);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--oasis-navy);
+  line-height: 1.25;
+}
+h1 { font-size: var(--step-3); }
+h2 { font-size: var(--step-2); }
+h3 { font-size: var(--step-1); }
+
+/* The script face is for the business name only. Never a paragraph,
+   never a button, never all-caps — it becomes unreadable. */
+.oasis-script {
+  font-family: var(--font-script);
+  color: var(--oasis-teal);
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--step--1);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--oasis-gold);
+}
+
+/* ------------------------------------------------------------ buttons */
+.btn {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 0.95em 2em;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid transparent;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.btn--primary { background: var(--oasis-teal); color: var(--oasis-cream); }
+.btn--primary:hover { background: var(--oasis-teal-hover); }
+.btn--ghost {
+  background: transparent;
+  color: var(--oasis-teal);
+  border-color: var(--oasis-gold);
+}
+.btn--ghost:hover { background: var(--oasis-gold-soft); }
+
+/* ------------------------------------------------------------ surfaces */
+.section { padding: clamp(3rem, 7vw, 6rem) var(--gutter); }
+.section--sand { background: var(--oasis-sand); }
+.section--navy { background: var(--oasis-navy); color: var(--oasis-cream); }
+.section--navy h1, .section--navy h2, .section--navy h3 { color: var(--oasis-cream); }
+
+.wrap { max-width: var(--max-width); margin-inline: auto; }
+
+.card {
+  background: var(--oasis-white);
+  border: 1px solid var(--oasis-line);
+  border-radius: var(--radius);
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+  box-shadow: var(--oasis-shadow);
+}
+
+/* gold hairline with a gap, echoing the rule inside the logo */
+.rule {
+  border: 0;
+  height: 1px;
+  background: var(--oasis-gold);
+  opacity: 0.75;
+  margin: 2rem 0;
+}
+
+/* logo sizing guardrails */
+.logo { display: block; height: auto; }
+.logo--header { width: clamp(96px, 11vw, 150px); }
+.logo--hero { width: clamp(180px, 26vw, 340px); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

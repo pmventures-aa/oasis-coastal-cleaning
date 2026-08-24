@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oasis Coastal Cleaning — Brand Book</title>
+<link rel="stylesheet" href="/tokens.css">
+<style>
+  body { padding-bottom: 5rem; }
+  .page { max-width: 980px; margin-inline: auto; padding: 0 var(--gutter); }
+
+  .cover {
+    background: var(--oasis-navy);
+    color: var(--oasis-cream);
+    text-align: center;
+    padding: clamp(3rem, 8vw, 6rem) var(--gutter) clamp(3.5rem, 9vw, 7rem);
+  }
+  .cover img { width: clamp(200px, 34vw, 340px); }
+  .cover h1 { color: var(--oasis-cream); margin: 2rem 0 0.35rem; font-size: var(--step-2); }
+  .cover p { color: var(--oasis-gold); letter-spacing: var(--tracking-caps);
+             text-transform: uppercase; font-size: var(--step--1); font-weight: 600; margin: 0; }
+
+  section { padding: clamp(2.5rem, 6vw, 4.5rem) 0; border-bottom: 1px solid var(--oasis-line); }
+  section:last-of-type { border-bottom: 0; }
+  .num { font-family: var(--font-display); color: var(--oasis-gold); font-size: var(--step--1);
+         letter-spacing: var(--tracking-caps); display: block; margin-bottom: 0.5rem; }
+  h2 { margin: 0 0 1.4rem; }
+  p { max-width: 68ch; }
+
+  .swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); gap: 14px; }
+  .sw { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--oasis-line); background: #fff; }
+  .sw i { display: block; height: 88px; }
+  .sw b, .sw span { display: block; padding: 0 12px; font-size: 0.78rem; }
+  .sw b { padding-top: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .sw span { padding-bottom: 12px; color: var(--oasis-muted); font-family: ui-monospace, monospace; }
+
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; }
+  .spec { border-left: 3px solid var(--oasis-gold); padding-left: 1.1rem; }
+  .spec small { color: var(--oasis-muted); font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  .do-dont { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; }
+  .do-dont ul { margin: 0.6rem 0 0; padding-left: 1.1rem; }
+  .do-dont li { margin-bottom: 0.5rem; }
+  .yes { border-top: 3px solid var(--oasis-sea); padding-top: 1rem; }
+  .no  { border-top: 3px solid #C2553F; padding-top: 1rem; }
+
+  .clearspace { background: var(--oasis-sand); border-radius: var(--radius); padding: 2rem; text-align: center; }
+  .clearspace img { width: 200px; outline: 2px dashed var(--oasis-gold); outline-offset: 34px; }
+
+  .bgtest { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+  .bgtest div { border-radius: var(--radius); padding: 1.4rem; text-align: center; border: 1px solid var(--oasis-line); }
+  .bgtest img { width: 100%; max-width: 150px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.7rem 0.8rem; border-bottom: 1px solid var(--oasis-line); vertical-align: top; }
+  th { font-family: var(--font-body); font-weight: 700; letter-spacing: 0.08em;
+       text-transform: uppercase; font-size: 0.74rem; color: var(--oasis-muted); }
+  code { font-family: ui-monospace, monospace; font-size: 0.85em; background: rgba(9,64,69,.06);
+         padding: 0.15em 0.4em; border-radius: 4px; }
+  .voice-eg { font-style: italic; color: var(--oasis-muted); }
+  @media print { .cover { padding: 3rem 1rem; } section { page-break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <img src="/logo/logo-480.webp" alt="Oasis Coastal Cleaning">
+  <h1>Brand Book</h1>
+  <p>Version 1.0 · August 2026</p>
+</div>
+
+<div class="page">
+
+<section>
+  <span class="num">01</span>
+  <h2>The Brand</h2>
+  <p><strong>Oasis Coastal Cleaning</strong> brings cleaning, organizing and laundry to South Florida
+  homes and offices. The name promises relief — a calm, ordered place to land. Every
+  design and copy decision should feel like that promise being kept: warm, unhurried, and
+  visibly professional.</p>
+  <p>The audience is coastal homeowners, snowbird property owners, short-term rental hosts and
+  small offices across Broward, Palm Beach and Miami-Dade. They are buying trust and
+  disappearance-of-hassle, not the lowest hourly rate. The brand should always look like it
+  costs a little more than the competition — and be worth it.</p>
+  <hr class="rule">
+  <div class="grid2">
+    <div class="spec"><small>Tagline (primary)</small>
+      <p style="margin:.4rem 0 0"><strong>Fresh Spaces. Happy Places.</strong></p></div>
+    <div class="spec"><small>Tagline (secondary)</small>
+      <p style="margin:.4rem 0 0"><strong>From everyday mess to coastal fresh.</strong></p></div>
+  </div>
+  <p style="margin-top:1.4rem"><small style="color:var(--oasis-muted)">Use the primary on the logo,
+  signage and social. The secondary works well as a website hero line or ad headline because it
+  states the transformation.</small></p>
+</section>
+
+<section>
+  <span class="num">02</span>
+  <h2>Logo</h2>
+  <p>The badge is the whole identity — illustration, name, services and tagline in one lockup.
+  Because it carries that much detail, it needs room and size to work.</p>
+
+  <div class="clearspace">
+    <img src="/logo/logo-square.webp" alt="Logo clear space">
+    <p style="margin:2.6rem auto 0;font-size:.85rem;color:var(--oasis-navy)">
+      <strong>Clear space:</strong> keep empty margin on all sides equal to at least
+      <strong>15% of the badge width</strong>. Nothing crosses it — no text, no photo edge, no button.</p>
+  </div>
+
+  <div class="grid2" style="margin-top:1.8rem">
+    <div class="spec"><small>Minimum size — screen</small>
+      <p style="margin:.4rem 0 0"><strong>120&nbsp;px wide.</strong> Below that the services line and
+      tagline turn to mush. For anything smaller, crop to the round illustration alone.</p></div>
+    <div class="spec"><small>Minimum size — print</small>
+      <p style="margin:.4rem 0 0"><strong>1.25&nbsp;in wide.</strong> Business cards, invoice headers,
+      door hangers — do not go under this.</p></div>
+  </div>
+
+  <h3 style="margin-top:2.2rem;font-size:var(--step-0)">Backgrounds</h3>
+  <div class="bgtest" style="margin-top:1rem">
+    <div style="background:var(--oasis-cream)"><img src="/logo/logo-square.webp" alt=""><br>
+      <small>Cream — preferred</small></div>
+    <div style="background:#FFFFFF"><img src="/logo/logo-square.webp" alt=""><br>
+      <small>White — fine</small></div>
+    <div style="background:var(--oasis-sand)"><img src="/logo/logo-square.webp" alt=""><br>
+      <small>Sand — fine</small></div>
+    <div style="background:var(--oasis-navy)"><img src="/logo/logo-square.webp" alt=""><br>
+      <small style="color:var(--oasis-cream)">Navy — use sparingly</small></div>
+  </div>
+
+  <div class="do-dont" style="margin-top:2rem">
+    <div class="yes"><strong>Do</strong>
+      <ul>
+        <li>Use the transparent PNG so the badge sits on the page background, not a white square.</li>
+        <li>Scale proportionally — always drag from a corner.</li>
+        <li>Give it a quiet background. Cream or a solid color, never a busy photo.</li>
+        <li>Let the badge be the loudest thing in its area.</li>
+      </ul>
+    </div>
+    <div class="no"><strong>Don't</strong>
+      <ul>
+        <li>Stretch, squash, rotate or tilt it.</li>
+        <li>Recolor it, add a drop shadow, glow or outline.</li>
+        <li>Place it over a photograph or a busy pattern.</li>
+        <li>Pull the illustration apart or use the beach scene on its own.</li>
+        <li>Retype the name next to the badge — the name is already in it.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="num">03</span>
+  <h2>Color</h2>
+  <p>Every value below was sampled directly out of the logo artwork, so the site, the cards
+  and the badge will always agree with each other.</p>
+  <div class="swatches">
+    <div class="sw"><i style="background:#02595F"></i><b>Oasis Teal</b><span>#02595F</span></div>
+    <div class="sw"><i style="background:#094045"></i><b>Deep Navy</b><span>#094045</span></div>
+    <div class="sw"><i style="background:#C89C53"></i><b>Antique Gold</b><span>#C89C53</span></div>
+    <div class="sw"><i style="background:#27BDCE"></i><b>Sea</b><span>#27BDCE</span></div>
+    <div class="sw"><i style="background:#455E03"></i><b>Palm</b><span>#455E03</span></div>
+    <div class="sw"><i style="background:#F5D9B9"></i><b>Sand</b><span>#F5D9B9</span></div>
+    <div class="sw"><i style="background:#FBF9F3;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)"></i><b>Cream</b><span>#FBF9F3</span></div>
+  </div>
+  <hr class="rule">
+  <table>
+    <tr><th>Color</th><th>Use it for</th><th>Never</th></tr>
+    <tr><td><strong>Teal</strong></td><td>The name, primary buttons, links, key headlines.</td><td>Large background fills — it goes heavy fast.</td></tr>
+    <tr><td><strong>Navy</strong></td><td>Body text, headings, footer background.</td><td>Small text on teal — too little contrast.</td></tr>
+    <tr><td><strong>Gold</strong></td><td>Hairline rules, dividers, hover states, small accents.</td><td>Body text. It fails contrast at paragraph size.</td></tr>
+    <tr><td><strong>Sea</strong></td><td>Icons, highlights, small illustrative touches.</td><td>Text of any size on cream.</td></tr>
+    <tr><td><strong>Sand / Cream</strong></td><td>Section and page backgrounds.</td><td>Text — they're backgrounds only.</td></tr>
+  </table>
+  <p style="margin-top:1.2rem"><small style="color:var(--oasis-muted)">Rough balance to aim for:
+  60% cream, 25% navy and teal, 10% sand, 5% gold. Gold is jewelry — a little reads expensive,
+  a lot reads cheap.</small></p>
+</section>
+
+<section>
+  <span class="num">04</span>
+  <h2>Typography</h2>
+  <div class="grid2">
+    <div class="spec"><small>Script — the name only</small>
+      <p class="oasis-script" style="font-size:3.4rem;margin:.2rem 0">Oasis</p>
+      <p style="margin:0"><strong>Great Vibes</strong> · free on Google Fonts.<br>
+      Used for the word <em>Oasis</em> and nothing else. Never for a sentence, a button,
+      a heading or anything in caps.</p></div>
+    <div class="spec"><small>Display — headings</small>
+      <p style="font-family:var(--font-display);letter-spacing:var(--tracking-caps);font-size:1.5rem;margin:.2rem 0">COASTAL</p>
+      <p style="margin:0"><strong>Cinzel</strong> · free on Google Fonts.<br>
+      All headings, set in caps with generous letter-spacing (0.16em). Keep headings short —
+      caps get hard to read past about six words.</p></div>
+  </div>
+  <div class="spec" style="margin-top:1.4rem">
+    <small>Body &amp; interface</small>
+    <p style="margin:.4rem 0 0"><strong>Montserrat</strong> · free on Google Fonts.
+    All paragraphs, buttons, forms, the services line and the email signature.
+    Regular 400 for body, 600 for buttons and the services line, 700 sparingly for emphasis.</p>
+  </div>
+  <hr class="rule">
+  <table>
+    <tr><th>Role</th><th>Face</th><th>Treatment</th></tr>
+    <tr><td>Business name</td><td>Great Vibes</td><td>Sentence case, teal, never tracked</td></tr>
+    <tr><td>H1 / H2 / H3</td><td>Cinzel 400</td><td>UPPERCASE, 0.16em tracking, navy</td></tr>
+    <tr><td>Eyebrow / label</td><td>Montserrat 600</td><td>UPPERCASE, 0.16em tracking, gold</td></tr>
+    <tr><td>Body</td><td>Montserrat 400</td><td>Sentence case, 1.65 line height, navy</td></tr>
+    <tr><td>Button</td><td>Montserrat 600</td><td>UPPERCASE, 0.08em tracking</td></tr>
+  </table>
+</section>
+
+<section>
+  <span class="num">05</span>
+  <h2>Voice</h2>
+  <p>Warm, calm, and specific. She is a professional who happens to be friendly — not a
+  friend who happens to clean. Say what gets done, in plain words. Skip exclamation points,
+  skip "we strive to," skip anything a franchise would print.</p>
+  <div class="do-dont" style="margin-top:1.4rem">
+    <div class="yes"><strong>Sounds right</strong>
+      <ul>
+        <li class="voice-eg">"Every visit ends the same way: floors done last, trash out, doors locked."</li>
+        <li class="voice-eg">"Tell us the three rooms that stress you out. We start there."</li>
+        <li class="voice-eg">"Laundry picked up Tuesday, folded and back Thursday."</li>
+      </ul>
+    </div>
+    <div class="no"><strong>Sounds wrong</strong>
+      <ul>
+        <li class="voice-eg">"We strive to exceed expectations!!"</li>
+        <li class="voice-eg">"#1 rated cleaning solutions provider"</li>
+        <li class="voice-eg">"Unleash the power of a spotless home"</li>
+      </ul>
+    </div>
+  </div>
+  <hr class="rule">
+  <p><strong>Service names — always in this order, always these words:</strong></p>
+  <p style="font-family:var(--font-body);font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--oasis-teal)">
+    Home · Office · Organizing · Laundry</p>
+  <p><small style="color:var(--oasis-muted)">"Residential" is fine in long-form copy and on the
+  badge, but "Home" is shorter and warmer for navigation, buttons and the services line.
+  Pick one per surface and stay consistent.</small></p>
+</section>
+
+<section>
+  <span class="num">06</span>
+  <h2>Files on the site</h2>
+  <p>These are the paths as deployed. Everything below resolves from the site root.</p>
+  <table>
+    <tr><th>Path</th><th>What it is</th><th>Used by</th></tr>
+    <tr><td><code>/logo/logo-primary-1600.png</code></td><td>Transparent badge, print master</td><td>Print, Canva, vehicle wrap</td></tr>
+    <tr><td><code>/logo/logo-primary-800.png</code></td><td>Transparent badge, web size</td><td>Email signature</td></tr>
+    <tr><td><code>/logo/logo-960.webp</code> · <code>-480</code> · <code>-260</code></td><td>The badge the site actually loads</td><td>Hero, About, header, footer</td></tr>
+    <tr><td><code>/logo/logo-square.webp</code></td><td>Badge on a 1:1 canvas</td><td>Anywhere needing a square crop</td></tr>
+    <tr><td><code>/favicon/</code> + <code>/favicon.ico</code></td><td>16 / 32 / 180 / 192 / 512 px</td><td>Browser tabs, home screens</td></tr>
+    <tr><td><code>/social/og-1200x630.png</code></td><td>Link preview card</td><td>The OG tags on every page</td></tr>
+    <tr><td><code>/social/avatar-1080.webp</code></td><td>Square profile picture</td><td>Instagram, Facebook, Google Business</td></tr>
+    <tr><td><code>/social/cover-1640x624.webp</code></td><td>Cover banner</td><td>Facebook, LinkedIn</td></tr>
+    <tr><td><code>/print/logo-on-navy.webp</code></td><td>Badge on navy</td><td>Shirts, dark signage</td></tr>
+    <tr><td><code>/tokens.css</code></td><td>All colors and type as CSS variables</td><td>Loaded first on every page</td></tr>
+    <tr><td><code>/docs/email-signature.html</code></td><td>Email signature block</td><td>Gmail / Outlook settings</td></tr>
+  </table>
+</section>
+
+<section>
+  <span class="num">07</span>
+  <h2>Putting it on Cloudflare</h2>
+  <table>
+    <tr><th>#</th><th>Step</th></tr>
+    <tr><td>1</td><td>Point <code>oasiscoastalcleaning.com</code> at Cloudflare — add the site, then change the nameservers at the registrar. Propagation is usually under an hour.</td></tr>
+    <tr><td>2</td><td>Create a <strong>Cloudflare Pages</strong> project and connect it to a Git repo (or drag-and-drop the folder for a first deploy).</td></tr>
+    <tr><td>3</td><td>Copy <code>favicon/</code>, <code>logo/</code>, <code>social/</code>, <code>tokens.css</code> and <code>site.webmanifest</code> into the site root so the paths in the head snippet resolve.</td></tr>
+    <tr><td>4</td><td>Paste the head snippet into every page's <code>&lt;head&gt;</code>.</td></tr>
+    <tr><td>5</td><td>Add the custom domain in Pages, plus the <code>www</code> variant, and let Cloudflare issue the certificate.</td></tr>
+    <tr><td>6</td><td>Turn on Always Use HTTPS, Auto Minify and Brotli. Set Browser Cache TTL long — the logo files never change.</td></tr>
+    <tr><td>7</td><td>Add an email route so <code>info@oasiscoastalcleaning.com</code> forwards to her inbox, and verify SPF/DKIM before sending anything.</td></tr>
+  </table>
+</section>
+
+</div>
+</body>
+</html>

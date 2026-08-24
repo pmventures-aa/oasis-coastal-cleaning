@@ -1,0 +1,28 @@
+# Oasis Coastal Cleaning — its own Cloudflare Pages project.
+#
+# This is a SEPARATE project from anything else in this repository. Create it
+# once in the Cloudflare dashboard (Workers & Pages → Create → Pages), name it
+# "oasis-coastal-cleaning", and point it at this folder.
+#
+# Build settings in the dashboard:
+#   Framework preset    None
+#   Build command       (leave empty — there is no build step)
+#   Build output dir    oasis-coastal-cleaning
+#   Root directory      /
+#
+# Or deploy straight from a terminal:
+#   npx wrangler pages deploy . --project-name oasis-coastal-cleaning
+
+name = "oasis-coastal-cleaning"
+compatibility_date = "2026-08-01"
+pages_build_output_dir = "."
+
+# Secrets are NOT set here. Add them in the dashboard under
+# Settings → Environment variables, or with:
+#   npx wrangler pages secret put TURNSTILE_SECRET_KEY --project-name oasis-coastal-cleaning
+#   npx wrangler pages secret put RESEND_API_KEY       --project-name oasis-coastal-cleaning
+[vars]
+QUOTE_TO_EMAIL = "info@oasiscoastalcleaning.com"
+# A verified Resend sender. Until the domain is verified, leave this out and
+# Resend's shared onboarding sender is used.
+# QUOTE_FROM_EMAIL = "Oasis Coastal Cleaning <quotes@oasiscoastalcleaning.com>"

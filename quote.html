@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Get a Free Cleaning Quote | Oasis Coastal Cleaning</title>
+  <meta name="description" content="Tell us the space and see your estimate range as you answer. Home, office, organizing and laundry quotes across Palm Beach and Broward County, confirmed within one business day.">
+  <link rel="canonical" href="https://www.oasiscoastalcleaning.com/quote.html">
+  <meta name="theme-color" content="#02595F">
+
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon/icon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon/icon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicon/icon-180.png">
+  <link rel="manifest" href="/site.webmanifest">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Oasis Coastal Cleaning">
+  <meta property="og:title" content="Get a Free Cleaning Quote | Oasis Coastal Cleaning">
+  <meta property="og:description" content="Tell us the space and see your estimate range as you answer. Home, office, organizing and laundry quotes across Palm Beach and Broward County, confirmed within one business day.">
+  <meta property="og:url" content="https://www.oasiscoastalcleaning.com/quote.html">
+  <meta property="og:image" content="https://www.oasiscoastalcleaning.com/social/og-1200x630.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body data-page="quote">
+
+<div data-render="header"></div>
+
+<main id="main">
+<section class="pagehead">
+  <div class="wrap">
+    <p class="eyebrow">Get a quote</p>
+    <h1>Your range, in about a minute</h1>
+    <p>Answer as much as you know. The estimate updates as you go, and nothing is sent
+       until you press the button at the bottom.</p>
+  </div>
+</section>
+
+<section class="section section--tight">
+  <div class="wrap quote-layout">
+    <form id="quote-form" class="card form" novalidate>
+      <div id="quote-fields" class="form"></div>
+
+      <input type="hidden" name="estimate-low" id="estimate-low" value="">
+      <input type="hidden" name="estimate-high" id="estimate-high" value="">
+
+      <p class="note estimate-note" id="estimate-note"></p>
+
+      <div id="turnstile-holder"></div>
+
+      <div id="form-status" class="form-status form-status--err" role="alert" tabindex="-1" hidden></div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn--primary">Send my request</button>
+        <span class="hint muted">Or call <span data-render="phone"></span> — a person answers.</span>
+      </div>
+
+      <p class="hint muted" style="margin:0">
+        We use what you send here to price the work and get back to you. Nothing is shared
+        with anyone else, and there is no charge until you say yes to a quote.
+      </p>
+    </form>
+
+    <aside id="estimate" class="estimate" aria-label="Your estimate"></aside>
+  </div>
+</section>
+
+<section class="section section--sand">
+  <div class="wrap">
+    <div class="section__head">
+      <p class="eyebrow">After you send it</p>
+      <h2>What happens next</h2>
+    </div>
+    <div data-render="steps"></div>
+  </div>
+</section>
+</main>
+
+<div data-render="footer"></div>
+<div data-render="stickybar"></div>
+
+<script src="/js/data.js"></script>
+<script src="/js/site.js"></script>
+<script src="/js/quote.js"></script>
+</body>
+</html>
