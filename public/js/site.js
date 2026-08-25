@@ -108,48 +108,44 @@
 
   function renderFooter(el) {
     var b = D.business;
-    var links = D.nav.map(function (n) {
-      return '<li><a href="' + esc(n.href) + '">' + esc(n.label) + '</a></li>';
-    }).join('');
-    var services = activeServices().map(function (s) {
-      return '<li><a href="/services.html#' + esc(s.id) + '">' + esc(s.name) + '</a></li>';
-    }).join('');
+
+    // One band, not five columns. A footer on a lead site exists to catch
+    // someone who scrolled past the buttons — it needs a way to call and a
+    // way back into the pages, and very little else.
+    var links = D.nav.filter(function (n) { return n.href !== '/'; })
+      .map(function (n) {
+        return '<a href="' + esc(n.href) + '">' + esc(n.label) + '</a>';
+      }).join('');
+
     var hours = b.hours.map(function (h) {
-      return '<li>' + esc(h.days) + ' &middot; ' + esc(h.time) + '</li>';
-    }).join('');
+      return esc(h.days) + ' ' + esc(h.time);
+    }).join(' &nbsp;·&nbsp; ');
+
     var social = Object.keys(b.social || {}).filter(function (k) { return b.social[k]; })
       .map(function (k) {
-        return '<li><a href="' + esc(b.social[k]) + '" rel="noopener">' +
-               k.charAt(0).toUpperCase() + k.slice(1) + '</a></li>';
+        return '<a href="' + esc(b.social[k]) + '" rel="noopener">' +
+               k.charAt(0).toUpperCase() + k.slice(1) + '</a>';
       }).join('');
 
     el.innerHTML =
       '<footer class="footer">' +
-        '<div class="wrap footer__grid">' +
-          '<div class="footer__brand">' +
+        '<div class="wrap footer__top">' +
+          '<a class="footer__brand" href="/">' +
             '<img src="/logo/logo-260.webp" width="260" height="260" alt="' + esc(b.name) + '" loading="lazy">' +
-            '<p class="footer__tag">' + esc(b.tagline) + '</p>' +
-            '<p>' + esc(D.footerNote) + '</p>' +
-            (b.licenseNote ? '<p>' + esc(b.licenseNote) + '.</p>' : '') +
-          '</div>' +
-          '<div>' +
-            '<h2>Pages</h2><ul>' + links + '</ul>' +
-            (services ? '<h2 style="margin-top:1.6rem">Services</h2><ul>' + services + '</ul>' : '') +
-          '</div>' +
-          '<div>' +
-            '<h2>Get in touch</h2>' +
-            '<ul>' +
-              '<li><a href="' + telHref(b.phone) + '">' + esc(b.phone) + '</a></li>' +
-              '<li><a href="mailto:' + esc(b.email) + '">' + esc(b.email) + '</a></li>' +
-              '<li><a href="/quote.html">Request a quote</a></li>' +
-            '</ul>' +
-            '<h2 style="margin-top:1.6rem">Hours</h2><ul>' + hours + '</ul>' +
-            (social ? '<h2 style="margin-top:1.6rem">Follow</h2><ul>' + social + '</ul>' : '') +
+            '<span class="footer__tag">' + esc(b.tagline) + '</span>' +
+          '</a>' +
+          '<nav class="footer__links" aria-label="Footer">' + links + social + '</nav>' +
+          '<div class="footer__reach">' +
+            '<a class="btn btn--primary" href="/quote.html">Get a quote</a>' +
+            '<a class="footer__phone" href="' + telHref(b.phone) + '">' + esc(b.phone) + '</a>' +
+            '<a href="mailto:' + esc(b.email) + '">' + esc(b.email) + '</a>' +
           '</div>' +
         '</div>' +
         '<div class="wrap footer__legal">' +
-          '<span>&copy; ' + new Date().getFullYear() + ' ' + esc(b.legalName) + '. All rights reserved.</span>' +
-          '<span>' + esc(b.baseCity) + ', ' + esc(b.baseState) + ' &middot; Serving Palm Beach &amp; Broward</span>' +
+          '<span>' + hours + '</span>' +
+          '<span>&copy; ' + new Date().getFullYear() + ' ' + esc(b.legalName) +
+            (b.licenseNote ? ' &middot; ' + esc(b.licenseNote) : '') +
+            ' &middot; ' + esc(D.footerNote) + '</span>' +
         '</div>' +
       '</footer>';
   }

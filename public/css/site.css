@@ -585,3 +585,74 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
 .tile span { padding: 0.75rem 0.9rem; }
 .checkrow.addon { padding: 0.6rem 0.75rem; }
 .addon-group + .addon-group { margin-top: 1.15rem; }
+
+
+/* ================================================================= footer
+   Was five headings and twenty links. It is one band now: who we are, where
+   to go, how to reach us. A footer on a lead site catches someone who
+   scrolled past the buttons — it does not need a sitemap.
+   ========================================================================= */
+.footer { padding: clamp(1.75rem, 3.5vw, 2.5rem) var(--gutter) 1.25rem; }
+.footer__top {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 1rem clamp(1rem, 3vw, 2.5rem);
+}
+.footer__brand {
+  display: flex; align-items: center; gap: 0.75rem;
+  text-decoration: none; flex: none;
+}
+.footer__brand img { width: 46px; height: auto; }
+.footer__tag {
+  color: var(--oasis-gold); font-size: 0.66rem; font-weight: 600;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase; max-width: 8rem; line-height: 1.4;
+}
+.footer__links {
+  display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; flex: 1 1 16rem;
+}
+.footer__links a {
+  font-size: 0.76rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 0.35rem 0;
+}
+.footer__reach {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem;
+  margin-left: auto; font-size: var(--step--1);
+}
+.footer__reach .btn { padding: 0.6em 1.4em; font-size: 0.68rem; }
+.footer__phone { font-weight: 700; color: var(--oasis-cream); }
+.footer__legal {
+  margin-top: 1.25rem; padding-top: 1rem;
+  border-top: 1px solid rgba(251, 249, 243, 0.14);
+  display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; justify-content: space-between;
+  font-size: 0.72rem; color: rgba(251, 249, 243, 0.55);
+}
+@media (max-width: 720px) {
+  .footer__reach { margin-left: 0; width: 100%; }
+  .footer__links { order: 3; width: 100%; }
+}
+
+/* ------------------------------------------------ the finished screen
+   Call now sits above everything else: someone who has just answered six
+   questions is the warmest they will ever be, and a phone call closes. */
+.callnow {
+  margin: 1.5rem 0 0; padding: 1.25rem;
+  background: var(--oasis-navy); border-radius: var(--radius);
+}
+.callnow__k {
+  margin: 0 0 0.85rem; color: var(--oasis-gold);
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+}
+.callnow__btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem;
+  width: 100%; background: var(--oasis-gold); color: var(--oasis-navy);
+  font-size: var(--step--1); padding: 0.95em 1.5em;
+}
+.callnow__btn:hover { background: var(--oasis-gold-soft); }
+.callnow__btn svg { width: 19px; height: 19px; flex: none; }
+.callnow__alt {
+  display: block; margin-top: 0.6rem; width: 100%;
+  color: var(--oasis-cream); border-color: rgba(251, 249, 243, 0.35);
+}
+.callnow__alt:hover { background: rgba(251, 249, 243, 0.1); }
+.wiz--done .followup { background: transparent; padding: 1.25rem 0 0; }
+.wiz--done .followup .btn { flex: 1 1 auto; }

@@ -122,13 +122,14 @@ export async function onRequestPost({ request, env }) {
     ['Wants to start', lead.start_when || '—'],
     ['Preferred days', days.join(', ') || '—'],
     ['Access', lead.access || '—'],
-    ['Suggested quote', lead.estimate_low && lead.estimate_high
-      ? `$${lead.estimate_low} – $${lead.estimate_high} (computed from your rates — not shown to them)`
-      : '—'],
     ['Notes', lead.notes || '—']
   ];
 
-  const text = rows.map(([k, v]) => `${k}: ${v}`).join('\n');
+  // Kristina works the leads in the portal, so the email carries a way back to it.
+  const adminUrl = (env.SITE_URL || 'https://www.oasiscoastalcleaning.com').replace(/\/$/, '') + '/admin/';
+
+  const text = rows.map(([k, v]) => `${k}: ${v}`).join('\n') +
+               `\n\nOpen it in your portal: ${adminUrl}`;
   const html =
     `<h2 style="font-family:Georgia,serif;color:#094045;margin:0 0 4px">New quote request</h2>` +
     `<p style="font-family:Arial,sans-serif;font-size:13px;color:#6b7f81;margin:0 0 16px">` +
@@ -139,7 +140,9 @@ export async function onRequestPost({ request, env }) {
       `<td style="padding:6px 0"><strong>${escapeHtml(v)}</strong></td></tr>`
     ).join('') +
     `</table>` +
-    `<p style="font-family:Arial,sans-serif;font-size:12px;color:#6b7f81;margin-top:18px">` +
+    `<p style="font-family:Arial,sans-serif;font-size:14px;margin:18px 0 0">` +
+    `<a href="${escapeHtml(adminUrl)}" style="color:#02595F">Open this lead in your portal</a></p>` +
+    `<p style="font-family:Arial,sans-serif;font-size:12px;color:#6b7f81;margin-top:10px">` +
     `Reply to this email to answer ${escapeHtml(lead.name)} directly.</p>`;
 
   const mailProblem = await sendEmail(env, {

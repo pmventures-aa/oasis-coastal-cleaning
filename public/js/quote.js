@@ -24,12 +24,12 @@
 
   /* ------------------------------------------------------------ the steps */
   var STEPS = [
-    { id: 'need',    title: 'What do you need?',      render: stepNeed,    validate: vNeed },
-    { id: 'space',   title: 'Tell us about the space', render: stepSpace,  validate: vSpace },
-    { id: 'rhythm',  title: 'How often?',             render: stepRhythm,  validate: vRhythm },
-    { id: 'addons',  title: 'Anything to add?',       render: stepAddOns,  validate: null },
-    { id: 'where',   title: 'Where and when',         render: stepWhere,   validate: vWhere },
-    { id: 'contact', title: 'How do we reach you?',   render: stepContact, validate: vContact }
+    { id: 'need',    title: 'What can we help with?',      render: stepNeed,    validate: vNeed },
+    { id: 'space',   title: 'Tell us about the place',     render: stepSpace,   validate: vSpace },
+    { id: 'rhythm',  title: 'How often would you like us?', render: stepRhythm, validate: vRhythm },
+    { id: 'addons',  title: 'Anything else while we are there?', render: stepAddOns, validate: null },
+    { id: 'where',   title: 'Whereabouts are you?',        render: stepWhere,   validate: vWhere },
+    { id: 'contact', title: 'Last bit — how do we reach you?', render: stepContact, validate: vContact }
   ];
 
   /* --------------------------------------------------------------- fields */
@@ -53,12 +53,12 @@
   function stepNeed() {
     var chosen = state.service || services[0].id;
     return '' +
-      '<p class="step-lead">Pick the one that fits best. You can add more on the next screens.</p>' +
+      '<p class="step-lead">Pick whichever is closest. You can add more in a moment.</p>' +
       tiles('service', services.map(function (s) {
         return { id: s.id, label: s.name, sub: s.short };
       }), chosen) +
       '<div class="field mt-lg">' +
-        '<label for="property">What kind of property?</label>' +
+        '<label for="property">And what kind of place is it?</label>' +
         '<select id="property" name="property">' +
           D.propertyTypes.map(function (p) {
             return '<option value="' + esc(p) + '"' + (state.property === p ? ' selected' : '') + '>' +
@@ -72,14 +72,14 @@
     var s = currentService();
     return '' +
       '<div class="field">' +
-        '<label for="size">How big is it? <span class="req">*</span></label>' +
+        '<label for="size">Roughly how big? <span class="req">*</span></label>' +
         '<select id="size" name="size" required>' +
           s.sizes.map(function (z) {
             return '<option value="' + esc(z.id) + '"' + (state.size === z.id ? ' selected' : '') + '>' +
                    esc(z.label) + '</option>';
           }).join('') +
         '</select>' +
-        '<p class="hint">A close guess is fine. Nothing is booked on this number.</p>' +
+        '<p class="hint">A rough guess is honestly fine — nothing is booked on it.</p>' +
       '</div>' +
       '<div class="grid grid--2">' +
         '<div class="field">' +
@@ -107,11 +107,11 @@
   function stepRhythm() {
     var s = currentService();
     if (!s.recurring) {
-      return '<p class="step-lead">' + esc(s.name) + ' is quoted as a one-off, so there is nothing ' +
-             'to choose here.</p>' + firstVisitRow(s);
+      return '<p class="step-lead">' + esc(s.name) + ' is quoted job by job, so there is nothing ' +
+             'to pick here. Straight on.</p>' + firstVisitRow(s);
     }
-    return '<p class="step-lead">A standing visit costs less each time, and you can pause or stop ' +
-           'with a week of notice. Nothing is locked in.</p>' +
+    return '<p class="step-lead">A standing visit costs less each time. Pause for the season or ' +
+           'stop with a week of notice — there is no contract.</p>' +
       tiles('frequency', freqs.map(function (f) {
         return { id: f.id, label: f.label, sub: f.note };
       }), state.frequency || 'biweekly') +
@@ -123,8 +123,8 @@
     var on = state.firstVisit !== false;
     return '<label class="checkrow mt-lg">' +
              '<input type="checkbox" name="firstVisit" id="firstVisit"' + (on ? ' checked' : '') + '>' +
-             '<span>This would be our first visit. <span class="muted">The first clean runs longer ' +
-             'because it catches up on everything, so it costs more than the ones after it.</span></span>' +
+             '<span>This would be our first visit. <span class="muted">The first one runs longer ' +
+             'because it catches everything up, so it costs a bit more than the ones after.</span></span>' +
            '</label>';
   }
 
@@ -133,7 +133,7 @@
     var mine = D.addOns.filter(function (x) { return x.services.indexOf(s.id) !== -1; });
     var conds = D.conditions.filter(function (x) { return x.services.indexOf(s.id) !== -1; });
     if (!mine.length && !conds.length) {
-      return '<p class="step-lead">Nothing to add for this one — straight on to where you are.</p>';
+      return '<p class="step-lead">Nothing to add for this one. Straight on.</p>';
     }
 
     var groups = [];
@@ -144,7 +144,7 @@
       g.items.push(x);
     });
 
-    return '<p class="step-lead">Tick anything you would like included. ' +
+    return '<p class="step-lead">Tick anything you would like included — or none at all. ' +
              esc(D.bundleNote) + '</p>' +
       groups.map(function (g) {
         return '<div class="addon-group">' +
@@ -180,7 +180,7 @@
     var days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return '' +
       '<div class="field">' +
-        '<label for="city">Which city? <span class="req">*</span></label>' +
+        '<label for="city">Which city are you in? <span class="req">*</span></label>' +
         '<select id="city" name="city" required>' +
           '<option value="">Choose your city</option>' +
           D.areas.map(function (a) {
@@ -209,12 +209,12 @@
         '</div>' +
       '</div>' +
       '<div class="field">' +
-        '<label for="address">Street address <span class="muted">— optional, speeds up the quote</span></label>' +
+        '<label for="address">Street address <span class="muted">— optional, but it helps us quote faster</span></label>' +
         '<input type="text" id="address" name="address" autocomplete="street-address" ' +
           'value="' + esc(state.address || '') + '">' +
       '</div>' +
       '<fieldset class="fieldset">' +
-        '<legend>Which days suit you?</legend>' +
+        '<legend>Any days that suit you better?</legend>' +
         '<div class="daypick">' +
           days.map(function (d) {
             var on = (state.preferredDays || []).indexOf(d) !== -1;
@@ -247,27 +247,27 @@
       '</div>' +
       '<div class="grid grid--2">' +
         '<div class="field">' +
-          '<label for="contactPref">Best way to reach you</label>' +
+          '<label for="contactPref">Best way to reach you?</label>' +
           '<select id="contactPref" name="contactPref">' +
             ['Text', 'Call', 'Email'].map(function (v) { return opt(v, state.contactPref); }).join('') +
           '</select>' +
         '</div>' +
         '<div class="field">' +
-          '<label for="bestTime">Best time of day</label>' +
+          '<label for="bestTime">And the best time of day?</label>' +
           '<select id="bestTime" name="bestTime">' +
             ['Morning', 'Afternoon', 'Evening', 'Any time'].map(function (v) { return opt(v, state.bestTime); }).join('') +
           '</select>' +
         '</div>' +
       '</div>' +
       '<div class="field">' +
-        '<label for="access">How would we get in?</label>' +
+        '<label for="access">How would we get in on the day?</label>' +
         '<input type="text" id="access" name="access" placeholder="I will be home · lockbox · gate code · doorman" ' +
           'value="' + esc(state.access || '') + '">' +
       '</div>' +
       '<div class="field">' +
-        '<label for="notes">Anything we should know?</label>' +
-        '<textarea id="notes" name="notes" placeholder="Pets and their names, the three rooms that stress you ' +
-          'out, stairs, dates you are away.">' + esc(state.notes || '') + '</textarea>' +
+        '<label for="notes">Anything else we should know?</label>' +
+        '<textarea id="notes" name="notes" placeholder="Pets and their names, the rooms that stress you out ' +
+          'most, stairs, dates you are away — whatever comes to mind.">' + esc(state.notes || '') + '</textarea>' +
       '</div>' +
       '<div id="turnstile-holder"></div>' +
       '<div class="visually-hidden" aria-hidden="true">' +
@@ -285,26 +285,26 @@
   }
   function vNeed() {
     return root.querySelector('input[name="service"]:checked')
-      ? true : fail('input[name="service"]', 'Choose what you need first.');
+      ? true : fail('input[name="service"]', 'Pick one to get started.');
   }
   function vSpace() {
-    return root.querySelector('#size').value ? true : fail('#size', 'Pick the closest size.');
+    return root.querySelector('#size').value ? true : fail('#size', 'Pick whichever size is closest.');
   }
   function vRhythm() {
     var s = currentService();
     if (!s.recurring) { return true; }
     return root.querySelector('input[name="frequency"]:checked')
-      ? true : fail('input[name="frequency"]', 'Choose how often you would like us.');
+      ? true : fail('input[name="frequency"]', 'Let us know how often suits you.');
   }
   function vWhere() {
-    return root.querySelector('#city').value ? true : fail('#city', 'Which city is it in?');
+    return root.querySelector('#city').value ? true : fail('#city', 'Which city are you in?');
   }
   function vContact() {
     var name = root.querySelector('#name'), phone = root.querySelector('#phone'), email = root.querySelector('#email');
-    if (!name.value.trim()) { return fail('#name', 'We need a name to put on the quote.'); }
-    if (!phone.value.trim()) { return fail('#phone', 'A phone number, so we can reach you.'); }
+    if (!name.value.trim()) { return fail('#name', 'What should we call you?'); }
+    if (!phone.value.trim()) { return fail('#phone', 'A number we can reach you on.'); }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.value.trim())) {
-      return fail('#email', 'That email address does not look right.');
+      return fail('#email', 'That email looks a little off — mind checking it?');
     }
     return true;
   }
@@ -393,7 +393,7 @@
             ? '<button type="button" class="btn btn--ghost" data-act="back">Back</button>'
             : '<span></span>') +
           '<button type="button" class="btn btn--primary" data-act="next">' +
-            (state.step === total - 1 ? 'Send my request' : 'Continue') +
+            (state.step === total - 1 ? 'Send it over' : 'Next') +
           '</button>' +
         '</div>' +
       '</div>';
@@ -491,35 +491,62 @@
     });
   }
 
-  /* ------------------------------------------------------- the last screen */
+  /* ------------------------------------------------------- the last screen
+     Someone who just filled in six steps is the warmest they will ever be.
+     Calling now is the fastest path to a booked job, so it is the first
+     thing on the screen rather than a line of small print at the bottom. */
   function done(body) {
     var first = (body.name || '').split(' ')[0].replace(/[^A-Za-z'-]/g, '');
     root.innerHTML =
       '<div class="wiz wiz--done">' +
         '<span class="wiz__tick" aria-hidden="true">' + U.icon('check') + '</span>' +
-        '<h2 class="wiz__title">' + (first ? 'Thank you, ' + esc(first) + '.' : 'Your request is in.') + '</h2>' +
-        '<p class="step-lead">It is with Kristina now. She reads every one herself and comes back ' +
-          'with a real number, usually the same day and always within one business day.</p>' +
+        '<h2 class="wiz__title">' + (first ? 'Thanks, ' + esc(first) + '.' : 'Got it.') + '</h2>' +
+        '<p class="step-lead">Kristina has your details and will come back with a real ' +
+          'number — usually the same day, always within one business day.</p>' +
+
+        '<div class="callnow">' +
+          '<p class="callnow__k">In a hurry? She picks up.</p>' +
+          '<a class="btn btn--primary callnow__btn" href="' + U.telHref(D.business.phone) + '" ' +
+            'data-cta="done-call">' + U.icon('phone') + 'Call now &middot; ' + esc(D.business.phone) + '</a>' +
+          (D.business.textingEnabled
+            ? '<a class="btn btn--ghost callnow__alt" href="' + U.smsHref(D.business.phone) + '">' +
+              'Send a text instead</a>'
+            : '') +
+        '</div>' +
 
         '<div class="followup">' +
-          '<p class="eyebrow">Want it sooner?</p>' +
+          '<p class="eyebrow">Or have her come to you</p>' +
           '<div class="followup__row">' +
-            '<button type="button" class="btn btn--primary" data-follow="call">Ask her to call me</button>' +
+            '<button type="button" class="btn btn--ghost" data-follow="call">Ask her to call me</button>' +
             '<button type="button" class="btn btn--ghost" data-follow="visit">Book a walkthrough</button>' +
           '</div>' +
           '<p class="hint">A walkthrough takes about fifteen minutes and turns the estimate into ' +
-            'a fixed price. There is no charge for it either way.</p>' +
+            'a fixed price. No charge either way.</p>' +
           '<p class="followup__done" hidden></p>' +
         '</div>' +
-
-        '<hr class="rule">' +
-        '<p class="center muted">Or reach her directly — ' +
-          '<a href="' + U.telHref(D.business.phone) + '">' + esc(D.business.phone) + '</a>' +
-          (D.business.textingEnabled
-            ? ' · <a href="' + U.smsHref(D.business.phone) + '">send a text</a>' : '') +
-          ' · <a href="mailto:' + esc(D.business.email) + '">' + esc(D.business.email) + '</a>' +
-        '</p>' +
       '</div>';
+
+    // The page heading still reads like an invitation to fill in the form that
+    // has just been filled in. Retitle it so the whole screen says the same thing.
+    var head = document.querySelector('.pagehead');
+    if (head) {
+      var eyebrow = head.querySelector('.eyebrow');
+      var h1 = head.querySelector('h1');
+      var lead = head.querySelector('p:not(.eyebrow)');
+      if (eyebrow) { eyebrow.textContent = 'Sent'; }
+      if (h1) { h1.textContent = 'That is everything she needs'; }
+      if (lead) {
+        lead.textContent = 'Nothing else to do — a real number is on its way. ' +
+          'If you would rather talk it through now, her line is below.';
+      }
+    }
+    document.title = 'Request sent \u00b7 Oasis Coastal Cleaning';
+
+    // The privacy note under the form was addressed to someone still typing.
+    var note = document.querySelector('#quote-wizard');
+    note = note && note.parentNode ? note.parentNode.querySelector('.hint.muted') : null;
+    if (note) { note.hidden = true; }
+
     window.scrollTo(0, 0);
   }
 
