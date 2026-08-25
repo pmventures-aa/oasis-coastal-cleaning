@@ -148,6 +148,30 @@ new → contacted → quoted → booked → closed, and a notes box that saves w
 click away. Anyone who asked for a call or a walkthrough on the confirmation
 screen is flagged in the list.
 
+## 4c. Two things that catch everyone out
+
+**A saved setting does nothing until the next deployment.** Adding
+`ADMIN_PASSWORD` or any other variable to a project that is already running
+changes nothing about the site that is serving right now. After saving, go to
+**Deployments**, open the top entry, and retry it — or push any commit, which
+builds fresh and picks everything up.
+
+**Check which project you are in.** If a Worker and a Pages project share a
+name, the dashboard will happily let you configure the wrong one. The address
+bar is the tell: the Pages project has `/pages/view/` in its URL, a Worker has
+`/workers/services/`. Only the Pages project serves the site.
+
+To see what the running site can actually reach, open
+`/api/admin/status`. It answers with a line of JSON:
+
+```json
+{"authConfigured":true,"databaseConfigured":true,"emailConfigured":false,"signedIn":false}
+```
+
+Each flag is the live answer to "is this configured", read from the deployment
+currently serving — not from what is saved in the dashboard. If a flag reads
+`false` after you have set the thing, the deployment has not been retried.
+
 ## 5. What is in here
 
 ```
