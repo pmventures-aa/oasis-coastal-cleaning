@@ -60,15 +60,16 @@ for a day, so a normal refresh may show the old version.
 4. Build settings:
    - Framework preset: **None**
    - Build command: **leave empty**
-   - Build output directory: `/`
+   - Build output directory: `public`
    - Root directory: **leave empty**
 5. Save and deploy.
 6. Add the custom domain and the `www` variant under **Custom domains**.
 
-**Both directory settings matter.** Cloudflare looks for the `functions/` folder at
-the *root directory*, which is how `/api/quote` gets served. Point the root directory
-somewhere else and the form handler silently stops existing — or, worse, a different
-project's `functions/` gets attached to this site.
+**The layout is load-bearing.** Everything served lives in `public/`, and
+`functions/` sits *outside* it at the repository root. Cloudflare compiles
+`functions/` from the root and serves `public/` as the site, which is how
+`/api/quote` works. Putting `functions/` inside the output directory, or
+pointing the output directory at the repository root, fails the deploy.
 
 Confirm it after the first deploy. The first request should answer, the second
 should not:
@@ -84,7 +85,7 @@ curl -i https://oasis-coastal-cleaning.pages.dev/api/health
 Or deploy straight from a terminal, in the repository root:
 
 ```sh
-npx wrangler pages deploy . --project-name oasis-coastal-cleaning
+npx wrangler pages deploy public --project-name oasis-coastal-cleaning
 ```
 
 ### After that
@@ -117,16 +118,17 @@ by itself. A hidden honeypot field is always on regardless.
 ## 5. What is in here
 
 ```
-index.html … contact.html   the eight pages, plus thank-you and 404
-js/data.js                  ← the file to edit
-js/site.js                  renders the header, footer, sticky bar and every list
-js/quote.js                 the quote form and its live estimate
-css/site.css                layout and components
-tokens.css                  brand colors and type — do not hard-code a hex anywhere else
-functions/api/quote.js      the form handler
-logo/ favicon/ social/      brand images, already sized
-_headers _redirects         caching, security headers, old-URL redirects
-sitemap.xml robots.txt      search engines
+public/                     everything that is served — this is the site
+  index.html … contact.html the eight pages, plus thank-you and 404
+  js/data.js                ← the file to edit
+  js/site.js                renders the header, footer, sticky bar and every list
+  js/quote.js               the quote form and its live estimate
+  css/site.css              layout and components
+  tokens.css                brand colors and type — never hard-code a hex elsewhere
+  logo/ favicon/ social/    brand images, already sized
+  _headers _redirects       caching, security headers, old-URL redirects
+  sitemap.xml robots.txt    search engines
+functions/api/quote.js      the form handler — must stay OUTSIDE public/
 wrangler.toml               deploy config
 docs/                       brand book and email signature
 ```
