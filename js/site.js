@@ -36,16 +36,16 @@
     return D.areas.reduce(function (acc, a) { return acc.concat(a.cities); }, []);
   };
 
-  var currentPath = function () {
-    var p = window.location.pathname;
-    if (p === '' || p === '/' || /\/index\.html$/.test(p)) { return '/'; }
-    return p.replace(/\/$/, '');
+  /* Cloudflare Pages serves foo.html at /foo, so both forms must compare
+     equal or the current page is never marked in the navigation. */
+  var normalise = function (p) {
+    if (!p || p === '/' || /\/index(\.html)?$/.test(p)) { return '/'; }
+    return p.replace(/\.html$/, '').replace(/\/$/, '');
   };
 
-  var isCurrent = function (href) {
-    var h = href === '/' ? '/' : href.replace(/\/$/, '');
-    return currentPath() === h;
-  };
+  var currentPath = function () { return normalise(window.location.pathname); };
+
+  var isCurrent = function (href) { return currentPath() === normalise(href); };
 
   /* --------------------------------------------------------------- icons */
   var ICONS = {
