@@ -129,7 +129,7 @@ body { padding-bottom: 4.75rem; }
 /* ---------------------------------------------------------------- structure */
 .section__head { text-align: center; max-width: 62ch; margin: 0 auto clamp(2rem, 4vw, 3rem); }
 .section__head h2 { margin: 0.55rem 0 0.75rem; }
-.section__head p { margin: 0; color: var(--oasis-muted); }
+.section__head p:not(.eyebrow) { margin: 0; color: var(--oasis-muted); }
 .section--tight { padding-top: clamp(2rem, 4vw, 3rem); }
 
 .grid { display: grid; gap: clamp(1rem, 2.5vw, 1.6rem); }
@@ -195,8 +195,8 @@ body { padding-bottom: 4.75rem; }
 .cta-band { text-align: center; }
 .cta-band h2 { margin: 0 0 0.8rem; }
 .cta-band p { max-width: 52ch; margin: 0 auto 1.9rem; color: rgba(251, 249, 243, 0.82); }
-.cta-band .btn--ghost { color: var(--oasis-cream); border-color: var(--oasis-gold); }
-.cta-band .btn--ghost:hover { background: var(--oasis-gold); color: var(--oasis-navy); }
+.section--navy .btn--ghost { color: var(--oasis-cream); border-color: var(--oasis-gold); }
+.section--navy .btn--ghost:hover { background: var(--oasis-gold); color: var(--oasis-navy); }
 .cta-band .btn--primary { background: var(--oasis-gold); color: var(--oasis-navy); }
 .cta-band .btn--primary:hover { background: var(--oasis-gold-soft); }
 .cta-actions { display: flex; flex-wrap: wrap; gap: 0.85rem; justify-content: center; }
@@ -617,7 +617,10 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem;
   margin-left: auto; font-size: var(--step--1);
 }
-.footer__reach .btn { padding: 0.6em 1.4em; font-size: 0.68rem; }
+.footer__reach .btn {
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 0 1.6em; font-size: 0.68rem;
+}
 .footer__phone { font-weight: 700; color: var(--oasis-cream); }
 .footer__legal {
   margin-top: 1.25rem; padding-top: 1rem;
@@ -656,3 +659,103 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
 .callnow__alt:hover { background: rgba(251, 249, 243, 0.1); }
 .wiz--done .followup { background: transparent; padding: 1.25rem 0 0; }
 .wiz--done .followup .btn { flex: 1 1 auto; }
+
+
+/* ==================================================== colour and size pass
+   Every text/background pair on the site was measured against WCAG AA. Forty
+   nine failed, and they came down to four causes rather than forty nine
+   decisions. tokens.css is the brand file and stays untouched; the corrections
+   live here.
+   ========================================================================= */
+
+/* 1. Muted body text sat at 66% navy, which reads 4.26 on white, 4.16 on cream
+      and 3.74 on sand — under the line on every surface it is used on. 74% is
+      the lowest value that clears 4.5 on all of them (sand is the tight one at
+      4.54) and it is a change you have to look for to see. */
+:root { --oasis-muted: rgba(9, 64, 69, 0.74); }
+
+/* 2. Gold is a 2.52 on white and a 1.86 on sand. It was never a text colour —
+      the brand sheet calls it "rules, accents, hover" — so it goes back to
+      being one. Small caps labels take teal on light ground, where they read
+      between 5.97 and 8.09, and gold on navy, where it is the strongest thing
+      on the page at 4.55. Gold keeps every rule, tick, icon and border. */
+.eyebrow,
+.wiz__count,
+.addon-group__name,
+.area-card .county { color: var(--oasis-teal); }
+
+.section--navy .eyebrow,
+.section--navy .addon-group__name,
+.section--navy .area-card .county { color: var(--oasis-gold); }
+
+/* The step numerals are display-size but still only made 1.86 on sand. */
+.step__n { color: var(--oasis-teal); }
+.section--navy .step__n { color: var(--oasis-gold); }
+
+/* 3. The footer hours were cream at 55% on navy — 4.44, just under. */
+.footer__legal, .footer__legal * { color: rgba(251, 249, 243, 0.68); }
+
+/* ------------------------------------------------------------------ sizing
+   Leading of 1.65 is right for an essay and loose for a page someone is
+   scanning on a phone with one thumb. Paragraphs come in to 1.55, and the
+   supporting copy inside cards and lists a little tighter still. */
+body { line-height: 1.55; }
+p { line-height: 1.55; }
+.muted, .step-lead, .service-card p, .step p, .promise p,
+.area-card p, .faq p, .contact-tile p, .freq-card p { line-height: 1.5; }
+
+.checklist li { margin-bottom: 0.35rem; line-height: 1.45; font-size: var(--step--1); }
+
+/* Cinzel at display size drops single words onto their own line — the hero
+   was reading "FROM EVERYDAY / MESS". Let the browser even the lines out. */
+h1, h2, h3, .wiz__title { text-wrap: balance; }
+.hero__lead, .pagehead p, .section__head p { text-wrap: pretty; }
+
+/* The service cards each carried a seven-line checklist inline, which is what
+   made that page six and a half phone screens. The list is now behind a
+   summary on narrow screens — the name, the description and the button stay
+   in view, and the detail is one tap away. site.js opens them on wide ones,
+   where the two-column layout has the room. */
+.incl > summary {
+  cursor: pointer; list-style: none;
+  font-family: var(--font-body); font-weight: 600; font-size: var(--step--1);
+  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  color: var(--oasis-teal);
+  padding: 0.6rem 1.75rem 0.6rem 0; position: relative;
+  border-top: 1px solid var(--oasis-line);
+}
+.incl > summary::-webkit-details-marker { display: none; }
+.incl > summary::after {
+  content: ''; position: absolute; right: 0.35rem; top: 1.05rem;
+  width: 8px; height: 8px; border-right: 2px solid var(--oasis-gold);
+  border-bottom: 2px solid var(--oasis-gold); transform: rotate(45deg);
+  transition: transform 0.18s ease;
+}
+.incl[open] > summary::after { transform: rotate(-135deg); top: 1.25rem; }
+.incl[open] > summary { border-bottom: 0; }
+.incl .checklist { margin-top: 0.2rem; }
+
+/* Open and unclickable from the width where both columns fit. */
+@media (min-width: 760px) {
+  .incl > summary { border-top: 0; padding-top: 0; pointer-events: none; }
+  .incl > summary::after { display: none; }
+}
+
+/* The add-ons listing runs the note on from the label, so it needs the inline
+   treatment rather than the stacked one, and it pairs up once there is width. */
+.pricelist small { display: inline; margin-top: 0; font-size: 0.8rem; }
+.pricelist li { line-height: 1.45; }
+@media (min-width: 560px) {
+  .pricelist { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 clamp(1rem, 3vw, 2rem); }
+}
+
+/* Rewriting the footer into a band shrank its links to 30px and its phone and
+   email lines to 20px — under a thumb on a phone. They keep the compact look
+   and get a 44px target, which is the size a finger actually is. */
+.footer__links a,
+.footer__reach a:not(.btn) {
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding-block: 0;
+}
+.footer__links { gap: 0 1.1rem; }
+.footer__reach { gap: 0 1rem; }

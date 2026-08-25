@@ -191,12 +191,12 @@
                    '<a class="btn btn--primary" href="/quote.html?service=' + esc(s.id) + '">' +
                      esc(i % 2 === 0 ? 'Get a quote for this' : 'Ask about this') + '</a>' +
                  '</div>' +
-                 '<div>' +
-                   '<p class="eyebrow" style="margin:0 0 .8rem">What is included</p>' +
+                 '<details class="incl">' +
+                   '<summary>What is included</summary>' +
                    '<ul class="checklist">' +
                      s.includes.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') +
                    '</ul>' +
-                 '</div>' +
+                 '</details>' +
                '</div>' +
              '</article>';
     }).join('');
@@ -269,8 +269,11 @@
                '<p class="addon-group__name">' + esc(g.name) + '</p>' +
                '<ul class="pricelist">' +
                  g.items.map(function (x) {
+                   // The note runs on from the label rather than sitting under it.
+                   // Fourteen of these stacked two-high was the tallest block on
+                   // the page, and the notes are short enough to read in line.
                    return '<li><span>' + esc(x.label) +
-                          (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
+                          (x.note ? ' <small>&middot; ' + esc(x.note) + '</small>' : '') +
                           '</span></li>';
                  }).join('') +
                '</ul>' +
@@ -461,6 +464,30 @@
     tagline: renderTagline
   };
 
+  /* Collapsible detail is for narrow screens. Once both columns fit there is
+     room to show everything, so the panels open and stop being buttons. Driven
+     from JS rather than CSS because a closed <details> cannot be reopened by a
+     stylesheet, and with JS off every panel simply stays open. */
+  function syncDisclosures() {
+    var panels = document.querySelectorAll('.incl');
+    if (!panels.length) { return; }
+    var wide = window.matchMedia('(min-width: 760px)');
+    var apply = function () {
+      for (var i = 0; i < panels.length; i++) {
+        if (wide.matches) { panels[i].open = true; }
+        else if (!panels[i].dataset.touched) { panels[i].open = false; }
+      }
+    };
+    for (var j = 0; j < panels.length; j++) {
+      panels[j].addEventListener('toggle', function () {
+        if (!wide.matches) { this.dataset.touched = '1'; }
+      });
+    }
+    apply();
+    if (wide.addEventListener) { wide.addEventListener('change', apply); }
+    else { wide.addListener(apply); }
+  }
+
   function boot() {
     var nodes = document.querySelectorAll('[data-render]');
     for (var i = 0; i < nodes.length; i++) {
@@ -481,6 +508,8 @@
       setBarHeight();
       window.addEventListener('resize', setBarHeight);
     }
+
+    syncDisclosures();
 
     injectSchema();
 
