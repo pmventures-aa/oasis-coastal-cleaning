@@ -1,0 +1,8 @@
+{
+  "name": "oasis-coastal-cleaning-devenv",
+  "private": true,
+  "description": "Cloud Agent dev tooling for the Oasis Coastal Cleaning site. Not part of the deployed Cloudflare Pages site (which lives in public/ and functions/ and has no build step).",
+  "devDependencies": {
+    "wrangler": "4.126.0"
+  }
+}
