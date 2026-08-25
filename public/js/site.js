@@ -518,7 +518,7 @@
           io.unobserve(entry.target);
         }
       });
-    }, { rootMargin: '0px 0px -15% 0px', threshold: 0.05 });
+    }, { rootMargin: '0px 0px -20% 0px', threshold: 0.05 });
 
     // Stagger siblings that share a parent (grids, step rows) so a row of
     // cards cascades rather than snapping in all at once.
