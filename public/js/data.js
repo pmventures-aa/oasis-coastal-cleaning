@@ -75,12 +75,12 @@ window.OASIS = {
      Order here is the order in the header and the footer. */
   nav: [
     { label: 'Home',          href: '/' },
-    { label: 'Services',      href: '/services.html' },
-    { label: 'Pricing',       href: '/pricing.html' },
-    { label: 'Service Areas', href: '/service-areas.html' },
-    { label: 'About',         href: '/about.html' },
-    { label: 'FAQ',           href: '/faq.html' },
-    { label: 'Contact',       href: '/contact.html' }
+    { label: 'Services',      href: '/services' },
+    { label: 'Pricing',       href: '/pricing' },
+    { label: 'Service Areas', href: '/service-areas' },
+    { label: 'About',         href: '/about' },
+    { label: 'FAQ',           href: '/faq' },
+    { label: 'Contact',       href: '/contact' }
   ],
 
   /* --------------------------------------------------------------- services

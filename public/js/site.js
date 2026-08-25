@@ -87,12 +87,12 @@
             '<img src="/logo/logo-260.webp" width="260" height="260" alt="' + esc(D.business.name) + '">' +
           '</a>' +
           '<nav class="nav" aria-label="Main">' + links + '</nav>' +
-          '<a class="btn btn--primary topbar__cta" href="/quote.html">Get a Quote</a>' +
+          '<a class="btn btn--primary topbar__cta" href="/quote">Get a Quote</a>' +
           '<button class="navtoggle" type="button" aria-expanded="false" aria-controls="drawer" ' +
             'aria-label="Open menu">' + icon('menu') + '</button>' +
         '</div>' +
         '<div class="drawer" id="drawer">' + links +
-          '<a class="btn btn--primary" href="/quote.html">Get a Quote</a>' +
+          '<a class="btn btn--primary" href="/quote">Get a Quote</a>' +
         '</div>' +
       '</header>';
 
@@ -136,7 +136,7 @@
           '</a>' +
           '<nav class="footer__links" aria-label="Footer">' + links + social + '</nav>' +
           '<div class="footer__reach">' +
-            '<a class="btn btn--primary" href="/quote.html">Get a quote</a>' +
+            '<a class="btn btn--primary" href="/quote">Get a quote</a>' +
             '<a class="footer__phone" href="' + telHref(b.phone) + '">' + esc(b.phone) + '</a>' +
             '<a href="mailto:' + esc(b.email) + '">' + esc(b.email) + '</a>' +
           '</div>' +
@@ -158,7 +158,7 @@
     if (b.textingEnabled) {
       items.push('<a href="' + smsHref(b.phone) + '" data-cta="sticky-text">' + icon('text') + 'Text</a>');
     }
-    items.push('<a class="is-primary" href="/quote.html" data-cta="sticky-quote">' + icon('calendar') + 'Quote</a>');
+    items.push('<a class="is-primary" href="/quote" data-cta="sticky-quote">' + icon('calendar') + 'Quote</a>');
 
     el.innerHTML = '<nav class="stickybar' + (items.length === 2 ? ' stickybar--two' : '') +
                    '" aria-label="Contact">' + items.join('') + '</nav>';
@@ -171,7 +171,7 @@
     if (limit > 0) { list = list.slice(0, limit); }
     el.className = 'grid grid--' + (list.length === 4 ? '4' : (list.length === 2 ? '2' : '3'));
     el.innerHTML = list.map(function (s) {
-      return '<a class="card card--link service-card" href="/services.html#' + esc(s.id) + '">' +
+      return '<a class="card card--link service-card" href="/services#' + esc(s.id) + '">' +
                '<span class="icon-badge">' + icon(s.icon) + '</span>' +
                '<h3>' + esc(s.name) + '</h3>' +
                '<p>' + esc(s.short) + '</p>' +
@@ -188,7 +188,7 @@
                    '<span class="icon-badge">' + icon(s.icon) + '</span>' +
                    '<h2 style="font-size:var(--step-1);margin:0 0 .75rem">' + esc(s.name) + '</h2>' +
                    '<p class="muted">' + esc(s.blurb) + '</p>' +
-                   '<a class="btn btn--primary" href="/quote.html?service=' + esc(s.id) + '">' +
+                   '<a class="btn btn--primary" href="/quote?service=' + esc(s.id) + '">' +
                      esc(i % 2 === 0 ? 'Get a quote for this' : 'Ask about this') + '</a>' +
                  '</div>' +
                  '<details class="incl">' +
@@ -299,7 +299,7 @@
   function renderAreaSummary(el) {
     el.className = 'grid grid--4';
     el.innerHTML = D.areas.map(function (a) {
-      return '<a class="card card--link area-card" href="/service-areas.html#' + esc(a.id) + '">' +
+      return '<a class="card card--link area-card" href="/service-areas#' + esc(a.id) + '">' +
                '<span class="icon-badge" style="background:rgba(2,89,95,.1)">' + icon('pin') + '</span>' +
                '<h3>' + esc(a.name) + '</h3>' +
                '<p>' + esc(a.cities.slice(0, 4).join(', ')) +
@@ -344,7 +344,7 @@
       tiles.push({ href: smsHref(b.phone), ic: 'text', h: 'Text', p: 'Send photos of the space — it speeds up the quote.', s: b.phone });
     }
     tiles.push({ href: 'mailto:' + b.email, ic: 'mail', h: 'Email', p: 'Best for schedules, invoices and paperwork.', s: b.email });
-    tiles.push({ href: '/quote.html', ic: 'calendar', h: 'Quote form', p: 'Two minutes, and you see a range before you send it.', s: 'Start now' });
+    tiles.push({ href: '/quote', ic: 'calendar', h: 'Quote form', p: 'Two minutes, and you see a range before you send it.', s: 'Start now' });
 
     el.className = 'grid grid--4';
     el.innerHTML = tiles.map(function (t) {
@@ -376,7 +376,7 @@
         '<div class="about-body">' +
           '<h2>' + esc(a.heading) + '</h2>' +
           '<p class="lead">' + esc(a.lead) + '</p>' + body +
-          '<p><a class="btn btn--primary" href="/quote.html">See what it would cost</a></p>' +
+          '<p><a class="btn btn--primary" href="/quote">See what it would cost</a></p>' +
         '</div>' +
       '</div>';
   }
@@ -426,7 +426,7 @@
     if (document.body.getAttribute('data-page') === 'faq') {
       graph.push({
         '@type': 'FAQPage',
-        '@id': b.domain + '/faq.html#faq',
+        '@id': b.domain + '/faq#faq',
         mainEntity: D.faqs.map(function (f) {
           return { '@type': 'Question', name: f.q,
                    acceptedAnswer: { '@type': 'Answer', text: f.a } };
