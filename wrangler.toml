@@ -39,11 +39,11 @@ QUOTE_TO_EMAIL = "info@oasiscoastalcleaning.com"
 #   4. npx wrangler d1 migrations apply oasis --remote
 #   5. commit and push — the next deploy picks it up
 #
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "oasis"
-# database_id = "PASTE-THE-ID-FROM-STEP-1"
-# migrations_dir = "migrations"
+[[d1_databases]]
+binding = "DB"
+database_name = "oasis"
+database_id = "992179f8-bb04-4028-bd3d-45977d338adb"
+migrations_dir = "migrations"
 
 # ----------------------------------------------------------------- secrets
 # NOT set here — these are secrets. Add them under
