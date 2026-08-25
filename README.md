@@ -11,19 +11,19 @@ environment variable with any other site.
 
 ## 1. Before it goes live
 
-Four things need real values. All four live in **`js/data.js`**, marked `← SET THIS`.
+Two things still need real values, both in **`public/js/data.js`**, marked `← SET THIS`.
 
 | What | Where | Why it matters |
 |---|---|---|
-| Phone number | `business.phone` | Right now it is `(561) 555-0100`, a reserved test number that will not ring. Every Call and Text button on the site is built from it. |
 | License and insurance wording | `business.licenseNote` | It appears on every page. Only publish it once the paperwork is real — set it to `''` to hide the badge until then. |
-| Kristina's own paragraph | `about.ownerNote` | The About page reads fine without it, but a real paragraph in her voice is the single biggest trust signal on the site. |
-| A photo of her | `about.photo` | Drop a JPG in `/social/` and point at it, e.g. `'/social/kristina.jpg'`. A face converts better than a logo. |
+| Kristina's own paragraph and photo | `about.ownerNote`, `about.photo` | The About page reads fine without them, but a face and a paragraph in her voice are the biggest trust signals on a site where someone is deciding whether to hand over a key. |
 
-Two more to switch on when ready: `turnstileSiteKey` (spam protection, §4)
-and `business.social` (footer links).
+Phone and email are set: **(561) 201-7123** and **info@oasiscoastalcleaning.com**.
 
----
+**Also worth a pass before launch:** every add-on price in `data.js` is a
+placeholder at ordinary South Florida rates, and so are the bundle discount
+percentages. They decide what Kristina gets suggested when a lead comes in, so
+they should be her real numbers.
 
 ## 2. Changing the site
 
@@ -115,31 +115,74 @@ by itself. A hidden honeypot field is always on regardless.
 
 ---
 
+## 4b. The leads portal
+
+Quote requests land at **`/admin`**. It needs three settings before it can show
+anything; until then it displays its own setup instructions rather than an error.
+
+| Setting | What it is |
+|---|---|
+| `ADMIN_PASSWORD` | The password for `/admin`. A secret. |
+| `SESSION_SECRET` | Any long random string. Signs the login cookie. A secret. |
+| `DB` binding | A D1 database, added in `wrangler.toml` — see the comments there. |
+
+Setting it up, once:
+
+```sh
+npx wrangler d1 create oasis
+# paste the printed database_id into wrangler.toml and uncomment that block
+npx wrangler d1 migrations apply oasis --remote
+git commit -am "Bind the leads database" && git push
+```
+
+Then add `ADMIN_PASSWORD` and `SESSION_SECRET` under **Settings → Variables and
+secrets**, and retry the latest deployment so they take effect.
+
+**The site works without any of this.** Requests are still emailed, the forms
+still submit, nothing breaks — the portal simply has nothing to list. That is
+deliberate: a missing binding should never take the site down.
+
+Inside the portal each request opens to show everything the visitor sent, with
+call, text and email buttons, a status you can move through
+new → contacted → quoted → booked → closed, and a notes box that saves when you
+click away. Anyone who asked for a call or a walkthrough on the confirmation
+screen is flagged in the list.
+
 ## 5. What is in here
 
 ```
 public/                     everything that is served — this is the site
   index.html … contact.html the eight pages, plus thank-you and 404
+  admin/index.html          the leads portal
   js/data.js                ← the file to edit
   js/site.js                renders the header, footer, sticky bar and every list
-  js/quote.js               the quote form and its live estimate
+  js/quote.js               the six-step quote request
+  js/admin.js               the leads portal
   css/site.css              layout and components
+  css/admin.css             the portal only
   tokens.css                brand colors and type — never hard-code a hex elsewhere
   logo/ favicon/ social/    brand images, already sized
   _headers _redirects       caching, security headers, old-URL redirects
   sitemap.xml robots.txt    search engines
-functions/api/quote.js      the form handler — must stay OUTSIDE public/
-wrangler.toml               deploy config
-docs/                       brand book and email signature
+functions/                  the API — must stay OUTSIDE public/
+  api/quote.js              takes a request, stores it, emails her
+  api/followup.js           the "call me" / "come see it" buttons
+  api/admin/*.js            sign in, sign out, list and update leads
+  _lib/                     shared helpers and session signing
+migrations/0001_leads.sql   the leads table
 ```
 
 ## 6. Notes on the build
 
 - **Mobile first.** The sticky Call · Text · Quote bar is the highest-converting
   element on a home services site; it is on every page below 860px.
-- **The estimate is a range, never a fixed price.** It is computed in the browser
-  from `js/data.js` and is deliberately ±10% around the calculation, with the
-  caveat text next to it on every screen size.
+- **No price is ever shown to a visitor.** Every figure on the site is a
+  "starting at". The estimator still runs, but its number rides along with the
+  submission so Kristina has something to quote against — set
+  `showCustomerEstimate` to true in `data.js` if that should ever change.
+- **The quote request is six short steps.** People answer more when each screen
+  asks little. Nothing is sent until the last one, and the confirmation screen
+  invites a call or an in-person walkthrough.
 - **No reviews are invented.** The testimonials list ships empty on purpose.
 - **The logo is never placed on a photo** and the name is never set beside the
   badge, per the brand book — the badge already contains both.

@@ -37,38 +37,19 @@
 <section class="pagehead">
   <div class="wrap">
     <p class="eyebrow">Get a quote</p>
-    <h1>Your range, in about a minute</h1>
-    <p>Answer as much as you know. The estimate updates as you go, and nothing is sent
-       until you press the button at the bottom.</p>
+    <h1>Tell us about the space</h1>
+    <p>Six short steps, about two minutes. The more you tell us, the closer the
+       quote lands — and nothing is sent until the last step.</p>
   </div>
 </section>
 
 <section class="section section--tight">
-  <div class="wrap quote-layout">
-    <form id="quote-form" class="card form" novalidate>
-      <div id="quote-fields" class="form"></div>
-
-      <input type="hidden" name="estimate-low" id="estimate-low" value="">
-      <input type="hidden" name="estimate-high" id="estimate-high" value="">
-
-      <p class="note estimate-note" id="estimate-note"></p>
-
-      <div id="turnstile-holder"></div>
-
-      <div id="form-status" class="form-status form-status--err" role="alert" tabindex="-1" hidden></div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn--primary">Send my request</button>
-        <span class="hint muted">Or call <span data-render="phone"></span> — a person answers.</span>
-      </div>
-
-      <p class="hint muted" style="margin:0">
-        We use what you send here to price the work and get back to you. Nothing is shared
-        with anyone else, and there is no charge until you say yes to a quote.
-      </p>
-    </form>
-
-    <aside id="estimate" class="estimate" aria-label="Your estimate"></aside>
+  <div class="wrap" style="max-width:760px">
+    <div id="quote-wizard" class="card"></div>
+    <p class="hint muted center mt-lg">
+      What you send here is used to price the work and get back to you — nothing else,
+      and nobody else. There is no charge until you say yes to a quote.
+    </p>
   </div>
 </section>
 

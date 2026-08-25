@@ -1,49 +1,20 @@
 /**
- * POST /api/quote — the quote form handler.
+ * POST /api/quote — a quote request from the multistep form.
  *
- * Cloudflare Pages Function. It does three things:
- *   1. checks the Turnstile token so bots do not fill the inbox,
- *   2. checks that the required fields are actually there,
- *   3. emails the lead to the business.
+ * Three things happen, and each is independent so a missing piece never
+ * costs a lead:
+ *   1. the submission is stored in D1, if the DB binding exists
+ *   2. Kristina is emailed, if RESEND_API_KEY is set
+ *   3. the id comes back, so the confirmation step can attach a follow-up
  *
- * Environment variables (Pages → Settings → Environment variables):
- *   TURNSTILE_SECRET_KEY  secret. Pairs with turnstileSiteKey in js/data.js.
- *                         Leave both unset and the check is skipped.
- *   RESEND_API_KEY        secret. Required for the email to send.
- *   QUOTE_TO_EMAIL        where leads land. Defaults to info@oasiscoastalcleaning.com.
- *   QUOTE_FROM_EMAIL      a verified Resend sender, e.g.
- *                         "Oasis Coastal Cleaning <quotes@oasiscoastalcleaning.com>".
+ * If both storage and email are unconfigured the request is refused with a
+ * clear reason, because silently accepting a lead nobody will ever read is
+ * worse than telling the visitor to call.
  */
+import { json, clean, cleanList, escapeHtml, isEmail, newId, verifyTurnstile, sendEmail }
+  from '../_lib/util.js';
 
-const MAX_BODY = 16 * 1024;
-
-const json = (data, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
-  });
-
-const clean = (v, max = 500) =>
-  typeof v === 'string' ? v.trim().slice(0, max) : '';
-
-const escapeHtml = (v) =>
-  String(v ?? '')
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-
-async function verifyTurnstile(token, secret, ip) {
-  const form = new FormData();
-  form.append('secret', secret);
-  form.append('response', token);
-  if (ip) form.append('remoteip', ip);
-
-  const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-    method: 'POST',
-    body: form
-  });
-  const out = await res.json();
-  return out.success === true;
-}
+const MAX_BODY = 32 * 1024;
 
 export async function onRequestPost({ request, env }) {
   let body;
@@ -55,98 +26,138 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'That request could not be read.' }, 400);
   }
 
-  // Honeypot: a real person never sees this field.
-  if (clean(body.company)) return json({ ok: true });
+  // Honeypot — a real person never sees this field.
+  if (clean(body.company)) return json({ ok: true, id: null });
+
+  const ok = await verifyTurnstile(
+    clean(body.turnstileToken, 2048),
+    env.TURNSTILE_SECRET_KEY,
+    request.headers.get('CF-Connecting-IP')
+  );
+  if (!ok) return json({ error: 'The “I am human” check did not pass. Try it once more.' }, 400);
 
   const lead = {
-    name: clean(body.name, 120),
-    phone: clean(body.phone, 40),
-    email: clean(body.email, 160),
-    service: clean(body.serviceName, 80),
-    property: clean(body.property, 80),
-    size: clean(body.sizeLabel, 120),
-    frequency: clean(body.frequencyLabel, 60),
-    firstVisit: body.firstVisit === true,
-    extras: Array.isArray(body.extraLabels) ? body.extraLabels.slice(0, 12).map((x) => clean(x, 80)) : [],
-    city: clean(body.city, 80),
-    notes: clean(body.notes, 2000),
-    low: clean(String(body['estimate-low'] ?? ''), 12),
-    high: clean(String(body['estimate-high'] ?? ''), 12),
-    pageUrl: clean(body.pageUrl, 300)
+    id: newId(),
+    created_at: new Date().toISOString(),
+
+    name:         clean(body.name, 120),
+    phone:        clean(body.phone, 40),
+    email:        clean(body.email, 160),
+    best_time:    clean(body.bestTime, 80),
+    contact_pref: clean(body.contactPref, 40),
+
+    service:       clean(body.service, 60),
+    service_label: clean(body.serviceLabel, 80),
+    property_type: clean(body.property, 80),
+    size_label:    clean(body.sizeLabel, 140),
+    bedrooms:      clean(body.bedrooms, 20),
+    bathrooms:     clean(body.bathrooms, 20),
+    frequency:     clean(body.frequencyLabel, 60),
+    first_visit:   body.firstVisit === true ? 1 : 0,
+    add_ons:       JSON.stringify(cleanList(body.addOnLabels)),
+    conditions:    JSON.stringify(cleanList(body.conditionLabels)),
+    notes:         clean(body.notes, 2000),
+
+    city:           clean(body.city, 80),
+    zip:            clean(body.zip, 12),
+    address:        clean(body.address, 200),
+    start_when:     clean(body.startWhen, 80),
+    preferred_days: JSON.stringify(cleanList(body.preferredDays, 7, 12)),
+    access:         clean(body.access, 200),
+
+    estimate_low:  Number.isFinite(+body.estimateLow) ? Math.round(+body.estimateLow) : null,
+    estimate_high: Number.isFinite(+body.estimateHigh) ? Math.round(+body.estimateHigh) : null,
+
+    status:      'new',
+    followup:    'none',
+    admin_notes: '',
+
+    source_page: clean(body.pageUrl, 300),
+    user_agent:  clean(request.headers.get('User-Agent') || '', 300)
   };
 
   if (!lead.name || !lead.phone || !lead.email || !lead.service) {
     return json({ error: 'Please fill in your name, phone, email and what you need.' }, 400);
   }
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(lead.email)) {
+  if (!isEmail(lead.email)) {
     return json({ error: 'That email address does not look right.' }, 400);
   }
 
-  const turnstileSecret = env.TURNSTILE_SECRET_KEY;
-  if (turnstileSecret) {
-    const token = clean(body.turnstileToken, 2048);
-    const ok = token && await verifyTurnstile(
-      token, turnstileSecret, request.headers.get('CF-Connecting-IP')
-    );
-    if (!ok) return json({ error: 'The “I am human” check did not pass. Try it once more.' }, 400);
+  /* ---- 1. store ---- */
+  let stored = false;
+  if (env.DB) {
+    const cols = Object.keys(lead);
+    try {
+      await env.DB.prepare(
+        `INSERT INTO leads (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
+      ).bind(...cols.map((c) => lead[c])).run();
+      stored = true;
+    } catch (err) {
+      console.log('Could not store lead:', err && err.message);
+    }
   }
+
+  /* ---- 2. notify ---- */
+  const addOns = JSON.parse(lead.add_ons);
+  const conds = JSON.parse(lead.conditions);
+  const days = JSON.parse(lead.preferred_days);
 
   const rows = [
     ['Name', lead.name],
     ['Phone', lead.phone],
     ['Email', lead.email],
-    ['Service', lead.service],
-    ['Property', lead.property],
-    ['Size', lead.size],
-    ['Frequency', lead.frequency],
-    ['First visit', lead.firstVisit ? 'Yes — deeper first clean' : 'No'],
-    ['Add-ons', lead.extras.join(', ') || 'None'],
-    ['City', lead.city],
-    ['Range shown', lead.low && lead.high ? `$${lead.low} – $${lead.high}` : '—'],
+    ['Best time to reach', lead.best_time || '—'],
+    ['Prefers', lead.contact_pref || '—'],
+    ['Service', lead.service_label || lead.service],
+    ['Property', lead.property_type || '—'],
+    ['Size', lead.size_label || '—'],
+    ['Bedrooms / baths', [lead.bedrooms, lead.bathrooms].filter(Boolean).join(' / ') || '—'],
+    ['Frequency', lead.frequency || '—'],
+    ['First visit', lead.first_visit ? 'Yes — deeper first clean' : 'No'],
+    ['Add-ons', addOns.join(', ') || 'None'],
+    ['About the home', conds.join(', ') || '—'],
+    ['City', lead.city || '—'],
+    ['ZIP', lead.zip || '—'],
+    ['Address', lead.address || '—'],
+    ['Wants to start', lead.start_when || '—'],
+    ['Preferred days', days.join(', ') || '—'],
+    ['Access', lead.access || '—'],
+    ['Suggested quote', lead.estimate_low && lead.estimate_high
+      ? `$${lead.estimate_low} – $${lead.estimate_high} (computed from your rates — not shown to them)`
+      : '—'],
     ['Notes', lead.notes || '—']
   ];
 
   const text = rows.map(([k, v]) => `${k}: ${v}`).join('\n');
   const html =
-    `<h2 style="font-family:Georgia,serif;color:#094045">New quote request</h2>` +
+    `<h2 style="font-family:Georgia,serif;color:#094045;margin:0 0 4px">New quote request</h2>` +
+    `<p style="font-family:Arial,sans-serif;font-size:13px;color:#6b7f81;margin:0 0 16px">` +
+    `${escapeHtml(lead.name)} · ${escapeHtml(lead.city || 'South Florida')}</p>` +
     `<table style="font-family:Arial,sans-serif;font-size:14px;color:#094045;border-collapse:collapse">` +
     rows.map(([k, v]) =>
-      `<tr><td style="padding:6px 14px 6px 0;color:#6b7f81;white-space:nowrap">${escapeHtml(k)}</td>` +
+      `<tr><td style="padding:6px 14px 6px 0;color:#6b7f81;white-space:nowrap;vertical-align:top">${escapeHtml(k)}</td>` +
       `<td style="padding:6px 0"><strong>${escapeHtml(v)}</strong></td></tr>`
     ).join('') +
     `</table>` +
-    `<p style="font-family:Arial,sans-serif;font-size:12px;color:#6b7f81">Sent from ${escapeHtml(lead.pageUrl)}</p>`;
+    `<p style="font-family:Arial,sans-serif;font-size:12px;color:#6b7f81;margin-top:18px">` +
+    `Reply to this email to answer ${escapeHtml(lead.name)} directly.</p>`;
 
-  const apiKey = env.RESEND_API_KEY;
-  if (!apiKey) {
-    // Never pretend a lead was delivered. The form falls back to email.
-    console.log('Quote request received but RESEND_API_KEY is not set:\n' + text);
-    return json({ error: 'Email is not set up on this site yet.' }, 501);
-  }
-
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: env.QUOTE_FROM_EMAIL || 'Oasis Coastal Cleaning <onboarding@resend.dev>',
-      to: [env.QUOTE_TO_EMAIL || 'info@oasiscoastalcleaning.com'],
-      reply_to: lead.email,
-      subject: `Quote request — ${lead.service}${lead.city ? ' in ' + lead.city : ''}`,
-      text,
-      html
-    })
+  const mailProblem = await sendEmail(env, {
+    subject: `Quote request — ${lead.service_label || lead.service}${lead.city ? ' in ' + lead.city : ''}`,
+    text, html, replyTo: lead.email
   });
 
-  if (!res.ok) {
-    console.log('Resend rejected the quote email:', res.status, await res.text());
-    return json({ error: 'The message could not be delivered just now.' }, 502);
+  if (!stored && mailProblem) {
+    console.log('Lead could not be stored or emailed:', mailProblem, '\n' + text);
+    return json({
+      error: 'This site is not finished taking messages yet. Please call or text instead.'
+    }, 503);
   }
 
-  return json({ ok: true });
+  return json({ ok: true, id: lead.id, stored, emailed: !mailProblem });
 }
 
 export const onRequestGet = () =>
   new Response('Send this form with POST.', {
-    status: 405,
-    headers: { Allow: 'POST', 'Content-Type': 'text/plain' }
+    status: 405, headers: { Allow: 'POST', 'Content-Type': 'text/plain' }
   });

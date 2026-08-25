@@ -24,10 +24,9 @@ window.OASIS = {
     tagline: 'Fresh Spaces. Happy Places.',
     heroLine: 'From everyday mess to coastal fresh.',
 
-    // ← SET THIS. Placeholder number below is a reserved test number and will
-    // not ring. Write it exactly as you want it displayed; the call and text
-    // links are built from it automatically.
-    phone: '(561) 555-0100',
+    // Displayed exactly as written here. The call and text links are built
+    // from it automatically, so punctuation is safe.
+    phone: '(561) 201-7123',
     // Set to false if you do not want a text-message button anywhere.
     textingEnabled: true,
 
@@ -60,6 +59,16 @@ window.OASIS = {
     licenseNote: 'Licensed and insured in the State of Florida',
     guarantee: '24-hour satisfaction guarantee — tell us and we come back'
   },
+
+  /* ---------------------------------------------------------------- quotes
+     The site never shows a visitor a calculated price. Every figure they see
+     is a "starting at"; the real number comes from Kristina once she has read
+     what they sent.
+
+     The estimator still runs — but only on the lead she receives, where it
+     gives her a suggested value to quote against. Flip this to true if you
+     ever want visitors to see a live range on the form instead. */
+  showCustomerEstimate: false,
 
   /* ------------------------------------------------------------------- nav
      Order here is the order in the header and the footer. */
