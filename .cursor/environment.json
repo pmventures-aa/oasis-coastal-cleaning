@@ -1,0 +1,10 @@
+{
+  "name": "Oasis Coastal Cleaning",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "pages-dev",
+      "command": "cd /workspace && exec ./.cursor/node_modules/.bin/wrangler pages dev public --port 8788 --ip 0.0.0.0"
+    }
+  ]
+}
