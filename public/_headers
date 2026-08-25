@@ -14,10 +14,13 @@
 /print/*
   Cache-Control: public, max-age=31536000, immutable
 
-# Styles and scripts: revalidate daily so edits to data.js show up quickly.
+# Styles and scripts carry no version in their names, so a long max-age means a
+# returning visitor keeps the old file until it expires — a day of stale site
+# after every deploy. Revalidate on every request instead: the file only travels
+# when it has actually changed, and an unchanged one costs a 304.
 /css/*
-  Cache-Control: public, max-age=86400, must-revalidate
+  Cache-Control: public, max-age=0, must-revalidate
 /js/*
-  Cache-Control: public, max-age=86400, must-revalidate
+  Cache-Control: public, max-age=0, must-revalidate
 /tokens.css
-  Cache-Control: public, max-age=86400, must-revalidate
+  Cache-Control: public, max-age=0, must-revalidate
