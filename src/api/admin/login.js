@@ -1,6 +1,6 @@
 /** POST /api/admin/login — sign Kristina in. */
-import { json, clean, safeEqual } from '../../_lib/util.js';
-import { makeSessionCookie, authConfigured } from '../../_lib/auth.js';
+import { json, clean, safeEqual } from '../../lib/util.js';
+import { makeSessionCookie, authConfigured } from '../../lib/auth.js';
 
 export async function onRequestPost({ request, env }) {
   if (!authConfigured(env)) {

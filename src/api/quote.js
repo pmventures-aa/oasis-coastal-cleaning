@@ -12,7 +12,7 @@
  * worse than telling the visitor to call.
  */
 import { json, clean, cleanList, escapeHtml, isEmail, newId, verifyTurnstile, sendEmail }
-  from '../_lib/util.js';
+  from '../lib/util.js';
 
 const MAX_BODY = 32 * 1024;
 
