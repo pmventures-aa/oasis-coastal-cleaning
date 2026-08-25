@@ -162,3 +162,28 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .profile__stamp {
   margin: 0.6rem 0 0; font-size: 0.72rem; color: var(--oasis-muted);
 }
+
+/* -------------------------------------------------------------- mobile
+   The profile fields lean on :hover to reveal their border, which touch
+   devices never fire — so on a phone the editable fields (amount quoted,
+   notes) render as blank floating text and look like they are missing.
+   Give real inputs a permanent, visible box on touch, and stack the label
+   over the field on narrow screens so nothing is cramped or cut off. */
+@media (hover: none) {
+  input.pf__v, select.pf__v, textarea.pf__v {
+    border-color: var(--oasis-line);
+    background: var(--oasis-white);
+  }
+}
+
+@media (max-width: 560px) {
+  .pf { flex-direction: column; align-items: stretch; gap: 0.25rem; }
+  .pf__k { width: auto; }
+  .pf__v { width: 100%; }
+  .pf--inline { flex: none; }
+  .chips__k { width: 100%; }
+  input.pf__v, select.pf__v, textarea.pf__v {
+    border-color: var(--oasis-line);
+    background: var(--oasis-white);
+  }
+}
