@@ -52,19 +52,84 @@ export async function verifyTurnstile(token, secret, ip) {
   return out.success === true;
 }
 
-/** Send through Resend. Returns null on success, or a reason string. */
+/* ---------------------------------------------------------------- notifying
+   Kristina should not be locked to one email company. Whichever key is set
+   decides who carries the message; nothing else in the code changes. If more
+   than one is set they all fire, so a move from one provider to another can
+   overlap for a few days without a gap in the leads.
+
+     RESEND_API_KEY        Resend        3,000 a month free
+     BREVO_API_KEY         Brevo         300 a day free
+     NOTIFY_WEBHOOK_URL    anything      Zapier, Make, Shortcuts, Slack
+
+   Returns null when at least one of them accepted the message, or a reason
+   string when none did. */
 export async function sendEmail(env, { subject, text, html, replyTo }) {
-  if (!env.RESEND_API_KEY) return 'RESEND_API_KEY is not set';
+  const to = env.QUOTE_TO_EMAIL || 'info@oasiscoastalcleaning.com';
+  const fromName = env.QUOTE_FROM_NAME || 'Oasis Coastal Cleaning';
+  const jobs = [];
+
+  if (env.RESEND_API_KEY) jobs.push(sendResend(env, { to, fromName, subject, text, html, replyTo }));
+  if (env.BREVO_API_KEY) jobs.push(sendBrevo(env, { to, fromName, subject, text, html, replyTo }));
+  if (env.NOTIFY_WEBHOOK_URL) jobs.push(sendWebhook(env, { to, subject, text, replyTo }));
+
+  if (!jobs.length) return 'No notification channel is configured';
+
+  const results = await Promise.all(jobs.map(p => p.catch(err => String(err && err.message || err))));
+  if (results.some(r => r === null)) return null;
+  return results.filter(Boolean).join(' | ');
+}
+
+async function sendResend(env, { to, fromName, subject, text, html, replyTo }) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: env.QUOTE_FROM_EMAIL || 'Oasis Coastal Cleaning <onboarding@resend.dev>',
-      to: [env.QUOTE_TO_EMAIL || 'info@oasiscoastalcleaning.com'],
+      from: env.QUOTE_FROM_EMAIL || `${fromName} <onboarding@resend.dev>`,
+      to: [to],
       reply_to: replyTo,
       subject, text, html
     })
   });
   if (res.ok) return null;
   return `Resend returned ${res.status}: ${await res.text()}`;
+}
+
+async function sendBrevo(env, { to, fromName, subject, text, html, replyTo }) {
+  // Brevo wants the address on its own, not inside a "Name <addr>" string.
+  const fromEmail = bareAddress(env.QUOTE_FROM_EMAIL) || 'noreply@oasiscoastalcleaning.com';
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: { 'api-key': env.BREVO_API_KEY, 'Content-Type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({
+      sender: { name: fromName, email: fromEmail },
+      to: [{ email: to }],
+      replyTo: replyTo ? { email: replyTo } : undefined,
+      subject,
+      textContent: text,
+      htmlContent: html
+    })
+  });
+  if (res.ok) return null;
+  return `Brevo returned ${res.status}: ${await res.text()}`;
+}
+
+/* A plain POST of the same information, for anyone who would rather wire this
+   into Zapier, Make, an Apple Shortcut, or a Slack incoming webhook than run
+   an email account. */
+async function sendWebhook(env, { to, subject, text, replyTo }) {
+  const res = await fetch(env.NOTIFY_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to, subject, text, replyTo, source: 'oasiscoastalcleaning.com' })
+  });
+  if (res.ok) return null;
+  return `Webhook returned ${res.status}`;
+}
+
+/** "Oasis <hi@example.com>" and "hi@example.com" both come back bare. */
+function bareAddress(value) {
+  if (!value) return '';
+  const angled = /<([^>]+)>/.exec(value);
+  return (angled ? angled[1] : value).trim();
 }
