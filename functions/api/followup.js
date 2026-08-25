@@ -3,6 +3,7 @@
  * visit. Flags the lead that was just created and tells Kristina.
  */
 import { json, clean, sendEmail } from '../_lib/util.js';
+import { buildFollowupEmail } from '../_lib/email.js';
 
 const KINDS = { call: 'a phone call', visit: 'an in-person walkthrough', text: 'a text message' };
 
@@ -26,15 +27,8 @@ export async function onRequestPost({ request, env }) {
     }
   }
 
-  await sendEmail(env, {
-    subject: `Follow-up requested — ${KINDS[kind]}${name ? ' for ' + name : ''}`,
-    text: `${name || 'A visitor'} asked for ${KINDS[kind]} about the request they just sent.\n\n` +
-          `Lead id: ${id}`,
-    html: `<p style="font-family:Arial,sans-serif;color:#094045;font-size:15px">` +
-          `<strong>${name || 'A visitor'}</strong> asked for <strong>${KINDS[kind]}</strong> ` +
-          `about the request they just sent.</p>` +
-          `<p style="font-family:Arial,sans-serif;color:#6b7f81;font-size:12px">Lead id: ${id}</p>`
-  });
+  const { subject, text, html } = buildFollowupEmail(env, { name, kindLabel: KINDS[kind], id });
+  await sendEmail(env, { subject, text, html });
 
   return json({ ok: true });
 }
