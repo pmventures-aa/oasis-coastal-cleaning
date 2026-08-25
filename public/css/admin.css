@@ -171,8 +171,8 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
    over the field on narrow screens so nothing is cramped or cut off. */
 @media (hover: none) {
   input.pf__v, select.pf__v, textarea.pf__v {
-    border-color: var(--oasis-line);
-    background: var(--oasis-white);
+    border-color: rgba(9, 64, 69, 0.32);
+    background: rgba(9, 64, 69, 0.05);
   }
 }
 
@@ -183,7 +183,7 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   .pf--inline { flex: none; }
   .chips__k { width: 100%; }
   input.pf__v, select.pf__v, textarea.pf__v {
-    border-color: var(--oasis-line);
-    background: var(--oasis-white);
+    border-color: rgba(9, 64, 69, 0.32);
+    background: rgba(9, 64, 69, 0.05);
   }
 }
