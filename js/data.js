@@ -321,16 +321,78 @@ window.OASIS = {
       factor: 1.0,  note: 'A single visit — a move, a party, or a trial run before you commit.' }
   ],
 
-  /* ----------------------------------------------------------------- extras
-     Shown as checkboxes on the quote form. `add` is flat dollars;
-     `factor` multiplies the whole estimate instead. Use one or the other. */
-  extras: [
-    { id: 'fridge',  label: 'Inside the refrigerator',   add: 35,  services: ['home', 'movein', 'turnover'] },
-    { id: 'oven',    label: 'Inside the oven',           add: 35,  services: ['home', 'movein'] },
-    { id: 'windows', label: 'Interior windows',          add: 45,  services: ['home', 'office', 'movein'] },
-    { id: 'laundry', label: 'Wash and fold while we are there', add: 40, services: ['home', 'turnover'] },
-    { id: 'pets',    label: 'Pets in the home',       factor: 1.08, services: ['home', 'organizing', 'movein', 'turnover'] },
-    { id: 'stairs',  label: 'Two floors or more',     factor: 1.06, services: ['home', 'movein', 'postconstruction'] }
+  /* ---------------------------------------------------------------- add-ons
+     The checkbox list on the quote form. Customers tick what they want and
+     the estimate updates as they go.
+
+       price     flat dollars added to the visit
+       group     the heading it appears under (any new name makes a new group)
+       services  which services offer it — drop an id and it disappears there
+       note      the small grey line under the label; leave it '' to hide
+
+     ⚠ EVERY PRICE BELOW IS A PLACEHOLDER at ordinary South Florida rates.
+     Go through them once and set your real numbers before the site is live.
+     They drive the quoted range, so a wrong one here is a wrong quote. */
+  addOns: [
+    { id: 'refrigerator', label: 'Refrigerator',        note: 'Inside — shelves out, wiped down and replaced',
+      price: 35, group: 'Kitchen',        services: ['home', 'office', 'movein', 'turnover'] },
+    { id: 'oven',         label: 'Oven',                note: 'Inside, racks and door glass',
+      price: 35, group: 'Kitchen',        services: ['home', 'movein'] },
+    { id: 'microwave',    label: 'Microwave',           note: 'Inside and out, turntable washed',
+      price: 12, group: 'Kitchen',        services: ['home', 'office', 'movein'] },
+    { id: 'dishes',       label: 'Dishes',              note: 'Washed or loaded and run',
+      price: 15, group: 'Kitchen',        services: ['home', 'turnover'] },
+    { id: 'cabinets',     label: 'Cabinet cleaning',    note: 'Fronts and inside, shelves wiped',
+      price: 45, group: 'Kitchen',        services: ['home', 'movein'] },
+
+    { id: 'beds',         label: 'Bed making',          note: 'Made, or stripped and remade with fresh linens',
+      price: 15, group: 'Around the house', services: ['home', 'turnover'] },
+    { id: 'laundry',      label: 'Laundry',             note: 'Washed, dried and folded while we are there',
+      price: 40, group: 'Around the house', services: ['home', 'turnover'] },
+    { id: 'trash',        label: 'Trash removal',       note: 'Hauled away, beyond the usual bins to the curb',
+      price: 20, group: 'Around the house', services: ['home', 'office', 'movein', 'turnover', 'postconstruction'] },
+    { id: 'blinds',       label: 'Dusting blinds',      note: 'Slat by slat, not a pass with a duster',
+      price: 30, group: 'Around the house', services: ['home', 'office', 'movein'] },
+    { id: 'walls',        label: 'Wall washing',        note: 'Marks, scuffs and fingerprints off painted walls',
+      price: 60, group: 'Around the house', services: ['home', 'office', 'movein', 'postconstruction'] },
+
+    { id: 'windows-in',   label: 'Interior window',     note: 'Glass, sills and tracks from inside',
+      price: 45, group: 'Windows',       services: ['home', 'office', 'movein', 'postconstruction'] },
+    { id: 'windows-out',  label: 'Exterior window',     note: 'Ground-floor glass from outside',
+      price: 65, group: 'Windows',       services: ['home', 'office'] },
+
+    { id: 'closets',      label: 'Closet organization', note: 'Emptied, sorted with you and put back to a system',
+      price: 70, group: 'Organizing',    services: ['home', 'organizing'] },
+    { id: 'cabinet-org',  label: 'Cabinet organization', note: 'Pantry or kitchen cabinets grouped and labelled',
+      price: 55, group: 'Organizing',    services: ['home', 'organizing'] }
+  ],
+
+  /* --------------------------------------------------------- bundle pricing
+     More add-ons in one visit means less setup and travel per item, so the
+     saving is real rather than a gimmick. The discount comes off the add-on
+     subtotal only — never off the cleaning itself.
+
+     Tiers are checked from the bottom up, so the best one a customer
+     qualifies for is the one applied. ⚠ Confirm these percentages. */
+  bundleDiscount: {
+    tiers: [
+      { min: 2, off: 0.10 },
+      { min: 4, off: 0.15 },
+      { min: 6, off: 0.20 }
+    ],
+    pitch: 'Pick any two and the extras come down 10%. Four or more takes 15% off, ' +
+           'six or more takes 20%. The discount applies to the add-ons, not the clean.'
+  },
+
+  /* ------------------------------------------------------------- conditions
+     Not things to buy — things about the home that change how long it takes.
+     `factor` multiplies the cleaning subtotal. Kept apart from the add-ons so
+     nobody is charged a "bundle discount" for owning a dog. */
+  conditions: [
+    { id: 'pets',   label: 'Pets in the home',  note: 'Hair, and a little more time',
+      factor: 1.08, services: ['home', 'organizing', 'movein', 'turnover'] },
+    { id: 'stairs', label: 'Two floors or more', note: 'Carrying equipment up and down',
+      factor: 1.06, services: ['home', 'movein', 'postconstruction'] }
   ],
 
   /* ------------------------------------------------------------ property type

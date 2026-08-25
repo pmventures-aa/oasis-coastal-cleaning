@@ -67,9 +67,15 @@
       }), 'biweekly') +
     '</fieldset>' +
 
-    '<fieldset class="fieldset" id="extras-block">' +
-      '<legend>Anything to add?</legend>' +
-      '<div class="stack" id="extras-list"></div>' +
+    '<fieldset class="fieldset" id="addons-block">' +
+      '<legend>Add anything you need</legend>' +
+      '<p class="hint" id="bundle-pitch">' + esc(D.bundleDiscount.pitch) + '</p>' +
+      '<div id="addons-list"></div>' +
+    '</fieldset>' +
+
+    '<fieldset class="fieldset" id="conditions-block">' +
+      '<legend>About the home</legend>' +
+      '<div class="stack" id="conditions-list"></div>' +
       '<label class="checkrow" id="firstvisit-row">' +
         '<input type="checkbox" name="firstVisit" id="firstVisit" checked>' +
         '<span>This would be our first visit. <span class="muted">The first clean runs longer ' +
@@ -147,22 +153,73 @@
       if (pref) { pref.checked = true; }
     }
 
-    // extras that apply to this service
-    var applicable = D.extras.filter(function (x) { return x.services.indexOf(s.id) !== -1; });
-    form.querySelector('#extras-list').innerHTML = applicable.map(function (x) {
-      var price = x.add ? '+' + money(x.add) : '+' + Math.round((x.factor - 1) * 100) + '%';
+    // add-ons offered for this service, kept in their groups
+    var addOns = D.addOns.filter(function (x) { return x.services.indexOf(s.id) !== -1; });
+    var groups = [];
+    addOns.forEach(function (x) {
+      var g = null;
+      groups.forEach(function (row) { if (row.name === x.group) { g = row; } });
+      if (!g) { g = { name: x.group, items: [] }; groups.push(g); }
+      g.items.push(x);
+    });
+    form.querySelector('#addons-list').innerHTML = groups.map(function (g) {
+      return '<div class="addon-group">' +
+               '<p class="addon-group__name">' + esc(g.name) + '</p>' +
+               '<div class="addon-grid">' +
+                 g.items.map(function (x) {
+                   return '<label class="checkrow addon">' +
+                            '<input type="checkbox" name="addons" value="' + esc(x.id) + '">' +
+                            '<span class="addon__body">' +
+                              '<span class="addon__label">' + esc(x.label) +
+                                '<b>' + money(x.price) + '</b></span>' +
+                              (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
+                            '</span>' +
+                          '</label>';
+                 }).join('') +
+               '</div>' +
+             '</div>';
+    }).join('');
+    form.querySelector('#addons-block').hidden = !addOns.length;
+
+    // conditions of the home — separate, and never bundle-discounted
+    var conds = D.conditions.filter(function (x) { return x.services.indexOf(s.id) !== -1; });
+    form.querySelector('#conditions-list').innerHTML = conds.map(function (x) {
       return '<label class="checkrow">' +
-               '<input type="checkbox" name="extras" value="' + esc(x.id) + '">' +
-               '<span>' + esc(x.label) + ' <span class="muted">' + esc(price) + '</span></span>' +
+               '<input type="checkbox" name="conditions" value="' + esc(x.id) + '">' +
+               '<span>' + esc(x.label) +
+                 ' <span class="muted">adds about ' + Math.round((x.factor - 1) * 100) + '%</span>' +
+                 (x.note ? '<small class="muted" style="display:block">' + esc(x.note) + '</small>' : '') +
+               '</span>' +
              '</label>';
     }).join('');
 
     var firstRow = form.querySelector('#firstvisit-row');
     firstRow.hidden = s.estimate.firstVisit === 1;
-    form.querySelector('#extras-block').hidden = !applicable.length && firstRow.hidden;
+    form.querySelector('#conditions-block').hidden = !conds.length && firstRow.hidden;
   }
 
-  /* -------------------------------------------------------- the estimator */
+  /* -------------------------------------------------------- the estimator
+     Two subtotals, kept apart on purpose:
+
+       the clean    size × rate, then conditions, frequency and first visit
+       the add-ons  flat prices, then the bundle discount
+
+     Keeping them separate is what lets the bundle discount come off the
+     extras without quietly discounting the cleaning too.                    */
+  function checkedValues(name) {
+    var out = [], boxes = form.querySelectorAll('input[name="' + name + '"]:checked');
+    for (var i = 0; i < boxes.length; i++) { out.push(boxes[i].value); }
+    return out;
+  }
+
+  function bundleTier(count) {
+    var best = null;
+    D.bundleDiscount.tiers.forEach(function (t) {
+      if (count >= t.min && (!best || t.off > best.off)) { best = t; }
+    });
+    return best;
+  }
+
   function compute() {
     var s = currentService();
     var sizeId = form.querySelector('#size').value;
@@ -171,25 +228,16 @@
     if (!size) { return null; }
 
     var lines = [];
-    var base = size.price != null ? size.price : size.hours * s.estimate.hourlyRate;
-    lines.push({ label: size.label, value: money(base) });
 
-    var total = base;
+    /* ---- the clean ---- */
+    var clean = size.price != null ? size.price : size.hours * s.estimate.hourlyRate;
+    lines.push({ label: size.label, value: money(clean) });
 
-    // flat-dollar extras first, then percentage extras on the running total
-    var chosen = [];
-    var boxes = form.querySelectorAll('input[name="extras"]:checked');
-    for (var i = 0; i < boxes.length; i++) { chosen.push(boxes[i].value); }
-
-    D.extras.forEach(function (x) {
-      if (chosen.indexOf(x.id) === -1 || !x.add) { return; }
-      total += x.add;
-      lines.push({ label: x.label, value: '+' + money(x.add) });
-    });
-    D.extras.forEach(function (x) {
-      if (chosen.indexOf(x.id) === -1 || !x.factor) { return; }
-      total *= x.factor;
-      lines.push({ label: x.label, value: '+' + Math.round((x.factor - 1) * 100) + '%' });
+    var chosenConds = checkedValues('conditions');
+    D.conditions.forEach(function (c) {
+      if (chosenConds.indexOf(c.id) === -1) { return; }
+      clean *= c.factor;
+      lines.push({ label: c.label, value: '+' + Math.round((c.factor - 1) * 100) + '%' });
     });
 
     var freqId = 'onetime';
@@ -198,20 +246,41 @@
     var freq = null;
     D.frequencies.forEach(function (f) { if (f.id === freqId) { freq = f; } });
     if (freq && freq.factor !== 1) {
-      total *= freq.factor;
-      lines.push({ label: freq.label + ' rate', value: '−' + Math.round((1 - freq.factor) * 100) + '%' });
+      clean *= freq.factor;
+      lines.push({ label: freq.label + ' rate', value: '\u2212' + Math.round((1 - freq.factor) * 100) + '%' });
     }
 
     var first = form.querySelector('#firstVisit');
     var firstChecked = first && !form.querySelector('#firstvisit-row').hidden && first.checked;
     if (firstChecked && s.estimate.firstVisit !== 1) {
-      total *= s.estimate.firstVisit;
+      clean *= s.estimate.firstVisit;
       lines.push({ label: 'First visit, deeper clean', value: '+' + Math.round((s.estimate.firstVisit - 1) * 100) + '%' });
     }
 
-    total = Math.max(total, s.estimate.minimum);
+    /* ---- the add-ons ---- */
+    var chosenAddOns = checkedValues('addons');
+    var addOnTotal = 0, picked = [];
+    D.addOns.forEach(function (x) {
+      if (chosenAddOns.indexOf(x.id) === -1) { return; }
+      addOnTotal += x.price;
+      picked.push(x);
+      lines.push({ label: x.label, value: '+' + money(x.price) });
+    });
 
+    var tier = bundleTier(picked.length);
+    var saved = 0;
+    if (tier) {
+      saved = addOnTotal * tier.off;
+      addOnTotal -= saved;
+      lines.push({
+        label: 'Bundle of ' + picked.length + ' add-ons',
+        value: '\u2212' + Math.round(tier.off * 100) + '%'
+      });
+    }
+
+    var total = Math.max(clean + addOnTotal, s.estimate.minimum);
     var round5 = function (n) { return Math.round(n / 5) * 5; };
+
     return {
       service: s,
       low: round5(total * 0.92),
@@ -219,7 +288,10 @@
       unit: s.estimate.unitLabel || s.startingUnit,
       lines: lines,
       frequency: freq,
-      firstVisit: firstChecked
+      firstVisit: firstChecked,
+      addOnCount: picked.length,
+      bundleSaved: round5(saved),
+      bundleOff: tier ? Math.round(tier.off * 100) : 0
     };
   }
 
@@ -227,7 +299,9 @@
     return 'This is a range, not a bill. Square footage, condition on the first day, pets and ' +
            'how often we come all move the number, so we confirm it in writing before anyone is ' +
            'booked — and there is nothing to pay until you say yes.' +
-           (r.firstVisit ? ' Visits after the first one come in below this range.' : '');
+           (r.firstVisit ? ' Visits after the first one come in below this range.' : '') +
+           (r.bundleOff ? ' Bundling ' + r.addOnCount + ' add-ons took ' + r.bundleOff +
+                          '% off the extras — about ' + money(r.bundleSaved) + '.' : '');
   }
 
   function paintEstimate() {
@@ -293,18 +367,22 @@
     var data = new FormData(form);
     var out = {};
     data.forEach(function (v, k) {
-      if (k === 'extras') { (out.extras = out.extras || []).push(v); }
+      if (k === 'addons' || k === 'conditions') { (out[k] = out[k] || []).push(v); }
       else { out[k] = v; }
     });
     var s = U.serviceById(out.service);
     var sizeSel = form.querySelector('#size');
     out.serviceName = s ? s.name : out.service;
     out.sizeLabel = sizeSel.options[sizeSel.selectedIndex] ? sizeSel.options[sizeSel.selectedIndex].text : '';
-    out.extraLabels = (out.extras || []).map(function (id) {
+    var nameOf = function (list, id) {
       var found = '';
-      D.extras.forEach(function (x) { if (x.id === id) { found = x.label; } });
+      list.forEach(function (x) { if (x.id === id) { found = x.label; } });
       return found;
-    });
+    };
+    out.extraLabels = (out.addons || []).map(function (id) { return nameOf(D.addOns, id); });
+    out.conditionLabels = (out.conditions || []).map(function (id) { return nameOf(D.conditions, id); });
+    var r = compute();
+    out.bundleNote = r && r.bundleOff ? r.bundleOff + '% bundle discount on ' + r.addOnCount + ' add-ons' : '';
     var f = null;
     D.frequencies.forEach(function (x) { if (x.id === out.frequency) { f = x; } });
     out.frequencyLabel = f ? f.label : 'One time';

@@ -271,10 +271,37 @@
   }
 
   function renderExtras(el) {
-    el.innerHTML = '<ul class="checklist">' + D.extras.map(function (x) {
-      var price = x.add ? money(x.add) : ('adds about ' + Math.round((x.factor - 1) * 100) + '%');
-      return '<li>' + esc(x.label) + ' — <span class="muted">' + esc(price) + '</span></li>';
-    }).join('') + '</ul>';
+    var groups = [];
+    D.addOns.forEach(function (x) {
+      var g = null;
+      groups.forEach(function (row) { if (row.name === x.group) { g = row; } });
+      if (!g) { g = { name: x.group, items: [] }; groups.push(g); }
+      g.items.push(x);
+    });
+    el.innerHTML = groups.map(function (g) {
+      return '<div class="addon-group">' +
+               '<p class="addon-group__name">' + esc(g.name) + '</p>' +
+               '<ul class="pricelist">' +
+                 g.items.map(function (x) {
+                   return '<li><span>' + esc(x.label) +
+                          (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
+                          '</span><b>' + money(x.price) + '</b></li>';
+                 }).join('') +
+               '</ul>' +
+             '</div>';
+    }).join('') +
+    '<p class="note" style="margin-top:1.5rem">' + esc(D.bundleDiscount.pitch) + '</p>';
+  }
+
+  function renderBundle(el) {
+    el.className = 'grid grid--3';
+    el.innerHTML = D.bundleDiscount.tiers.map(function (t) {
+      return '<div class="card freq-card">' +
+               '<span class="pct">Save ' + Math.round(t.off * 100) + '%</span>' +
+               '<h3>' + t.min + ' add-ons or more</h3>' +
+               '<p>Comes off the extras, never off the cleaning itself.</p>' +
+             '</div>';
+    }).join('');
   }
 
   function renderAreas(el) {
@@ -453,6 +480,7 @@
     pricingTable: renderPricingTable,
     frequencies: renderFrequencies,
     extras: renderExtras,
+    bundle: renderBundle,
     areas: renderAreas,
     areaSummary: renderAreaSummary,
     faqs: renderFaqs,

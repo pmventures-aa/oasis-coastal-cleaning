@@ -440,3 +440,43 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
 .section--sand .card { background: var(--oasis-white); }
 .section--navy .card { background: rgba(251, 249, 243, 0.06); border-color: rgba(251, 249, 243, 0.18); box-shadow: none; }
 .section--navy .card h3 { color: var(--oasis-cream); }
+
+/* --------------------------------------------------------------- add-ons */
+.addon-group + .addon-group { margin-top: 1.6rem; }
+.addon-group__name {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: var(--tracking-caps);
+  text-transform: uppercase; color: var(--oasis-gold); margin: 0 0 0.75rem;
+}
+.addon-grid { display: grid; gap: 0.5rem; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .addon-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.checkrow.addon {
+  align-items: flex-start; gap: 0.65rem;
+  border: 1.5px solid var(--oasis-line); border-radius: var(--radius);
+  background: var(--oasis-white); padding: 0.7rem 0.85rem;
+  transition: border-color .15s ease, background .15s ease;
+}
+.checkrow.addon:hover { border-color: var(--oasis-gold); }
+.checkrow.addon:has(input:checked) {
+  border-color: var(--oasis-teal); background: rgba(39, 189, 206, 0.08);
+}
+.addon__body { display: block; width: 100%; }
+.addon__label {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 0.75rem; font-weight: 600; line-height: 1.35;
+}
+.addon__label b { color: var(--oasis-teal); font-weight: 700; white-space: nowrap; }
+.addon__body small {
+  display: block; margin-top: 0.15rem; color: var(--oasis-muted);
+  font-size: 0.78rem; line-height: 1.4;
+}
+
+/* add-on price list on the services page */
+.pricelist { list-style: none; margin: 0; padding: 0; }
+.pricelist li {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  padding: 0.6rem 0; border-bottom: 1px solid var(--oasis-line); font-size: var(--step--1);
+}
+.pricelist li:last-child { border-bottom: 0; }
+.pricelist small { display: block; color: var(--oasis-muted); font-size: 0.78rem; margin-top: 0.1rem; }
+.pricelist b { color: var(--oasis-teal); white-space: nowrap; font-variant-numeric: tabular-nums; }
