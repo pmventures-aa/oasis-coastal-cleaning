@@ -1,10 +1,3 @@
--- Oasis Coastal Cleaning — the leads table.
---
--- Everything the quote form collects, plus the fields Kristina fills in
--- herself once she has spoken to someone.
---
--- Apply with the Cloudflare dashboard (D1 → oasis → Console) or:
---   npx wrangler d1 migrations apply oasis --remote
 
 CREATE TABLE IF NOT EXISTS leads (
   id             TEXT PRIMARY KEY,
