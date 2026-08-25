@@ -64,18 +64,42 @@ export async function onRequestPatch({ request, env }) {
   const id = clean(body.id, 60);
   if (!id) return json({ error: 'Which lead?' }, 400);
 
+  // What she is allowed to change, and how long each may be. Anything not on
+  // this list is ignored rather than trusted — the column names come straight
+  // from here into the SQL, so the list is the whole security boundary.
+  const EDITABLE = {
+    name: 120, phone: 40, email: 160, best_time: 80, contact_pref: 40,
+    property_type: 80, size_label: 140, bedrooms: 20, bathrooms: 20,
+    city: 80, zip: 12, address: 200, access: 200,
+    frequency: 60, notes: 2000,
+    admin_notes: 4000, quoted_amount: 40, next_visit: 40
+  };
+
   const sets = [], values = [];
+
   if (body.status !== undefined) {
     const status = clean(body.status, 20);
     if (!STATUSES.includes(status)) return json({ error: 'Unknown status.' }, 400);
     sets.push('status = ?'); values.push(status);
   }
-  if (body.adminNotes !== undefined) {
-    sets.push('admin_notes = ?'); values.push(clean(body.adminNotes, 4000));
+
+  for (const [col, max] of Object.entries(EDITABLE)) {
+    if (body[col] === undefined) continue;
+    sets.push(`${col} = ?`);
+    values.push(clean(body[col], max));
+    // Stamp when a quote was first written, so she can see how long one has
+    // been sitting without a reply.
+    if (col === 'quoted_amount' && clean(body[col], max)) {
+      sets.push('quoted_at = COALESCE(quoted_at, ?)');
+      values.push(new Date().toISOString());
+    }
   }
+
   if (!sets.length) return json({ error: 'Nothing to change.' }, 400);
 
+  sets.push('updated_at = ?'); values.push(new Date().toISOString());
   values.push(id);
+
   await env.DB.prepare(`UPDATE leads SET ${sets.join(', ')} WHERE id = ?`).bind(...values).run();
   return json({ ok: true });
 }

@@ -82,3 +82,83 @@
 .saved { color: #1F6236; font-size: var(--step--1); font-weight: 600; }
 
 .empty { text-align: center; padding: 3rem 1rem; color: var(--oasis-muted); }
+
+/* =========================================================================
+   Dashboard — the profile view
+   Denser than the public site on purpose. This is a work surface she will
+   have open while she is on the phone, not something to be read slowly.
+   ========================================================================= */
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;
+  margin-bottom: 1.25rem;
+}
+.toolbar .filters { margin-bottom: 0; }
+.toolbar__search {
+  margin-left: auto; width: auto; min-width: 15rem; flex: 1 1 15rem;
+  padding: 0.5rem 0.85rem; font-size: var(--step--1);
+  border-radius: var(--radius-pill);
+}
+
+.btn--block { width: 100%; border: 0; cursor: pointer; font-family: var(--font-body); }
+
+.lead.is-open { border-color: var(--oasis-teal); box-shadow: var(--oasis-shadow); }
+.lead__head { gap: 0.6rem; }
+.lead__quote {
+  font-size: 0.75rem; font-weight: 700; color: var(--oasis-teal);
+  font-variant-numeric: tabular-nums;
+}
+.lead__body { padding: 0; }
+
+.profile { padding: 0 1.1rem 1.1rem; }
+.profile__bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  padding: 0.85rem 0; border-bottom: 1px solid var(--oasis-line); margin-bottom: 0.5rem;
+}
+.profile__bar .btn { padding: 0.45em 1.1em; font-size: 0.68rem; }
+.profile__spacer { flex: 1 1 auto; }
+
+.profile__block { padding: 0.9rem 0; border-bottom: 1px solid var(--oasis-line); }
+.profile__block:last-of-type { border-bottom: 0; }
+.profile__block h4 {
+  font-family: var(--font-body); font-size: 0.66rem; font-weight: 700;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  color: var(--oasis-gold); margin: 0 0 0.7rem;
+}
+.profile__block--mine { background: rgba(200, 156, 83, 0.07); border-radius: var(--radius); padding: 0.9rem 1rem; }
+
+.profile__grid { display: grid; gap: 0.5rem 1.25rem; grid-template-columns: 1fr; }
+@media (min-width: 640px) { .profile__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.pf { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
+.pf--wide { grid-column: 1 / -1; align-items: flex-start; }
+.pf--inline { flex: none; }
+.pf__k {
+  flex: none; width: 7.5rem; font-size: 0.7rem; font-weight: 600;
+  letter-spacing: 0.04em; text-transform: uppercase; color: var(--oasis-muted);
+}
+.pf__v {
+  flex: 1 1 auto; min-width: 0; width: auto;
+  font-size: var(--step--1); padding: 0.4rem 0.6rem; border-radius: 8px;
+  border: 1.5px solid transparent; background: transparent; color: var(--oasis-navy);
+}
+.pf__v:hover { border-color: var(--oasis-line); }
+.pf__v:focus { border-color: var(--oasis-teal); background: var(--oasis-white); }
+.pf--ro .pf__v { font-weight: 600; padding-left: 0.6rem; }
+textarea.pf__v { min-height: 3.4rem; line-height: 1.5; resize: vertical; }
+select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
+
+.chips { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 0.6rem 0; }
+.chips__k {
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--oasis-muted); width: 7.5rem; flex: none;
+}
+.chip {
+  font-size: 0.72rem; font-weight: 600; padding: 0.2em 0.65em;
+  border-radius: var(--radius-pill);
+  background: rgba(39, 189, 206, 0.14); color: #0A5A63;
+}
+.chip--warn { background: rgba(200, 156, 83, 0.22); color: #7A551C; }
+
+.profile__stamp {
+  margin: 0.6rem 0 0; font-size: 0.72rem; color: var(--oasis-muted);
+}

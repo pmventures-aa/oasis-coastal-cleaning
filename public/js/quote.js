@@ -16,7 +16,7 @@
   var root = document.getElementById('quote-wizard');
   if (!D || !U || !root) { return; }
 
-  var esc = U.esc, money = U.money;
+  var esc = U.esc;
   var services = U.activeServices();
   var freqs = U.activeFrequencies();
 
@@ -55,7 +55,7 @@
     return '' +
       '<p class="step-lead">Pick the one that fits best. You can add more on the next screens.</p>' +
       tiles('service', services.map(function (s) {
-        return { id: s.id, label: s.name, sub: s.short + ' · from ' + money(s.startingAt) + ' ' + s.startingUnit };
+        return { id: s.id, label: s.name, sub: s.short };
       }), chosen) +
       '<div class="field mt-lg">' +
         '<label for="property">What kind of property?</label>' +
@@ -74,7 +74,7 @@
       '<div class="field">' +
         '<label for="size">How big is it? <span class="req">*</span></label>' +
         '<select id="size" name="size" required>' +
-          s.estimate.sizes.map(function (z) {
+          s.sizes.map(function (z) {
             return '<option value="' + esc(z.id) + '"' + (state.size === z.id ? ' selected' : '') + '>' +
                    esc(z.label) + '</option>';
           }).join('') +
@@ -113,14 +113,13 @@
     return '<p class="step-lead">A standing visit costs less each time, and you can pause or stop ' +
            'with a week of notice. Nothing is locked in.</p>' +
       tiles('frequency', freqs.map(function (f) {
-        var save = Math.round((1 - f.factor) * 100);
-        return { id: f.id, label: f.label, sub: save > 0 ? 'Our best rate — save about ' + save + '%' : f.note };
+        return { id: f.id, label: f.label, sub: f.note };
       }), state.frequency || 'biweekly') +
       firstVisitRow(s);
   }
 
   function firstVisitRow(s) {
-    if (s.estimate.firstVisit === 1) { return ''; }
+    if (!s.recurring) { return ''; }
     var on = state.firstVisit !== false;
     return '<label class="checkrow mt-lg">' +
              '<input type="checkbox" name="firstVisit" id="firstVisit"' + (on ? ' checked' : '') + '>' +
@@ -145,7 +144,8 @@
       g.items.push(x);
     });
 
-    return '<p class="step-lead">' + esc(D.bundleDiscount.pitch) + '</p>' +
+    return '<p class="step-lead">Tick anything you would like included. ' +
+             esc(D.bundleNote) + '</p>' +
       groups.map(function (g) {
         return '<div class="addon-group">' +
                  '<p class="addon-group__name">' + esc(g.name) + '</p>' +
@@ -156,8 +156,7 @@
                               '<input type="checkbox" name="addons" value="' + esc(x.id) + '"' +
                                 (on ? ' checked' : '') + '>' +
                               '<span class="addon__body">' +
-                                '<span class="addon__label">' + esc(x.label) +
-                                  '<b>from ' + money(x.price) + '</b></span>' +
+                                '<span class="addon__label">' + esc(x.label) + '</span>' +
                                 (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
                               '</span></label>';
                    }).join('') +
@@ -349,42 +348,6 @@
     set('company', pick('#company'));
   }
 
-  /* ------------------------------------------------- the internal estimate
-     Never shown. It travels with the lead so Kristina has a starting number.
-     Same shape as the pricing page: the clean carries the multipliers, the
-     add-ons carry flat prices and the bundle discount.                     */
-  function estimate() {
-    var s = U.serviceById(state.service) || services[0];
-    var size = null;
-    s.estimate.sizes.forEach(function (z) { if (z.id === state.size) { size = z; } });
-    if (!size) { size = s.estimate.sizes[0]; }
-
-    var clean = size.price != null ? size.price : size.hours * s.estimate.hourlyRate;
-
-    (state.conditions || []).forEach(function (id) {
-      D.conditions.forEach(function (c) { if (c.id === id) { clean *= c.factor; } });
-    });
-
-    var freq = null;
-    D.frequencies.forEach(function (f) { if (f.id === (s.recurring ? state.frequency : 'onetime')) { freq = f; } });
-    if (freq) { clean *= freq.factor; }
-    if (state.firstVisit !== false && s.estimate.firstVisit !== 1) { clean *= s.estimate.firstVisit; }
-
-    var addTotal = 0, count = 0;
-    (state.addOns || []).forEach(function (id) {
-      D.addOns.forEach(function (x) { if (x.id === id) { addTotal += x.price; count++; } });
-    });
-    var best = null;
-    D.bundleDiscount.tiers.forEach(function (t) {
-      if (count >= t.min && (!best || t.off > best.off)) { best = t; }
-    });
-    if (best) { addTotal *= (1 - best.off); }
-
-    var total = Math.max(clean + addTotal, s.estimate.minimum);
-    var r5 = function (n) { return Math.round(n / 5) * 5; };
-    return { low: r5(total * 0.92), high: r5(total * 1.12) };
-  }
-
   function labelsFor(list, ids) {
     return (ids || []).map(function (id) {
       var out = '';
@@ -420,8 +383,7 @@
           }).join('') +
         '</div>' +
         '<p class="wiz__count">Step ' + n + ' of ' + total +
-          (state.step > 0 ? ' · <span class="muted">' + esc(s.name) + ' from ' +
-            money(s.startingAt) + ' ' + esc(s.startingUnit) + '</span>' : '') +
+          (state.step > 0 ? ' · <span class="muted">' + esc(s.name) + '</span>' : '') +
         '</p>' +
         '<h2 class="wiz__title">' + esc(step.title) + '</h2>' +
         '<div class="wiz__body">' + step.render() + '</div>' +
@@ -460,11 +422,9 @@
   function payload() {
     var s = U.serviceById(state.service) || services[0];
     var sizeLabel = '';
-    s.estimate.sizes.forEach(function (z) { if (z.id === state.size) { sizeLabel = z.label; } });
+    s.sizes.forEach(function (z) { if (z.id === state.size) { sizeLabel = z.label; } });
     var freqLabel = 'One time';
     D.frequencies.forEach(function (f) { if (f.id === state.frequency) { freqLabel = f.label; } });
-    var est = estimate();
-
     return {
       name: state.name, phone: state.phone, email: state.email,
       bestTime: state.bestTime, contactPref: state.contactPref,
@@ -479,7 +439,6 @@
       city: state.city, zip: state.zip, address: state.address,
       startWhen: state.startWhen, preferredDays: state.preferredDays || [],
       access: state.access,
-      estimateLow: est.low, estimateHigh: est.high,
       company: state.company,
       pageUrl: window.location.href
     };

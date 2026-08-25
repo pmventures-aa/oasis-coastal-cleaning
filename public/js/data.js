@@ -40,12 +40,13 @@ window.OASIS = {
     baseZip: '33432',
 
     hours: [
-      { days: 'Monday – Friday', time: '8:00 am – 6:00 pm' },
-      { days: 'Saturday',        time: '9:00 am – 3:00 pm' },
-      { days: 'Sunday',          time: 'Closed' }
+      { days: 'Monday – Friday', time: '7:00 am – 7:00 pm' },
+      { days: 'Saturday',        time: '8:00 am – 5:00 pm' },
+      { days: 'Sunday',          time: '9:00 am – 3:00 pm' }
     ],
-    // Same hours in the format Google reads. Keep the two in step.
-    hoursSchema: ['Mo-Fr 08:00-18:00', 'Sa 09:00-15:00'],
+    // The same hours in the format Google reads. Keep the two in step — they
+    // are what shows in search results and on the map listing.
+    hoursSchema: ['Mo-Fr 07:00-19:00', 'Sa 08:00-17:00', 'Su 09:00-15:00'],
 
     social: {
       // Delete a line to drop the icon from the footer.
@@ -61,14 +62,14 @@ window.OASIS = {
   },
 
   /* ---------------------------------------------------------------- quotes
-     The site never shows a visitor a calculated price. Every figure they see
-     is a "starting at"; the real number comes from Kristina once she has read
-     what they sent.
+     There are no prices on this site, anywhere, by design. Kristina quotes
+     every job herself after reading what the customer sent, so a number on
+     the page would only ever be a promise made before seeing the house.
 
-     The estimator still runs — but only on the lead she receives, where it
-     gives her a suggested value to quote against. Flip this to true if you
-     ever want visitors to see a live range on the form instead. */
-  showCustomerEstimate: false,
+     If you ever want to publish "starting at" figures, they would go back on
+     the service entries below and into the cards in js/site.js — but nothing
+     currently reads a price, so adding one is a deliberate act, not a
+     forgotten leftover. */
 
   /* ------------------------------------------------------------------- nav
      Order here is the order in the header and the footer. */
@@ -87,13 +88,9 @@ window.OASIS = {
      pricing table — without deleting anything. Flip it to true when you are
      ready to sell it. That is the whole change.
 
-     ESTIMATE MODEL (drives the live range on the quote form)
-       sizes[].hours  × hourlyRate × frequency factor  = estimate
-       sizes[].price  (if present)  wins over hours — use it for flat rates
-       minimum        the estimate never drops below this
-       unitLabel      what the estimate is priced per — shown under the range
-       firstVisit     multiplier for the first, deeper visit
-       recurring      false = no weekly/biweekly options offered
+     `sizes` is the "how big is it?" question on the quote form — labels only,
+     no rates. `recurring: false` means no weekly/biweekly options are offered
+     for that service.
   */
   services: [
     {
@@ -113,23 +110,15 @@ window.OASIS = {
         'Trash and recycling out, fresh liners in',
         'A quick walkthrough with you, or a text with photos if you are out'
       ],
-      startingAt: 145,
-      startingUnit: 'per visit',
       icon: 'home',
       recurring: true,
-      estimate: {
-        unitLabel: 'per visit',
-        hourlyRate: 62,
-        minimum: 145,
-        firstVisit: 1.4,
-        sizes: [
-          { id: 'h1', label: 'Studio or 1 bed · under 900 sq ft',     hours: 2.5 },
-          { id: 'h2', label: '2 bedrooms · 900 – 1,400 sq ft',         hours: 3.25 },
-          { id: 'h3', label: '3 bedrooms · 1,400 – 2,200 sq ft',       hours: 4.25 },
-          { id: 'h4', label: '4 bedrooms · 2,200 – 3,200 sq ft',       hours: 5.5 },
-          { id: 'h5', label: '5 bedrooms or more · 3,200+ sq ft',      hours: 7 }
-        ]
-      }
+      sizes: [
+        { id: 'h1', label: 'Studio or 1 bed · under 900 sq ft' },
+        { id: 'h2', label: '2 bedrooms · 900 – 1,400 sq ft' },
+        { id: 'h3', label: '3 bedrooms · 1,400 – 2,200 sq ft' },
+        { id: 'h4', label: '4 bedrooms · 2,200 – 3,200 sq ft' },
+        { id: 'h5', label: '5 bedrooms or more · 3,200+ sq ft' }
+      ]
     },
     {
       id: 'office',
@@ -147,23 +136,15 @@ window.OASIS = {
         'Floors vacuumed and mopped, trash and recycling out',
         'Evenings, early mornings or weekends — whatever keeps you open'
       ],
-      startingAt: 135,
-      startingUnit: 'per visit',
       icon: 'office',
       recurring: true,
-      estimate: {
-        unitLabel: 'per visit',
-        hourlyRate: 58,
-        minimum: 135,
-        firstVisit: 1.3,
-        sizes: [
-          { id: 'o1', label: 'Small suite · under 1,200 sq ft',   hours: 2.5 },
-          { id: 'o2', label: '1,200 – 2,500 sq ft',               hours: 3.5 },
-          { id: 'o3', label: '2,500 – 5,000 sq ft',               hours: 5 },
-          { id: 'o4', label: '5,000 – 8,000 sq ft',               hours: 7 },
-          { id: 'o5', label: 'Over 8,000 sq ft',                  hours: 9 }
-        ]
-      }
+      sizes: [
+        { id: 'o1', label: 'Small suite · under 1,200 sq ft' },
+        { id: 'o2', label: '1,200 – 2,500 sq ft' },
+        { id: 'o3', label: '2,500 – 5,000 sq ft' },
+        { id: 'o4', label: '5,000 – 8,000 sq ft' },
+        { id: 'o5', label: 'Over 8,000 sq ft' }
+      ]
     },
     {
       id: 'organizing',
@@ -181,22 +162,14 @@ window.OASIS = {
         'Container recommendations, bought only with your approval',
         'A short handoff so the system survives a busy week'
       ],
-      startingAt: 78,
-      startingUnit: 'per hour',
       icon: 'organizing',
       recurring: false,
-      estimate: {
-        unitLabel: 'per session',
-        hourlyRate: 78,
-        minimum: 234,
-        firstVisit: 1,
-        sizes: [
-          { id: 'g1', label: 'One space — a pantry, a closet, an entry',   hours: 3 },
-          { id: 'g2', label: 'Half day — two or three spaces',             hours: 4 },
-          { id: 'g3', label: 'Full day — a floor, a garage, a whole reset', hours: 7 },
-          { id: 'g4', label: 'Multi-day project — a move or a whole home',  hours: 14 }
-        ]
-      }
+      sizes: [
+        { id: 'g1', label: 'One space — a pantry, a closet, an entry' },
+        { id: 'g2', label: 'Half day — two or three spaces' },
+        { id: 'g3', label: 'Full day — a floor, a garage, a whole reset' },
+        { id: 'g4', label: 'Multi-day project — a move or a whole home' }
+      ]
     },
     {
       id: 'laundry',
@@ -213,22 +186,14 @@ window.OASIS = {
         'Two-day standard turnaround, next day when you need it',
         'Delicates and line-dry items flagged and handled separately'
       ],
-      startingAt: 45,
-      startingUnit: 'per hamper',
       icon: 'laundry',
       recurring: true,
-      estimate: {
-        unitLabel: 'per pickup',
-        hourlyRate: 0,
-        minimum: 45,
-        firstVisit: 1,
-        sizes: [
-          { id: 'l1', label: 'One hamper — up to 18 lbs',            price: 45 },
-          { id: 'l2', label: 'Two hampers — up to 36 lbs',           price: 82 },
-          { id: 'l3', label: 'Three hampers — up to 54 lbs',         price: 118 },
-          { id: 'l4', label: 'Rental or household volume — 55 lbs +', price: 160 }
-        ]
-      }
+      sizes: [
+        { id: 'l1', label: 'One hamper — up to 18 lbs' },
+        { id: 'l2', label: 'Two hampers — up to 36 lbs' },
+        { id: 'l3', label: 'Three hampers — up to 54 lbs' },
+        { id: 'l4', label: 'Rental or household volume — 55 lbs +' }
+      ]
     },
 
     /* ---- Ready when you are. Change active to true and it appears everywhere:
@@ -247,18 +212,13 @@ window.OASIS = {
         'Windows and tracks on the interior',
         'Final walkthrough with photos'
       ],
-      startingAt: 325,
-      startingUnit: 'per home',
       icon: 'home',
       recurring: false,
-      estimate: {
-        unitLabel: 'per home', hourlyRate: 68, minimum: 325, firstVisit: 1,
-        sizes: [
-          { id: 'm1', label: 'Condo or 1 – 2 bedrooms', hours: 5 },
-          { id: 'm2', label: '3 bedrooms',              hours: 7 },
-          { id: 'm3', label: '4 bedrooms or more',      hours: 9 }
-        ]
-      }
+      sizes: [
+        { id: 'm1', label: 'Condo or 1 – 2 bedrooms' },
+        { id: 'm2', label: '3 bedrooms' },
+        { id: 'm3', label: '4 bedrooms or more' }
+      ]
     },
     {
       id: 'turnover',
@@ -274,18 +234,13 @@ window.OASIS = {
         'Consumables restocked from your supply',
         'Photo report sent before check-in'
       ],
-      startingAt: 135,
-      startingUnit: 'per turnover',
       icon: 'office',
       recurring: true,
-      estimate: {
-        unitLabel: 'per turnover', hourlyRate: 65, minimum: 135, firstVisit: 1,
-        sizes: [
-          { id: 't1', label: 'Studio or 1 bedroom', hours: 2.5 },
-          { id: 't2', label: '2 bedrooms',          hours: 3.5 },
-          { id: 't3', label: '3 bedrooms or more',  hours: 4.5 }
-        ]
-      }
+      sizes: [
+        { id: 't1', label: 'Studio or 1 bedroom' },
+        { id: 't2', label: '2 bedrooms' },
+        { id: 't3', label: '3 bedrooms or more' }
+      ]
     },
     {
       id: 'postconstruction',
@@ -301,107 +256,91 @@ window.OASIS = {
         'Floors detailed and sealed surfaces wiped',
         'Debris hauled to your bin'
       ],
-      startingAt: 450,
-      startingUnit: 'per project',
       icon: 'organizing',
       recurring: false,
-      estimate: {
-        unitLabel: 'per project', hourlyRate: 75, minimum: 450, firstVisit: 1,
-        sizes: [
-          { id: 'p1', label: 'A single room or bath remodel', hours: 6 },
-          { id: 'p2', label: 'A floor or a large addition',   hours: 10 },
-          { id: 'p3', label: 'A whole house',                 hours: 16 }
-        ]
-      }
+      sizes: [
+        { id: 'p1', label: 'A single room or bath remodel' },
+        { id: 'p2', label: 'A floor or a large addition' },
+        { id: 'p3', label: 'A whole house' }
+      ]
     }
   ],
 
   /* ------------------------------------------------------------ frequencies
-     `factor` multiplies the estimate. Lower factor = the discount for
-     committing to a rhythm. Set `active: false` to stop offering one. */
+     How often she comes. A standing visit costs less per visit than a one-off
+     because the house never gets far from where she left it — by how much is
+     part of the quote, not published here. Set `active: false` to stop
+     offering one. */
   frequencies: [
     { id: 'weekly',   active: true, label: 'Weekly',           short: 'Weekly',
-      factor: 0.82, note: 'The best rate, and the house never gets far from where we left it.' },
+      note: 'The best rate, and the house never gets far from where we left it.' },
     { id: 'biweekly', active: true, label: 'Every two weeks',  short: 'Biweekly',
-      factor: 0.88, note: 'The rhythm most family homes settle into.' },
+      note: 'The rhythm most family homes settle into.' },
     { id: 'monthly',  active: true, label: 'Monthly',          short: 'Monthly',
-      factor: 0.95, note: 'A full reset once a month, with extra time budgeted.' },
+      note: 'A full reset once a month, with extra time budgeted.' },
     { id: 'onetime',  active: true, label: 'One time',         short: 'One time',
-      factor: 1.0,  note: 'A single visit — a move, a party, or a trial run before you commit.' }
+      note: 'A single visit — a move, a party, or a trial run before you commit.' }
   ],
 
   /* ---------------------------------------------------------------- add-ons
      The checkbox list on the quote form. Customers tick what they want and
      the estimate updates as they go.
 
-       price     flat dollars added to the visit
        group     the heading it appears under (any new name makes a new group)
        services  which services offer it — drop an id and it disappears there
        note      the small grey line under the label; leave it '' to hide
 
-     ⚠ EVERY PRICE BELOW IS A PLACEHOLDER at ordinary South Florida rates.
-     Go through them once and set your real numbers before the site is live.
-     They drive the quoted range, so a wrong one here is a wrong quote. */
+     No prices here — these are the things a customer can ask for, and what
+     each of them costs is decided when Kristina quotes the job. */
   addOns: [
     { id: 'refrigerator', label: 'Refrigerator',        note: 'Inside — shelves out, wiped down and replaced',
-      price: 35, group: 'Kitchen',        services: ['home', 'office', 'movein', 'turnover'] },
+      group: 'Kitchen',        services: ['home', 'office', 'movein', 'turnover'] },
     { id: 'oven',         label: 'Oven',                note: 'Inside, racks and door glass',
-      price: 35, group: 'Kitchen',        services: ['home', 'movein'] },
+      group: 'Kitchen',        services: ['home', 'movein'] },
     { id: 'microwave',    label: 'Microwave',           note: 'Inside and out, turntable washed',
-      price: 12, group: 'Kitchen',        services: ['home', 'office', 'movein'] },
+      group: 'Kitchen',        services: ['home', 'office', 'movein'] },
     { id: 'dishes',       label: 'Dishes',              note: 'Washed or loaded and run',
-      price: 15, group: 'Kitchen',        services: ['home', 'turnover'] },
+      group: 'Kitchen',        services: ['home', 'turnover'] },
     { id: 'cabinets',     label: 'Cabinet cleaning',    note: 'Fronts and inside, shelves wiped',
-      price: 45, group: 'Kitchen',        services: ['home', 'movein'] },
+      group: 'Kitchen',        services: ['home', 'movein'] },
 
     { id: 'beds',         label: 'Bed making',          note: 'Made, or stripped and remade with fresh linens',
-      price: 15, group: 'Around the house', services: ['home', 'turnover'] },
+      group: 'Around the house', services: ['home', 'turnover'] },
     { id: 'laundry',      label: 'Laundry',             note: 'Washed, dried and folded while we are there',
-      price: 40, group: 'Around the house', services: ['home', 'turnover'] },
+      group: 'Around the house', services: ['home', 'turnover'] },
     { id: 'trash',        label: 'Trash removal',       note: 'Hauled away, beyond the usual bins to the curb',
-      price: 20, group: 'Around the house', services: ['home', 'office', 'movein', 'turnover', 'postconstruction'] },
+      group: 'Around the house', services: ['home', 'office', 'movein', 'turnover', 'postconstruction'] },
     { id: 'blinds',       label: 'Dusting blinds',      note: 'Slat by slat, not a pass with a duster',
-      price: 30, group: 'Around the house', services: ['home', 'office', 'movein'] },
+      group: 'Around the house', services: ['home', 'office', 'movein'] },
     { id: 'walls',        label: 'Wall washing',        note: 'Marks, scuffs and fingerprints off painted walls',
-      price: 60, group: 'Around the house', services: ['home', 'office', 'movein', 'postconstruction'] },
+      group: 'Around the house', services: ['home', 'office', 'movein', 'postconstruction'] },
 
     { id: 'windows-in',   label: 'Interior window',     note: 'Glass, sills and tracks from inside',
-      price: 45, group: 'Windows',       services: ['home', 'office', 'movein', 'postconstruction'] },
+      group: 'Windows',       services: ['home', 'office', 'movein', 'postconstruction'] },
     { id: 'windows-out',  label: 'Exterior window',     note: 'Ground-floor glass from outside',
-      price: 65, group: 'Windows',       services: ['home', 'office'] },
+      group: 'Windows',       services: ['home', 'office'] },
 
     { id: 'closets',      label: 'Closet organization', note: 'Emptied, sorted with you and put back to a system',
-      price: 70, group: 'Organizing',    services: ['home', 'organizing'] },
+      group: 'Organizing',    services: ['home', 'organizing'] },
     { id: 'cabinet-org',  label: 'Cabinet organization', note: 'Pantry or kitchen cabinets grouped and labelled',
-      price: 55, group: 'Organizing',    services: ['home', 'organizing'] }
+      group: 'Organizing',    services: ['home', 'organizing'] }
   ],
 
-  /* --------------------------------------------------------- bundle pricing
-     More add-ons in one visit means less setup and travel per item, so the
-     saving is real rather than a gimmick. The discount comes off the add-on
-     subtotal only — never off the cleaning itself.
-
-     Tiers are checked from the bottom up, so the best one a customer
-     qualifies for is the one applied. ⚠ Confirm these percentages. */
-  bundleDiscount: {
-    tiers: [
-      { min: 2, off: 0.10 },
-      { min: 4, off: 0.15 },
-      { min: 6, off: 0.20 }
-    ],
-    pitch: 'Pick any two and the extras come down 10%. Four or more takes 15% off, ' +
-           'six or more takes 20%. The discount applies to the add-ons, not the clean.'
-  },
+  /* --------------------------------------------------------------- bundling
+     More add-ons in one visit means less setup and travel per item, so
+     bundling genuinely costs less. No percentage is published — the saving
+     shows up in the quote Kristina sends. */
+  bundleNote: 'Ask for two or more and they come down. The saving shows up in your quote.',
 
   /* ------------------------------------------------------------- conditions
-     Not things to buy — things about the home that change how long it takes.
-     `factor` multiplies the cleaning subtotal. Kept apart from the add-ons so
-     nobody is charged a "bundle discount" for owning a dog. */
+     Not things to buy — things about the home that change how long a visit
+     takes, and therefore what it costs. Kept apart from the add-ons because
+     they are facts about the house, not items on an order. */
   conditions: [
     { id: 'pets',   label: 'Pets in the home',  note: 'Hair, and a little more time',
-      factor: 1.08, services: ['home', 'organizing', 'movein', 'turnover'] },
+      services: ['home', 'organizing', 'movein', 'turnover'] },
     { id: 'stairs', label: 'Two floors or more', note: 'Carrying equipment up and down',
-      factor: 1.06, services: ['home', 'movein', 'postconstruction'] }
+      services: ['home', 'movein', 'postconstruction'] }
   ],
 
   /* ------------------------------------------------------------ property type
@@ -497,14 +436,15 @@ window.OASIS = {
   /* -------------------------------------------------------------------- faq */
   faqs: [
     { q: 'How much does it cost?',
-      a: 'Home visits start at $145 and offices at $135, but the honest answer is that ' +
-         'the number depends on your square footage, how often we come, whether there are ' +
-         'pets, and the condition on day one. The quote form gives you a range in about a ' +
-         'minute, and a firm number follows within one business day.' },
-    { q: 'Why a range instead of a price?',
-      a: 'Because a fixed price sight-unseen is either padded to cover the worst case or ' +
-         'about to be revised upward once we walk in. A range is what we can honestly ' +
-         'promise before seeing the space, and it almost always lands where the form says.' },
+      a: 'Every job is quoted individually, so there is no price list to point you at. What ' +
+         'moves the number is square footage, how often we come, whether there are pets, and ' +
+         'the condition on day one. Tell us about the space and a real number comes back ' +
+         'within one business day — usually the same day.' },
+    { q: 'Why is there no price list?',
+      a: 'Because a figure published before anyone has seen your home is either padded to ' +
+         'cover the worst case, or it is about to be revised upward once we walk in. Neither ' +
+         'is a good start. A quote written for your house is worth more than a number that ' +
+         'was written for nobody.' },
     { q: 'Do I have to sign a contract?',
       a: 'No. Recurring visits continue until you tell us otherwise, and you can pause for ' +
          'the summer or stop entirely with a week of notice.' },
@@ -513,9 +453,9 @@ window.OASIS = {
          'leave them out and we will. Plenty of clients do, especially with stone counters ' +
          'or a sensitivity to fragrance.' },
     { q: 'Is the first visit different?',
-      a: 'It is longer and it costs more. The first visit catches up on everything that has ' +
-         'built up so the visits after it can stay on rhythm. The quote form has a box for ' +
-         'this so the range you see is the range you pay.' },
+      a: 'It is longer, and it costs more than the ones after it. The first visit catches up ' +
+         'on everything that has built up so the visits that follow can stay on rhythm. Your ' +
+         'quote will say what each is, so there is no surprise on the second invoice.' },
     { q: 'Do I need to be home?',
       a: 'No. Most clients give us a code, a lockbox or a key. Everything is logged, and you ' +
          'get a text when we arrive and when we leave.' },

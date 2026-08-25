@@ -179,8 +179,7 @@
                '<span class="icon-badge">' + icon(s.icon) + '</span>' +
                '<h3>' + esc(s.name) + '</h3>' +
                '<p>' + esc(s.short) + '</p>' +
-               '<span class="price">From ' + money(s.startingAt) +
-                 '<small>' + esc(s.startingUnit) + '</small></span>' +
+               '<span class="price">Get a quote &rarr;</span>' +
              '</a>';
     }).join('');
   }
@@ -193,12 +192,8 @@
                    '<span class="icon-badge">' + icon(s.icon) + '</span>' +
                    '<h2 style="font-size:var(--step-1);margin:0 0 .75rem">' + esc(s.name) + '</h2>' +
                    '<p class="muted">' + esc(s.blurb) + '</p>' +
-                   '<p class="price" style="font-size:var(--step--1);font-weight:600;letter-spacing:.06em;' +
-                     'text-transform:uppercase;color:var(--oasis-teal)">Starting at ' + money(s.startingAt) +
-                     ' <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400">' +
-                     esc(s.startingUnit) + '</span></p>' +
                    '<a class="btn btn--primary" href="/quote.html?service=' + esc(s.id) + '">' +
-                     esc(i % 2 === 0 ? 'Price this service' : 'Get my range') + '</a>' +
+                     esc(i % 2 === 0 ? 'Get a quote for this' : 'Ask about this') + '</a>' +
                  '</div>' +
                  '<div>' +
                    '<p class="eyebrow" style="margin:0 0 .8rem">What is included</p>' +
@@ -241,18 +236,15 @@
 
   function renderPricingTable(el) {
     var rows = activeServices().map(function (s) {
-      var freqs = s.recurring ? activeFrequencies().map(function (f) { return f.short; }).join(', ')
-                              : 'One time, by project';
       return '<tr>' +
                '<td>' + esc(s.name) + '</td>' +
-               '<td class="from">' + money(s.startingAt) + '</td>' +
-               '<td>' + esc(s.startingUnit) + '</td>' +
-               '<td class="muted">' + esc(freqs) + '</td>' +
+               '<td class="muted">' + esc(s.short) + '</td>' +
+               '<td class="muted">' + esc(s.recurring ? 'Weekly, biweekly, monthly or one time' : 'By the job') + '</td>' +
              '</tr>';
     }).join('');
     el.innerHTML =
       '<div class="table-scroll"><table class="pricetable">' +
-        '<thead><tr><th>Service</th><th>Starting at</th><th>Basis</th><th>Offered</th></tr></thead>' +
+        '<thead><tr><th>Service</th><th>What it covers</th><th>How it is scheduled</th></tr></thead>' +
         '<tbody>' + rows + '</tbody>' +
       '</table></div>';
   }
@@ -261,9 +253,7 @@
     var list = activeFrequencies();
     el.className = 'grid grid--' + (list.length === 4 ? '4' : '3');
     el.innerHTML = list.map(function (f) {
-      var save = Math.round((1 - f.factor) * 100);
       return '<div class="card freq-card">' +
-               '<span class="pct">' + (save > 0 ? 'Save ' + save + '%' : 'Full rate') + '</span>' +
                '<h3>' + esc(f.label) + '</h3>' +
                '<p>' + esc(f.note) + '</p>' +
              '</div>';
@@ -285,23 +275,12 @@
                  g.items.map(function (x) {
                    return '<li><span>' + esc(x.label) +
                           (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
-                          '</span><b>' + money(x.price) + '</b></li>';
+                          '</span></li>';
                  }).join('') +
                '</ul>' +
              '</div>';
     }).join('') +
-    '<p class="note" style="margin-top:1.5rem">' + esc(D.bundleDiscount.pitch) + '</p>';
-  }
-
-  function renderBundle(el) {
-    el.className = 'grid grid--3';
-    el.innerHTML = D.bundleDiscount.tiers.map(function (t) {
-      return '<div class="card freq-card">' +
-               '<span class="pct">Save ' + Math.round(t.off * 100) + '%</span>' +
-               '<h3>' + t.min + ' add-ons or more</h3>' +
-               '<p>Comes off the extras, never off the cleaning itself.</p>' +
-             '</div>';
-    }).join('');
+    '<p class="note" style="margin-top:1.5rem">' + esc(D.bundleNote) + '</p>';
   }
 
   function renderAreas(el) {
@@ -439,12 +418,7 @@
         itemListElement: activeServices().map(function (s) {
           return {
             '@type': 'Offer',
-            itemOffered: { '@type': 'Service', name: s.name, description: s.short },
-            priceSpecification: {
-              '@type': 'PriceSpecification',
-              minPrice: s.startingAt, priceCurrency: 'USD',
-              description: 'Starting at, ' + s.startingUnit
-            }
+            itemOffered: { '@type': 'Service', name: s.name, description: s.short }
           };
         })
       }
@@ -480,7 +454,6 @@
     pricingTable: renderPricingTable,
     frequencies: renderFrequencies,
     extras: renderExtras,
-    bundle: renderBundle,
     areas: renderAreas,
     areaSummary: renderAreaSummary,
     faqs: renderFaqs,
