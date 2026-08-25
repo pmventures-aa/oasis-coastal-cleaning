@@ -1,5 +1,0 @@
-# wrangler's local dev cache — machine-specific, never committed
-.wrangler/
-node_modules/
-.dev.vars
-.DS_Store

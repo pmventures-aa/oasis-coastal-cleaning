@@ -1,30 +1,22 @@
-# Oasis Coastal Cleaning — Cloudflare Worker with static assets.
+# Oasis Coastal Cleaning — Cloudflare Pages.
 #
-# This is a WORKER, not a Pages project. Cloudflare accounts created recently
-# no longer offer Pages, and a Pages-shaped repo fails there with
-# "Missing entry-point to Worker script or to assets directory".
+# LAYOUT (getting this wrong fails the deploy)
+#   public/      every file that is served. This is the build output dir.
+#   functions/   the API. Must sit OUTSIDE the output dir, at the repo root,
+#                or Cloudflare will not compile it.
 #
-# LAYOUT
-#   public/     the site. Served straight from the assets runtime.
-#   src/        the Worker: index.js routes /api/*, everything else is a file.
+# There is no build step. If you create the project by hand:
+#   Framework preset    None
+#   Build command       (leave empty)
+#   Build output dir    public
+#   Root directory      (leave empty)
 #
-# Dashboard settings, if you are creating the project by hand:
-#   Build command     (leave empty — there is nothing to build)
-#   Deploy command    npx wrangler deploy
-#
-# Both are the defaults, so connecting the repo and saving is usually enough.
+# Deploy from a terminal instead:
+#   npx wrangler pages deploy public --project-name oasis-coastal-cleaning
 
 name = "oasis-coastal-cleaning"
-main = "src/index.js"
 compatibility_date = "2026-08-01"
-
-[assets]
-directory = "./public"
-binding = "ASSETS"
-# Serves /services from services.html, the way Pages did.
-html_handling = "auto-trailing-slash"
-# Unknown paths get the site's own 404 page rather than a bare Cloudflare one.
-not_found_handling = "404-page"
+pages_build_output_dir = "public"
 
 [vars]
 QUOTE_TO_EMAIL = "info@oasiscoastalcleaning.com"
@@ -34,25 +26,34 @@ QUOTE_TO_EMAIL = "info@oasiscoastalcleaning.com"
 
 # ---------------------------------------------------------------- database
 # The leads portal needs this. The site deploys and works without it — quote
-# requests are still emailed — but nothing is saved and the portal shows setup
-# instructions instead of a list.
+# requests are still emailed — but nothing is saved and the portal will show
+# setup instructions instead of a list.
 #
-#   1. Cloudflare → Storage & Databases → D1 → Create, named "oasis"
-#   2. paste its Database ID below and uncomment these four lines
-#   3. create the table (the SQL is in migrations/0001_leads.sql)
-#   4. commit — the next deploy picks it up
+# IMPORTANT: because this file exists, Cloudflare reads bindings from HERE and
+# ignores ones added in the dashboard. So the binding has to be added below,
+# not in Settings.
+#
+#   1. npx wrangler d1 create oasis
+#   2. paste the database_id it prints into the block below
+#   3. uncomment the block
+#   4. npx wrangler d1 migrations apply oasis --remote
+#   5. commit and push — the next deploy picks it up
 #
 # [[d1_databases]]
 # binding = "DB"
 # database_name = "oasis"
-# database_id = "PASTE-THE-ID-HERE"
+# database_id = "PASTE-THE-ID-FROM-STEP-1"
+# migrations_dir = "migrations"
 
 # ----------------------------------------------------------------- secrets
-# NOT set here. Add under Settings → Variables and secrets:
+# NOT set here — these are secrets. Add them under
+# Settings → Variables and secrets, or with `wrangler pages secret put`:
+#
 #   ADMIN_PASSWORD         the password for the leads portal at /admin
 #   SESSION_SECRET         any long random string; signs the login cookie
 #   RESEND_API_KEY         so new requests reach the inbox
 #   TURNSTILE_SECRET_KEY   optional spam check; pairs with turnstileSiteKey
 #                          in public/js/data.js
 #
-# Environment changes only apply to a NEW deployment.
+# Environment changes only apply to a NEW deployment. After adding them, go to
+# Deployments and retry the latest one.

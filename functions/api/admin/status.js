@@ -3,8 +3,8 @@
  * The sign-in page reads this so it can explain itself rather than just
  * failing when the project has not been configured yet.
  */
-import { json } from '../../lib/util.js';
-import { isSignedIn, authConfigured } from '../../lib/auth.js';
+import { json } from '../../_lib/util.js';
+import { isSignedIn, authConfigured } from '../../_lib/auth.js';
 
 export async function onRequestGet({ request, env }) {
   return json({

@@ -2,7 +2,7 @@
  * POST /api/followup — the confirmation step, where they ask for a call or a
  * visit. Flags the lead that was just created and tells Kristina.
  */
-import { json, clean, sendEmail } from '../lib/util.js';
+import { json, clean, sendEmail } from '../_lib/util.js';
 
 const KINDS = { call: 'a phone call', visit: 'an in-person walkthrough', text: 'a text message' };
 

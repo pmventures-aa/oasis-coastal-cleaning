@@ -4,8 +4,8 @@
  *
  * Both require a signed-in session.
  */
-import { json, clean } from '../../lib/util.js';
-import { isSignedIn } from '../../lib/auth.js';
+import { json, clean } from '../../_lib/util.js';
+import { isSignedIn } from '../../_lib/auth.js';
 
 const STATUSES = ['new', 'contacted', 'quoted', 'booked', 'closed'];
 
