@@ -488,6 +488,62 @@
     else { wide.addListener(apply); }
   }
 
+  /* ------------------------------------------------------------- motion
+     Progressive enhancement only: if any of this cannot run, the page is
+     simply static — nothing is ever left hidden. Anyone who has asked for
+     reduced motion is opted out entirely. */
+  function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  function setupMotion() {
+    if (prefersReducedMotion() || !('IntersectionObserver' in window)) { return; }
+
+    // Blocks that settle in as they enter the viewport. The hero logo is left
+    // out on purpose — it has its own float/ease-in.
+    var selector = [
+      '.section__head', '.hero h1', '.hero__lead', '.hero__ctas', '.hero__meta',
+      '.card', '.step', '.promise', '.contact-tile', '.quote-card',
+      '.area-card', '.faq details', '.pricetable', '.about-photo', '.about-body',
+      '.cta-band > *'
+    ].join(',');
+
+    var nodes = document.querySelectorAll(selector);
+    if (!nodes.length) { return; }
+
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('reveal-in');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: '0px 0px -20% 0px', threshold: 0.05 });
+
+    // Stagger siblings that share a parent (grids, step rows) so a row of
+    // cards cascades rather than snapping in all at once.
+    var seen = [];
+    var counts = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      var p = n.parentNode;
+      var idx = seen.indexOf(p);
+      if (idx === -1) { seen.push(p); counts.push(0); idx = seen.length - 1; }
+      var order = counts[idx]++;
+      n.classList.add('reveal');
+      n.style.transitionDelay = (Math.min(order, 6) * 70) + 'ms';
+      io.observe(n);
+    }
+  }
+
+  function setupHeaderScroll() {
+    var bar = document.querySelector('.topbar');
+    if (!bar) { return; }
+    var apply = function () { bar.classList.toggle('is-scrolled', window.scrollY > 8); };
+    apply();
+    window.addEventListener('scroll', apply, { passive: true });
+  }
+
   function boot() {
     var nodes = document.querySelectorAll('[data-render]');
     for (var i = 0; i < nodes.length; i++) {
@@ -510,6 +566,9 @@
     }
 
     syncDisclosures();
+
+    setupMotion();
+    setupHeaderScroll();
 
     injectSchema();
 

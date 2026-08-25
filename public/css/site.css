@@ -759,3 +759,88 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
 }
 .footer__links { gap: 0 1.1rem; }
 .footer__reach { gap: 0 1rem; }
+
+/* =========================================================================
+   Motion & engagement
+   A calm, coastal motion layer: content settles in as it scrolls into view,
+   the header lifts once you leave the top, and the things you can click give
+   a little feedback. Everything here is an enhancement — with JavaScript off
+   nothing is hidden, and it is all switched off for anyone who has asked for
+   reduced motion.
+   ========================================================================= */
+
+/* The header is meant to stick (see .topbar position: sticky), but it is
+   rendered inside a wrapper div that is only as tall as the header itself,
+   which pins sticky in place and lets it scroll away. Collapsing that wrapper
+   with display:contents puts the header back in the body's flow so it sticks
+   for real — and so the elevated-on-scroll state below actually shows. */
+[data-render="header"] { display: contents; }
+
+/* Scroll-reveal. The .reveal class is only ever added by JS, so a no-JS or
+   pre-hydration page shows everything at full opacity. */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px) scale(.99);
+  transition: opacity .65s cubic-bezier(.22, .61, .36, 1),
+              transform .65s cubic-bezier(.22, .61, .36, 1);
+  will-change: opacity, transform;
+}
+.reveal.reveal-in { opacity: 1; transform: none; }
+
+/* Header settles into an elevated state once the page is scrolled. */
+.topbar { transition: box-shadow .3s ease, background .3s ease; }
+.topbar.is-scrolled {
+  background: rgba(251, 249, 243, 0.98);
+  box-shadow: 0 6px 26px rgba(9, 64, 69, 0.09);
+}
+
+/* Button feedback — a small lift on primary actions, and a press. */
+.btn {
+  transition: background .18s ease, color .18s ease, border-color .18s ease,
+              transform .18s ease, box-shadow .18s ease;
+}
+.btn--primary:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(2, 89, 95, 0.24); }
+.btn:active { transform: translateY(0); box-shadow: none; }
+
+/* Card micro-interactions: a clearer lift, plus the icon badge and the
+   "get a quote" cue reacting when the whole card is hovered. */
+.card--link:hover { transform: translateY(-5px); box-shadow: 0 18px 44px rgba(9, 64, 69, 0.16); }
+.card--link .icon-badge { transition: transform .28s cubic-bezier(.22,.61,.36,1), background .28s ease; }
+.card--link:hover .icon-badge { transform: scale(1.1) rotate(-4deg); background: rgba(39, 189, 206, 0.22); }
+.service-card .price { display: inline-block; transition: transform .2s ease, color .18s ease; }
+.card--link:hover .service-card .price,
+.card--link.service-card:hover .price { transform: translateX(5px); }
+
+/* Sticky mobile bar: the primary action gets a gentle, one-off attention pulse
+   shortly after load so it reads as the main path on a phone. */
+@media (prefers-reduced-motion: no-preference) {
+  .stickybar a.is-primary svg { animation: oasis-nudge 3.2s ease-in-out 1.5s 2; }
+}
+@keyframes oasis-nudge {
+  0%, 100% { transform: translateY(0); }
+  8%, 24% { transform: translateY(-3px); }
+  16% { transform: translateY(0); }
+}
+
+/* Hero logo drifts like it is on calm water, and eases in on first paint. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero__logo {
+    animation: oasis-logo-in .9s cubic-bezier(.22,.61,.36,1) both,
+               oasis-float 7s ease-in-out 1s infinite;
+  }
+}
+@keyframes oasis-logo-in {
+  from { opacity: 0; transform: translateY(10px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes oasis-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+/* Honour a reduced-motion preference everywhere in this layer. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1 !important; transform: none !important; transition: none; }
+  .hero__logo { animation: none; }
+  .stickybar a.is-primary svg { animation: none; }
+}
