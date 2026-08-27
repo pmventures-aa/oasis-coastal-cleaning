@@ -1,8 +1,6 @@
 /**
- * GET   /api/admin/leads          — the list, newest first
- * PATCH /api/admin/leads          — change one lead's status or notes
- *
- * Both require a signed-in session.
+ * GET   /api/admin/leads          — list leads (active by default)
+ * PATCH /api/admin/leads          — edit fields, or action: archive | restore | delete
  */
 import { json, clean } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
@@ -26,29 +24,42 @@ export async function onRequestGet({ request, env }) {
 
   const url = new URL(request.url);
   const status = clean(url.searchParams.get('status'), 20);
+  const archived = clean(url.searchParams.get('archived'), 10);
   const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit'), 10) || 100, 1), 200);
 
+  const showArchived = archived === '1' || archived === 'true';
+
   try {
-    const sql = status && STATUSES.includes(status)
-      ? 'SELECT * FROM leads WHERE status = ? ORDER BY created_at DESC LIMIT ?'
-      : 'SELECT * FROM leads ORDER BY created_at DESC LIMIT ?';
-    const stmt = status && STATUSES.includes(status)
-      ? env.DB.prepare(sql).bind(status, limit)
-      : env.DB.prepare(sql).bind(limit);
-    const { results } = await stmt.all();
+    const where = [];
+    const binds = [];
 
-    const counts = {};
+    where.push(showArchived ? 'archived_at IS NOT NULL' : 'archived_at IS NULL');
+
+    if (status && STATUSES.includes(status)) {
+      where.push('status = ?');
+      binds.push(status);
+    }
+
+    binds.push(limit);
+    const sql = `SELECT * FROM leads WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ?`;
+    const { results } = await env.DB.prepare(sql).bind(...binds).all();
+
+    const counts = { active: 0, archived: 0 };
     try {
-      const c = await env.DB.prepare('SELECT status, COUNT(*) n FROM leads GROUP BY status').all();
-      (c.results || []).forEach((r) => { counts[r.status] = r.n; });
-    } catch { /* counts are a nicety, not worth failing the page over */ }
+      const active = await env.DB.prepare(
+        'SELECT status, COUNT(*) n FROM leads WHERE archived_at IS NULL GROUP BY status'
+      ).all();
+      (active.results || []).forEach((r) => { counts[r.status] = r.n; });
+      const arch = await env.DB.prepare(
+        'SELECT COUNT(*) n FROM leads WHERE archived_at IS NOT NULL'
+      ).first();
+      counts.archived = arch?.n || 0;
+    } catch { /* optional */ }
 
-    return json({ leads: results || [], counts });
+    return json({ leads: results || [], counts, view: showArchived ? 'archived' : 'active' });
   } catch (err) {
-    // Almost always "no such table" — the migration has not been applied.
     return json({
-      error: 'The leads table is missing. Apply the migration with ' +
-             '`npx wrangler d1 migrations apply oasis --remote`.',
+      error: 'The leads table is missing. Apply migrations with `npx wrangler d1 migrations apply oasis --remote`.',
       detail: String(err && err.message || err)
     }, 503);
   }
@@ -64,9 +75,26 @@ export async function onRequestPatch({ request, env }) {
   const id = clean(body.id, 60);
   if (!id) return json({ error: 'Which lead?' }, 400);
 
-  // What she is allowed to change, and how long each may be. Anything not on
-  // this list is ignored rather than trusted — the column names come straight
-  // from here into the SQL, so the list is the whole security boundary.
+  const action = clean(body.action, 20);
+  if (action === 'archive') {
+    await env.DB.prepare(
+      'UPDATE leads SET archived_at = ?, updated_at = ? WHERE id = ?'
+    ).bind(new Date().toISOString(), new Date().toISOString(), id).run();
+    return json({ ok: true, action: 'archived' });
+  }
+  if (action === 'restore') {
+    await env.DB.prepare(
+      'UPDATE leads SET archived_at = NULL, updated_at = ? WHERE id = ?'
+    ).bind(new Date().toISOString(), id).run();
+    return json({ ok: true, action: 'restored' });
+  }
+  if (action === 'delete') {
+    await env.DB.prepare('DELETE FROM quote_events WHERE quote_id IN (SELECT id FROM quotes WHERE lead_id = ?)').bind(id).run();
+    await env.DB.prepare('DELETE FROM quotes WHERE lead_id = ?').bind(id).run();
+    await env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(id).run();
+    return json({ ok: true, action: 'deleted' });
+  }
+
   const EDITABLE = {
     name: 120, phone: 40, email: 160, best_time: 80, contact_pref: 40,
     property_type: 80, size_label: 140, bedrooms: 20, bathrooms: 20,
@@ -87,8 +115,6 @@ export async function onRequestPatch({ request, env }) {
     if (body[col] === undefined) continue;
     sets.push(`${col} = ?`);
     values.push(clean(body[col], max));
-    // Stamp when a quote was first written, so she can see how long one has
-    // been sitting without a reply.
     if (col === 'quoted_amount' && clean(body[col], max)) {
       sets.push('quoted_at = COALESCE(quoted_at, ?)');
       values.push(new Date().toISOString());

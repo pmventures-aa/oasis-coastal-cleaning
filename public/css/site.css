@@ -282,7 +282,7 @@ body { padding-bottom: 4.75rem; }
 .field .hint { font-size: var(--step--1); color: var(--oasis-muted); }
 .req { color: var(--oasis-gold); }
 
-input[type="text"], input[type="email"], input[type="tel"], input[type="number"], input[type="date"], select, textarea {
+input[type="text"], input[type="email"], input[type="tel"], select, textarea {
   font-family: var(--font-body); font-size: var(--step-0); color: var(--oasis-navy);
   background: var(--oasis-white); border: 1.5px solid var(--oasis-line);
   border-radius: var(--radius); padding: 0.85rem 1rem; width: 100%;
@@ -845,38 +845,42 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
   .stickybar a.is-primary svg { animation: none; }
 }
 
-/* ---------------------------------------------------------- customer quote */
-.qview-intro { font-size: var(--step-0); line-height: 1.65; margin: 0 0 1.25rem; }
-.qview-meta { display: grid; gap: 0.45rem 1.5rem; margin: 0 0 1.25rem; }
-@media (min-width: 560px) { .qview-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.qview-meta > div { display: flex; gap: 0.75rem; font-size: var(--step--1); }
-.qview-k {
-  flex: none; width: 7rem; font-size: 0.7rem; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--oasis-muted);
+/* --------------------------------------------------------- proposal page */
+.proposal { padding: clamp(1.25rem, 4vw, 2rem); }
+.proposal__head { text-align: center; margin-bottom: 1.5rem; }
+.proposal__logo { width: 110px; height: auto; margin: 0 auto 1rem; display: block; }
+.proposal__table-wrap { overflow-x: auto; margin: 1rem 0; }
+.proposal__table { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
+.proposal__table th {
+  text-align: left; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--oasis-gold); padding: 0 0 0.6rem; border-bottom: 1px solid var(--oasis-line);
 }
-.qview-table { width: 100%; border-collapse: collapse; margin: 0 0 1rem; font-size: var(--step--1); }
-.qview-table th, .qview-table td { text-align: left; padding: 0.75rem 0.4rem; border-bottom: 1px solid var(--oasis-line); }
-.qview-table th {
-  font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--oasis-muted);
+.proposal__table td { padding: 0.75rem 0.5rem 0.75rem 0; border-bottom: 1px solid var(--oasis-line); vertical-align: top; }
+.proposal__qty { text-align: center; width: 3rem; color: var(--oasis-muted); }
+.proposal__amt { text-align: right; white-space: nowrap; font-weight: 700; width: 6rem; }
+.proposal__totals { margin-top: 0.5rem; }
+.proposal__totals div {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.35rem 0; font-size: var(--step--1);
 }
-.qview-table td:last-child, .qview-table th:last-child { text-align: right; font-weight: 600; white-space: nowrap; }
-.qview-total {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
-  margin: 0 0 1.5rem; padding: 1rem 0 0; border-top: 2px solid var(--oasis-gold);
+.proposal__total {
+  margin-top: 0.35rem; padding-top: 0.65rem !important;
+  border-top: 2px solid var(--oasis-teal); font-size: var(--step-0) !important;
 }
-.qview-total span {
-  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--oasis-gold);
+.proposal__total strong { color: var(--oasis-teal); font-family: var(--font-head); font-size: 1.15em; }
+.proposal__valid { font-size: var(--step--1); margin: 0.75rem 0 0; }
+.proposal__note {
+  margin-top: 1.25rem; padding: 1rem; background: var(--oasis-cream);
+  border-radius: var(--radius); border: 1px solid var(--oasis-line);
 }
-.qview-total strong {
-  font-family: var(--font-display); font-size: var(--step-1); font-weight: 400;
-  letter-spacing: 0.04em; color: var(--oasis-teal);
+.proposal__note p { margin: 0.35rem 0 0; line-height: 1.55; }
+.proposal__terms { font-size: 0.78rem; margin: 1rem 0 0; line-height: 1.5; }
+.proposal__actions {
+  display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1.5rem;
 }
-.qview-notes { background: var(--oasis-cream); border: 1px solid var(--oasis-line); border-radius: var(--radius); padding: 1rem 1.15rem; margin: 0 0 1.5rem; }
-.qview-notes p { margin: 0; font-size: var(--step--1); }
-.qview-accept { border-top: 1px solid var(--oasis-line); padding-top: 1.4rem; }
-.qview-accepted {
-  background: #E2F3E7; border-radius: var(--radius); padding: 1.15rem 1.3rem; margin-top: 0.5rem;
+.proposal__fine { font-size: 0.78rem; margin: 0.75rem 0 0; line-height: 1.45; }
+.proposal__done {
+  margin-top: 1.25rem; padding: 1rem; border-radius: var(--radius);
+  background: rgba(9, 64, 69, 0.06); font-size: var(--step--1); line-height: 1.5;
 }
-.qview-accepted p { margin: 0 0 0.5rem; }
-.qview-accepted p:last-child { margin: 0; }
-.btn[disabled] { opacity: .6; cursor: progress; }
+.proposal__done--ok { background: rgba(31, 98, 54, 0.1); color: #1F6236; }

@@ -61,7 +61,6 @@
     star:    '<path d="m12 4 2.5 5.1 5.6.8-4 3.9 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4-3.9 5.6-.8Z"/>',
     pin:     '<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/>',
     clock:   '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.2V12l3.2 2"/>',
-    key:     '<path d="M8 15.5 14.2 9.3"/><circle cx="16.2" cy="7.3" r="3.2"/><path d="M8 15.5v3.2H5.8V21H3.5v-3.3l4.5-2.2"/>',
     check:   '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
     menu:    '<path d="M4 7h16M4 12h16M4 17h16"/>',
     close:   '<path d="M6 6l12 12M18 6 6 18"/>'
@@ -75,7 +74,7 @@
 
   /* -------------------------------------------------------------- chrome */
   function renderHeader(el) {
-    var links = D.nav.filter(function (n) { return !n.footerOnly; }).map(function (n) {
+    var links = D.nav.map(function (n) {
       return '<a href="' + esc(n.href) + '"' + (isCurrent(n.href) ? ' aria-current="page"' : '') + '>' +
              esc(n.label) + '</a>';
     }).join('');
@@ -172,8 +171,7 @@
     if (limit > 0) { list = list.slice(0, limit); }
     el.className = 'grid grid--' + (list.length === 4 ? '4' : (list.length === 2 ? '2' : '3'));
     el.innerHTML = list.map(function (s) {
-      var href = s.href || ('/services#' + s.id);
-      return '<a class="card card--link service-card" href="' + esc(href) + '">' +
+      return '<a class="card card--link service-card" href="/services#' + esc(s.id) + '">' +
                '<span class="icon-badge">' + icon(s.icon) + '</span>' +
                '<h3>' + esc(s.name) + '</h3>' +
                '<p>' + esc(s.short) + '</p>' +
@@ -184,18 +182,14 @@
 
   function renderServiceDetails(el) {
     el.innerHTML = activeServices().map(function (s, i) {
-      var quoteHref = '/quote?service=' + encodeURIComponent(s.id);
-      var more = s.href
-        ? '<a class="btn btn--ghost" href="' + esc(s.href) + '" style="margin-left:.5rem">See the full page</a>'
-        : '';
       return '<article class="card" id="' + esc(s.id) + '" style="margin-bottom:clamp(1.25rem,3vw,2rem)">' +
                '<div class="grid grid--2" style="align-items:start">' +
                  '<div>' +
                    '<span class="icon-badge">' + icon(s.icon) + '</span>' +
                    '<h2 style="font-size:var(--step-1);margin:0 0 .75rem">' + esc(s.name) + '</h2>' +
                    '<p class="muted">' + esc(s.blurb) + '</p>' +
-                   '<a class="btn btn--primary" href="' + quoteHref + '">' +
-                     esc(i % 2 === 0 ? 'Get a quote for this' : 'Ask about this') + '</a>' + more +
+                   '<a class="btn btn--primary" href="/quote?service=' + esc(s.id) + '">' +
+                     esc(i % 2 === 0 ? 'Get a quote for this' : 'Ask about this') + '</a>' +
                  '</div>' +
                  '<details class="incl">' +
                    '<summary>What is included</summary>' +
@@ -315,10 +309,13 @@
   }
 
   function renderFaqs(el) {
-    var source = el.getAttribute('data-source');
-    var pool = source && Array.isArray(D[source]) ? D[source] : D.faqs;
     var limit = parseInt(el.getAttribute('data-limit'), 10);
-    var list = limit > 0 ? pool.slice(0, limit) : pool;
+    var tag = el.getAttribute('data-filter');
+    var list = D.faqs.filter(function (f) {
+      if (!tag) { return !f.tags || !f.tags.length; }
+      return f.tags && f.tags.indexOf(tag) !== -1;
+    });
+    if (limit > 0) { list = list.slice(0, limit); }
     el.className = 'faq';
     el.innerHTML = list.map(function (f) {
       return '<details><summary>' + esc(f.q) + '</summary><p>' + esc(f.a) + '</p></details>';
@@ -340,20 +337,6 @@
                  '<span>' + esc([t.city, t.service].filter(Boolean).join(' &middot; ')) + '</span>' +
                '</cite></figcaption>' +
              '</figure>';
-    }).join('');
-  }
-
-  function renderLandingCards(el) {
-    var list = D.landings || [];
-    if (!list.length) { el.remove(); return; }
-    el.className = 'grid grid--' + (list.length === 2 ? '2' : '3');
-    el.innerHTML = list.map(function (s) {
-      return '<a class="card card--link service-card" href="' + esc(s.href) + '">' +
-               '<span class="icon-badge">' + icon(s.icon) + '</span>' +
-               '<h3>' + esc(s.name) + '</h3>' +
-               '<p>' + esc(s.short) + '</p>' +
-               '<span class="price">Open this page &rarr;</span>' +
-             '</a>';
     }).join('');
   }
 
@@ -456,35 +439,6 @@
       });
     }
 
-    var page = document.body.getAttribute('data-page');
-    var landingFaq = page === 'corporate' ? D.corporateFaqs
-                   : page === 'airbnb' ? D.airbnbFaqs
-                   : null;
-    var landingSvc = page === 'corporate' ? serviceById('office')
-                   : page === 'airbnb' ? serviceById('turnover')
-                   : null;
-    if (landingSvc) {
-      graph.push({
-        '@type': 'Service',
-        '@id': b.domain + '/' + page + '#service',
-        name: landingSvc.name,
-        description: landingSvc.blurb,
-        url: b.domain + (landingSvc.href || ('/' + page)),
-        provider: { '@id': b.domain + '/#business' },
-        areaServed: { '@type': 'AdministrativeArea', name: 'Palm Beach and Broward County, Florida' }
-      });
-    }
-    if (landingFaq && landingFaq.length) {
-      graph.push({
-        '@type': 'FAQPage',
-        '@id': b.domain + '/' + page + '#faq',
-        mainEntity: landingFaq.map(function (f) {
-          return { '@type': 'Question', name: f.q,
-                   acceptedAnswer: { '@type': 'Answer', text: f.a } };
-        })
-      });
-    }
-
     var tag = document.createElement('script');
     tag.type = 'application/ld+json';
     tag.textContent = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph });
@@ -506,7 +460,6 @@
     extras: renderExtras,
     areas: renderAreas,
     areaSummary: renderAreaSummary,
-    landingCards: renderLandingCards,
     faqs: renderFaqs,
     testimonials: renderTestimonials,
     contactTiles: renderContactTiles,

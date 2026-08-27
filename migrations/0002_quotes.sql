@@ -1,37 +1,34 @@
--- Oasis Coastal Cleaning — branded quotes customers can open and accept.
---
--- One quote is a list of custom line items Kristina writes in the portal,
--- emailed to the customer as a branded message with a private link. They
--- open it and click Accept. Apply with:
---   npx wrangler d1 migrations apply oasis --remote
+-- Branded quotes with line items that customers can accept online.
+-- Run: npx wrangler d1 migrations apply oasis --remote
 
 CREATE TABLE IF NOT EXISTS quotes (
-  id              TEXT PRIMARY KEY,
-  lead_id         TEXT,
-  token           TEXT NOT NULL UNIQUE,
-  created_at      TEXT NOT NULL,
-  updated_at      TEXT,
-  sent_at         TEXT,
-  accepted_at     TEXT,
-  status          TEXT NOT NULL DEFAULT 'draft',  -- draft|sent|accepted
+  id             TEXT PRIMARY KEY,
+  lead_id        TEXT NOT NULL,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT,
 
-  customer_name   TEXT NOT NULL,
-  customer_email  TEXT NOT NULL,
-  customer_phone  TEXT,
-  service_label   TEXT,
-  frequency       TEXT,
+  status         TEXT NOT NULL DEFAULT 'draft',  -- draft | sent | accepted | declined | expired
+  token          TEXT NOT NULL UNIQUE,
 
-  intro           TEXT,           -- personal note at the top of the quote
-  line_items      TEXT NOT NULL,  -- JSON: [{description, qty, unit_price}]
-  notes           TEXT,           -- shown under the total (what's included, terms)
-  price_note      TEXT,           -- e.g. "per visit" next to the total
-  valid_until     TEXT,           -- YYYY-MM-DD
+  customer_name  TEXT,
+  customer_email TEXT,
 
-  accepted_name   TEXT,
-  accepted_ip     TEXT,
-  accepted_ua     TEXT
+  line_items     TEXT NOT NULL,                  -- JSON array of {label, description, qty, unit_price, total}
+  subtotal       INTEGER NOT NULL DEFAULT 0,     -- cents
+  tax            INTEGER NOT NULL DEFAULT 0,
+  total          INTEGER NOT NULL DEFAULT 0,
+
+  notes          TEXT,                           -- customer-facing message
+  terms          TEXT,                           -- optional terms / validity note
+  expires_at     TEXT,
+
+  sent_at        TEXT,
+  accepted_at    TEXT,
+  declined_at    TEXT,
+
+  FOREIGN KEY (lead_id) REFERENCES leads(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_quotes_lead  ON quotes (lead_id);
-CREATE INDEX IF NOT EXISTS idx_quotes_token ON quotes (token);
-CREATE INDEX IF NOT EXISTS idx_quotes_created ON quotes (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quotes_lead ON quotes(lead_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_token ON quotes(token);
+CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);

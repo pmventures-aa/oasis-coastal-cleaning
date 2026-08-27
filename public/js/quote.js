@@ -623,8 +623,8 @@
   var params = new URLSearchParams(window.location.search);
   var pre = params.get('service');
   if (services.some(function (s) { return s.id === pre; })) { state.service = pre; }
-  var prop = params.get('property');
-  if (prop && D.propertyTypes.indexOf(prop) !== -1) { state.property = prop; }
+  var preProperty = params.get('property');
+  if (preProperty && D.propertyTypes.indexOf(preProperty) !== -1) { state.property = preProperty; }
 
   render();
 })();

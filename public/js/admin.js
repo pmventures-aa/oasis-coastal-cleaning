@@ -1,25 +1,26 @@
 /* ==========================================================================
-   Oasis Coastal Cleaning — the dashboard
-   --------------------------------------------------------------------------
-   One screen. Sign in, then every request that has come through, newest
-   first. Click a row and it opens into a full profile: what they sent, what
-   she has learned since, and what she quoted.
-
-   Everything on the detail view is editable except the timestamp — customers
-   mistype their email, and she finds out the gate code on the phone.
+   Oasis Coastal Cleaning — admin dashboard
+   Tabs + accordions for dense desktop/mobile layout. Archive & delete.
    ========================================================================== */
 (function () {
   'use strict';
 
   var root = document.getElementById('admin-root');
   var signout = document.getElementById('signout');
-  var newquoteBtn = document.getElementById('newquote');
   if (!root) { return; }
 
   var STATUSES = ['new', 'contacted', 'quoted', 'booked', 'closed'];
+  var QUOTE_STATUS_LABELS = { draft: 'Draft', sent: 'Sent', accepted: 'Accepted', declined: 'Declined', expired: 'Expired' };
+  var EMAIL_STATUS_LABELS = { pending: 'Pending', sending: 'Sending', sent: 'Sent', delivered: 'Delivered', opened: 'Opened', failed: 'Failed', bounced: 'Bounced' };
+  var EVENT_LABELS = {
+    created: 'Quote Created', sent: 'Email Sent', email_delivered: 'Email Delivered',
+    email_opened: 'Email Opened', email_bounced: 'Email Bounced', email_failed: 'Email Failed',
+    viewed: 'Quote Viewed', accepted: 'Quote Accepted', declined: 'Quote Declined', expired: 'Quote Expired'
+  };
+
   var state = {
-    filter: '', open: null, leads: [], counts: {}, q: '',
-    quotesByLead: {}, quoteSetup: '', composeNew: false, flash: null
+    view: 'active', filter: '', open: null, leadTab: {},
+    leads: [], counts: {}, q: '', quotes: {}, composing: false
   };
 
   var esc = function (s) {
@@ -42,8 +43,7 @@
   var fullDate = function (iso) {
     var d = new Date(iso);
     return isNaN(d) ? (iso || '') : d.toLocaleString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric',
-      hour: 'numeric', minute: '2-digit'
+      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
     });
   };
 
@@ -53,6 +53,14 @@
   };
 
   var digits = function (v) { return String(v || '').replace(/\D/g, ''); };
+  var money = function (cents) {
+    var n = Number(cents);
+    return Number.isFinite(n) ? '$' + (n / 100).toFixed(2) : '$0.00';
+  };
+  var parseDollars = function (v) {
+    var n = Number(String(v || '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(n) ? Math.round(n * 100) : 0;
+  };
 
   var api = function (path, opts) {
     return fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
@@ -62,30 +70,21 @@
       });
   };
 
-  /* ------------------------------------------------------------- sign in */
   function showSignIn(msg) {
     signout.hidden = true;
-    if (newquoteBtn) { newquoteBtn.hidden = true; }
     root.innerHTML =
-      '<div class="card signin">' +
-        '<h2>Sign in</h2>' +
-        '<p>This is where your quote requests land.</p>' +
-        '<div class="field" style="margin-top:1.2rem">' +
-          '<label for="pw">Password</label>' +
-          '<input type="password" id="pw" autocomplete="current-password">' +
-        '</div>' +
-        '<div id="signin-err" class="form-status form-status--err" role="alert"' +
-          (msg ? '' : ' hidden') + '>' + esc(msg || '') + '</div>' +
-        '<p style="margin-top:1.2rem"><button type="button" id="go" class="btn btn--primary btn--block">' +
-          'Sign in</button></p>' +
-      '</div>';
-
+      '<div class="card signin"><h2>Sign in</h2><p>This is where your quote requests land.</p>' +
+      '<div class="field" style="margin-top:1.2rem"><label for="pw">Password</label>' +
+      '<input type="password" id="pw" autocomplete="current-password"></div>' +
+      '<div id="signin-err" class="form-status form-status--err" role="alert"' +
+      (msg ? '' : ' hidden') + '>' + esc(msg || '') + '</div>' +
+      '<p style="margin-top:1.2rem"><button type="button" id="go" class="btn btn--primary btn--block">Sign in</button></p></div>';
     var pw = document.getElementById('pw');
     var go = function () {
-      var err = document.getElementById('signin-err');
       api('/api/admin/login', { method: 'POST', body: JSON.stringify({ password: pw.value }) })
         .then(function (r) {
           if (r.ok) { load(); return; }
+          var err = document.getElementById('signin-err');
           err.hidden = false;
           err.textContent = r.body.error || 'That did not work.';
         });
@@ -97,573 +96,531 @@
 
   function showSetup(status) {
     signout.hidden = true;
-    if (newquoteBtn) { newquoteBtn.hidden = true; }
     root.innerHTML =
-      '<div class="card setup">' +
-        '<h2>Two settings and this is yours</h2>' +
-        '<p class="muted">The website is live and working. This page needs a little more ' +
-          'before it can show you anything.</p>' +
-        '<ol>' +
-          (status.authConfigured ? '' :
-            '<li>In Cloudflare, open this project → <strong>Settings → Variables and secrets</strong> ' +
-            'and add <code>ADMIN_PASSWORD</code> (the password you want to use here) and ' +
-            '<code>SESSION_SECRET</code> (any long random string).</li>') +
-          (status.databaseConfigured ? '' :
-            '<li>Create a D1 database named <code>oasis</code>, bind it as <code>DB</code>, ' +
-            'and run the table setup from <code>migrations/</code>.</li>') +
-          (status.emailConfigured ? '' :
-            '<li><em>Optional for now.</em> Add <code>RESEND_API_KEY</code> and new requests ' +
-            'also arrive by email. Without it they are still saved here.</li>') +
-        '</ol>' +
-        '<p class="muted" style="font-size:var(--step--1);margin-top:1rem">' +
-          'Settings only take effect on a new deployment — after saving, go to ' +
-          '<strong>Deployments</strong> and retry the latest one.</p>' +
-      '</div>';
+      '<div class="card setup"><h2>Two settings and this is yours</h2>' +
+      '<p class="muted">The website is live. This page needs the database and admin password.</p><ol>' +
+      (status.authConfigured ? '' : '<li>Add <code>ADMIN_PASSWORD</code> and <code>SESSION_SECRET</code> in Cloudflare.</li>') +
+      (status.databaseConfigured ? '' : '<li>Bind D1 as <code>DB</code> and run migrations.</li>') +
+      '</ol></div>';
   }
 
-  function money(n) {
-    var x = Number(n);
-    if (!isFinite(x)) { return '$0'; }
-    var abs = Math.abs(x);
-    var formatted = abs.toLocaleString('en-US', {
-      minimumFractionDigits: abs % 1 ? 2 : 0,
-      maximumFractionDigits: 2
-    });
-    return (x < 0 ? '-$' : '$') + formatted;
+  function pill(status, label) {
+    label = label || (STATUSES.indexOf(status) !== -1
+      ? status.charAt(0).toUpperCase() + status.slice(1)
+      : (QUOTE_STATUS_LABELS[status] || status));
+    return '<span class="pill pill--' + esc(status) + '">' + esc(label) + '</span>';
   }
 
-  function defaultUntil() {
-    var d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().slice(0, 10);
-  }
-
-  function parseList(json) {
-    try { var a = JSON.parse(json || '[]'); return Array.isArray(a) ? a : []; }
-    catch (e) { return []; }
-  }
-
-  function seedItemsFromLead(l) {
-    var items = [];
-    var parts = [l.service_label || l.service, l.size_label, l.frequency].filter(Boolean);
-    if (parts.length) { items.push({ description: parts.join(' — '), qty: 1, unit_price: '' }); }
-    parseList(l.add_ons).forEach(function (a) {
-      items.push({ description: a, qty: 1, unit_price: '' });
-    });
-    if (!items.length) { items.push({ description: '', qty: 1, unit_price: '' }); }
-    return items;
-  }
-
-  function itemRow(item) {
-    item = item || {};
-    var amt = (Number(item.qty) || 1) * (Number(item.unit_price) || 0);
-    return '<tr data-q-row>' +
-      '<td><input type="text" data-qi="description" placeholder="e.g. Weekly office clean" value="' +
-        esc(item.description || '') + '"></td>' +
-      '<td><input type="number" data-qi="qty" min="0" step="0.01" inputmode="decimal" value="' +
-        esc(item.qty == null || item.qty === '' ? '1' : String(item.qty)) + '"></td>' +
-      '<td><input type="number" data-qi="unit_price" min="0" step="0.01" inputmode="decimal" placeholder="0" value="' +
-        esc(item.unit_price == null || item.unit_price === '' ? '' : String(item.unit_price)) + '"></td>' +
-      '<td class="qitems__amt">' + esc(money(amt)) + '</td>' +
-      '<td><button type="button" class="qitems__del" data-q-del aria-label="Remove line">&times;</button></td>' +
-    '</tr>';
-  }
-
-  function composerHtml(opts) {
-    opts = opts || {};
-    var q = opts.quote || {};
-    var items = (q.line_items && q.line_items.length) ? q.line_items : (opts.seed || [{ description: '', qty: 1, unit_price: '' }]);
-    var accepted = q.status === 'accepted';
-    var totalLabel = q.total_label || money(q.total || 0);
-    var statusLine = '';
-    if (state.flash && state.flash.leadId === (opts.leadId || q.lead_id)) {
-      statusLine = '<p class="qcompose__msg qcompose__msg--' + esc(state.flash.kind || 'ok') + '">' +
-        esc(state.flash.text) + '</p>';
-      state.flash = null;
-    } else if (state.quoteSetup) {
-      statusLine = '<p class="qcompose__warn">' + esc(state.quoteSetup) + '</p>';
-    } else if (accepted) {
-      statusLine = '<p class="qcompose__ok">Accepted' +
-        (q.accepted_name ? ' by ' + esc(q.accepted_name) : '') +
-        (q.accepted_at ? ' on ' + esc(fullDate(q.accepted_at)) : '') + '.</p>';
-    } else if (q.status === 'sent') {
-      statusLine = '<p class="qcompose__sent">Sent' + (q.sent_at ? ' ' + esc(fullDate(q.sent_at)) : '') +
-        '. They can open the link and click Accept.</p>';
-    }
-
-    var link = q.view_path
-      ? '<p class="qcompose__link">Customer link: <code>' + esc(q.view_path) + '</code> ' +
-        '<button type="button" class="btn btn--ghost" data-q-copy>Copy</button> ' +
-        '<a class="btn btn--ghost" href="' + esc(q.view_path) + '" target="_blank" rel="noopener">Preview</a></p>'
-      : '';
-
-    var locked = accepted ? ' disabled' : '';
-
-    var contact = opts.standalone
-      ? '<div class="profile__grid">' +
-          field('Name', 'nq-name', q.customer_name || '', { placeholder: 'Customer name' }) +
-          field('Email', 'nq-email', q.customer_email || '', { placeholder: 'they@example.com' }) +
-          field('Phone', 'nq-phone', q.customer_phone || '') +
-          field('Service', 'nq-service', q.service_label || '', { placeholder: 'e.g. Corporate cleaning' }) +
-        '</div>'
-      : '';
-
-    return '<div class="qcompose" data-composer data-quote-id="' + esc(q.id || '') + '"' +
-        (opts.leadId ? ' data-lead-id="' + esc(opts.leadId) + '"' : '') + '>' +
-      statusLine +
-      contact +
-      '<label class="pf pf--wide"><span class="pf__k">Note to them</span>' +
-        '<textarea class="pf__v" data-q="intro" rows="3" placeholder="A short note at the top of the quote."' +
-          locked + '>' + esc(q.intro || '') + '</textarea></label>' +
-      '<div class="qitems-wrap"><table class="qitems">' +
-        '<thead><tr><th>Line item</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead>' +
-        '<tbody>' + items.map(itemRow).join('') + '</tbody>' +
-      '</table>' +
-      (accepted ? '' : '<button type="button" class="qitems__add" data-q-add>+ Add a line</button>') +
-      '</div>' +
-      '<div class="qcompose__total">' +
-        '<span>Total</span><strong data-q-total>' + esc(totalLabel) + '</strong>' +
-        '<input type="text" data-q="price_note" placeholder="per visit" value="' + esc(q.price_note || '') + '"' +
-          locked + ' title="Shown next to the total, e.g. per visit">' +
-      '</div>' +
-      '<div class="profile__grid">' +
-        '<label class="pf pf--wide"><span class="pf__k">Under the total</span>' +
-          '<textarea class="pf__v" data-q="notes" rows="2" placeholder="What is included, first-visit note, how to pay."' +
-            locked + '>' + esc(q.notes || '') + '</textarea></label>' +
-        '<label class="pf"><span class="pf__k">Good until</span>' +
-          '<input class="pf__v" type="date" data-q="valid_until" value="' +
-            esc(q.valid_until || defaultUntil()) + '"' + locked + '></label>' +
-      '</div>' +
-      link +
-      '<p class="qcompose__msg" data-q-msg hidden></p>' +
-      (accepted
-        ? '<p class="qcompose__actions"><button type="button" class="btn btn--ghost" data-q-fresh>Write a new quote</button></p>'
-        : '<p class="qcompose__actions">' +
-            '<button type="button" class="btn btn--ghost" data-q-save>Save draft</button>' +
-            '<button type="button" class="btn btn--primary" data-q-send>Email this quote</button>' +
-          '</p>') +
-    '</div>';
-  }
-
-  function readComposer(box) {
-    var items = [];
-    box.querySelectorAll('[data-q-row]').forEach(function (row) {
-      items.push({
-        description: (row.querySelector('[data-qi="description"]') || {}).value || '',
-        qty: (row.querySelector('[data-qi="qty"]') || {}).value || '1',
-        unit_price: (row.querySelector('[data-qi="unit_price"]') || {}).value || '0'
-      });
-    });
-    var val = function (sel) {
-      var el = box.querySelector(sel);
-      return el ? el.value : '';
-    };
-    return {
-      intro: val('[data-q="intro"]'),
-      notes: val('[data-q="notes"]'),
-      price_note: val('[data-q="price_note"]'),
-      valid_until: val('[data-q="valid_until"]'),
-      line_items: items,
-      customer_name: val('[data-col="nq-name"]') || val('[data-col="name"]'),
-      customer_email: val('[data-col="nq-email"]') || val('[data-col="email"]'),
-      customer_phone: val('[data-col="nq-phone"]') || val('[data-col="phone"]'),
-      service_label: val('[data-col="nq-service"]')
-    };
-  }
-
-  function updateComposerTotals(box) {
-    if (!box) { return; }
-    var sum = 0;
-    box.querySelectorAll('[data-q-row]').forEach(function (row) {
-      var qty = Number((row.querySelector('[data-qi="qty"]') || {}).value) || 0;
-      var price = Number((row.querySelector('[data-qi="unit_price"]') || {}).value) || 0;
-      var amt = Math.round(qty * price * 100) / 100;
-      sum += amt;
-      var cell = row.querySelector('.qitems__amt');
-      if (cell) { cell.textContent = money(amt); }
-    });
-    var note = (box.querySelector('[data-q="price_note"]') || {}).value || '';
-    var label = money(sum) + (note.trim() ? ' ' + note.trim() : '');
-    var total = box.querySelector('[data-q-total]');
-    if (total) { total.textContent = label; }
-  }
-
-  function showComposerMsg(box, text, kind) {
-    var el = box.querySelector('[data-q-msg]');
-    if (!el) { return; }
-    el.hidden = !text;
-    el.textContent = text || '';
-    el.className = 'qcompose__msg' + (kind ? ' qcompose__msg--' + kind : '');
-  }
-
-  function payloadFromComposer(box, send) {
-    var data = readComposer(box);
-    var lead = box.closest('.lead');
-    var leadId = box.getAttribute('data-lead-id') || (lead && lead.dataset.id) || '';
-    if (lead && !data.customer_name) {
-      var nameEl = lead.querySelector('[data-col="name"]');
-      var emailEl = lead.querySelector('[data-col="email"]');
-      var phoneEl = lead.querySelector('[data-col="phone"]');
-      data.customer_name = nameEl ? nameEl.value : '';
-      data.customer_email = emailEl ? emailEl.value : '';
-      data.customer_phone = phoneEl ? phoneEl.value : '';
-    }
-    if (lead && !data.service_label) {
-      var found = state.leads.filter(function (l) { return l.id === leadId; })[0];
-      if (found) {
-        data.service_label = found.service_label || found.service || '';
-        data.frequency = found.frequency || '';
-      }
-    }
-    data.lead_id = leadId || undefined;
-    data.send = !!send;
-    var id = box.getAttribute('data-quote-id');
-    if (id) { data.id = id; }
-    return data;
-  }
-
-  function saveComposer(box, send) {
-    var data = payloadFromComposer(box, send);
-    if (!data.line_items.some(function (i) { return String(i.description).trim(); })) {
-      showComposerMsg(box, 'Add at least one line item.', 'err');
-      return;
-    }
-    if (!data.customer_email) {
-      showComposerMsg(box, 'An email address is needed to send this.', 'err');
-      return;
-    }
-    showComposerMsg(box, send ? 'Sending…' : 'Saving…', '');
-    var method = data.id ? 'PATCH' : 'POST';
-    api('/api/admin/quotes', { method: method, body: JSON.stringify(data) })
-      .then(function (r) {
-        if (!r.ok) {
-          showComposerMsg(box, r.body.error || 'That did not save.', 'err');
-          if (r.body.setup) { state.quoteSetup = r.body.error; }
-          return;
-        }
-        var q = r.body.quote;
-        var kind = 'ok';
-        var text = 'Draft saved.';
-        if (send && r.body.emailed === false) {
-          kind = 'warn';
-          text = 'Quote is ready, but email did not send. Copy the link and text it. ' +
-            (r.body.mailProblem || '');
-        } else if (send) {
-          text = 'Sent. They can open the link and click Accept.';
-        }
-        if (state.composeNew && q && q.lead_id) {
-          state.composeNew = false;
-          state.open = q.lead_id;
-        }
-        if (q && q.lead_id) {
-          state.quotesByLead[q.lead_id] = [q];
-          state.flash = { leadId: q.lead_id, text: text, kind: kind };
-          load();
-        } else {
-          showComposerMsg(box, text, kind);
-        }
-      });
-  }
-  function pill(status) {
-    return '<span class="pill pill--' + esc(status) + '">' + esc(status) + '</span>';
+  function quotePill(status) {
+    var mapped = status === 'sent' ? 'quoted' : status === 'accepted' ? 'booked'
+      : (status === 'declined' || status === 'expired') ? 'closed' : 'new';
+    return pill(mapped, QUOTE_STATUS_LABELS[status] || status);
   }
 
   function field(l, col, value, opts) {
     opts = opts || {};
-    var id = 'f-' + col;
     if (opts.options) {
-      return '<label class="pf"><span class="pf__k">' + esc(l) + '</span>' +
-        '<select class="pf__v" data-col="' + col + '" id="' + id + '">' +
-          opts.options.map(function (o) {
-            return '<option value="' + esc(o) + '"' + (o === value ? ' selected' : '') + '>' +
-                   esc(o) + '</option>';
-          }).join('') +
-        '</select></label>';
+      return '<label class="pf"><span class="pf__k">' + esc(l) + '</span><select class="pf__v" data-col="' + col + '">' +
+        opts.options.map(function (o) {
+          return '<option value="' + esc(o) + '"' + (o === value ? ' selected' : '') + '>' + esc(o || '—') + '</option>';
+        }).join('') + '</select></label>';
     }
     if (opts.multiline) {
       return '<label class="pf pf--wide"><span class="pf__k">' + esc(l) + '</span>' +
-        '<textarea class="pf__v" data-col="' + col + '" id="' + id + '" rows="3" ' +
-          'placeholder="' + esc(opts.placeholder || '') + '">' + esc(value || '') + '</textarea></label>';
+        '<textarea class="pf__v" data-col="' + col + '" rows="3" placeholder="' + esc(opts.placeholder || '') + '">' +
+        esc(value || '') + '</textarea></label>';
     }
     return '<label class="pf"><span class="pf__k">' + esc(l) + '</span>' +
-      '<input class="pf__v" type="text" data-col="' + col + '" id="' + id + '" ' +
-        'value="' + esc(value || '') + '" placeholder="' + esc(opts.placeholder || '') + '"></label>';
+      '<input class="pf__v" type="text" data-col="' + col + '" value="' + esc(value || '') + '" placeholder="' +
+      esc(opts.placeholder || '') + '"></label>';
   }
 
   function readOnly(l, v) {
     if (!v) { return ''; }
-    return '<div class="pf pf--ro"><span class="pf__k">' + esc(l) + '</span>' +
-           '<span class="pf__v">' + esc(v) + '</span></div>';
+    return '<div class="pf pf--ro"><span class="pf__k">' + esc(l) + '</span><span class="pf__v">' + esc(v) + '</span></div>';
+  }
+
+  function acc(title, body, open) {
+    return '<details class="acc"' + (open ? ' open' : '') + '>' +
+      '<summary class="acc__sum"><span class="acc__icon" aria-hidden="true"></span>' + esc(title) + '</summary>' +
+      '<div class="acc__in">' + body + '</div></details>';
+  }
+
+  function leadActions(l) {
+    if (state.view === 'archived') {
+      return '<div class="profile__foot">' +
+        '<button type="button" class="btn btn--ghost" data-lead-action="restore">Restore to Active</button>' +
+        '<button type="button" class="btn btn--danger" data-lead-action="delete">Delete Permanently</button></div>';
+    }
+    return '<div class="profile__foot">' +
+      '<button type="button" class="btn btn--ghost" data-lead-action="archive">Archive</button>' +
+      '<button type="button" class="btn btn--danger" data-lead-action="delete">Delete Permanently</button></div>';
   }
 
   function detail(l) {
     var addOns = list(l.add_ons), conds = list(l.conditions), days = list(l.preferred_days);
     var tel = digits(l.phone);
+    var tab = state.leadTab[l.id] || 'intake';
+
+    var intake =
+      acc('Contact', field('Name', 'name', l.name) + field('Phone', 'phone', l.phone) +
+        field('Email', 'email', l.email) +
+        field('Prefers', 'contact_pref', l.contact_pref, { options: ['', 'Text', 'Call', 'Email'] }) +
+        field('Best time', 'best_time', l.best_time, { options: ['', 'Morning', 'Afternoon', 'Evening', 'Any time'] }), true) +
+      acc('Property', field('Address', 'address', l.address, { placeholder: 'Street address' }) +
+        field('City', 'city', l.city) + field('ZIP', 'zip', l.zip) +
+        field('Type', 'property_type', l.property_type) + field('Size', 'size_label', l.size_label) +
+        field('Bedrooms', 'bedrooms', l.bedrooms) + field('Bathrooms', 'bathrooms', l.bathrooms) +
+        field('Getting in', 'access', l.access, { placeholder: 'Lockbox, gate code' })) +
+      acc('Request & Notes',
+        '<div class="profile__grid">' + readOnly('Service', l.service_label || l.service) +
+        field('Frequency', 'frequency', l.frequency) +
+        readOnly('First visit', l.first_visit ? 'Yes — deeper clean' : 'No') +
+        readOnly('Start', l.start_when) + readOnly('Days', days.join(', ')) + '</div>' +
+        (addOns.length ? '<div class="chips"><span class="chips__k">Add-ons</span>' +
+          addOns.map(function (a) { return '<span class="chip">' + esc(a) + '</span>'; }).join('') + '</div>' : '') +
+        (conds.length ? '<div class="chips"><span class="chips__k">About home</span>' +
+          conds.map(function (c) { return '<span class="chip chip--warn">' + esc(c) + '</span>'; }).join('') + '</div>' : '') +
+        field('Their notes', 'notes', l.notes, { multiline: true })) +
+      acc('Quick Quote',
+        '<div class="profile__grid">' +
+        field('Amount quoted', 'quoted_amount', l.quoted_amount, { placeholder: 'e.g. $185 per visit' }) +
+        field('Next visit', 'next_visit', l.next_visit, { placeholder: 'e.g. Tue 9 Sep, 9am' }) + '</div>' +
+        (l.quoted_at ? '<p class="profile__stamp">Quoted ' + esc(fullDate(l.quoted_at)) + '</p>' : '') +
+        field('Your notes', 'admin_notes', l.admin_notes, { multiline: true, placeholder: 'What you quoted and why.' }));
 
     return '<div class="profile">' +
-
       '<div class="profile__bar">' +
         '<a class="btn btn--primary" href="tel:+1' + tel + '">Call</a>' +
         '<a class="btn btn--ghost" href="sms:+1' + tel + '">Text</a>' +
         '<a class="btn btn--ghost" href="mailto:' + esc(l.email) + '">Email</a>' +
         '<span class="profile__spacer"></span>' +
-        '<label class="pf pf--inline"><span class="pf__k">Status</span>' +
-          '<select class="pf__v" data-col="status">' +
-            STATUSES.map(function (s) {
-              return '<option value="' + s + '"' + (l.status === s ? ' selected' : '') + '>' +
-                     s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
-            }).join('') +
-          '</select></label>' +
-        '<span class="saved" data-saved hidden>Saved</span>' +
+        '<label class="pf pf--inline"><span class="pf__k">Status</span><select class="pf__v" data-col="status">' +
+          STATUSES.map(function (s) {
+            return '<option value="' + s + '"' + (l.status === s ? ' selected' : '') + '>' +
+              s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
+          }).join('') + '</select></label>' +
+        '<span class="saved" data-saved hidden>Saved</span></div>' +
+
+      '<div class="ptabs" role="tablist">' +
+        '<button type="button" class="ptabs__btn' + (tab === 'intake' ? ' is-on' : '') + '" data-ptab="intake" role="tab">Intake</button>' +
+        '<button type="button" class="ptabs__btn' + (tab === 'quotes' ? ' is-on' : '') + '" data-ptab="quotes" role="tab">Branded Quotes</button>' +
       '</div>' +
 
-      '<section class="profile__block">' +
-        '<h4>Contact</h4>' +
-        '<div class="profile__grid">' +
-          field('Name', 'name', l.name) +
-          field('Phone', 'phone', l.phone) +
-          field('Email', 'email', l.email) +
-          field('Prefers', 'contact_pref', l.contact_pref, { options: ['', 'Text', 'Call', 'Email'] }) +
-          field('Best time', 'best_time', l.best_time, { options: ['', 'Morning', 'Afternoon', 'Evening', 'Any time'] }) +
-        '</div>' +
-      '</section>' +
+      '<div class="ptab' + (tab === 'intake' ? ' is-on' : '') + '" data-pane="intake">' + intake + '</div>' +
+      '<div class="ptab' + (tab === 'quotes' ? ' is-on' : '') + '" data-pane="quotes" data-quote-panel="' + esc(l.id) + '">' +
+        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Build, send, and track branded quotes with delivery and accept/decline.</p>' +
+        '<div class="quote-panel__body"><p class="muted" style="font-size:var(--step--1)">Loading quotes…</p></div></div>' +
 
-      '<section class="profile__block">' +
-        '<h4>The property</h4>' +
-        '<div class="profile__grid">' +
-          field('Address', 'address', l.address, { placeholder: 'Street address' }) +
-          field('City', 'city', l.city) +
-          field('ZIP', 'zip', l.zip) +
-          field('Type', 'property_type', l.property_type) +
-          field('Size', 'size_label', l.size_label) +
-          field('Bedrooms', 'bedrooms', l.bedrooms) +
-          field('Bathrooms', 'bathrooms', l.bathrooms) +
-          field('Getting in', 'access', l.access, { placeholder: 'Lockbox, gate code, doorman' }) +
-        '</div>' +
-      '</section>' +
-
-      '<section class="profile__block">' +
-        '<h4>What they asked for</h4>' +
-        '<div class="profile__grid">' +
-          readOnly('Service', l.service_label || l.service) +
-          field('Frequency', 'frequency', l.frequency) +
-          readOnly('First visit', l.first_visit ? 'Yes — deeper clean' : 'No') +
-          readOnly('Wants to start', l.start_when) +
-          readOnly('Preferred days', days.join(', ')) +
-        '</div>' +
-        (addOns.length
-          ? '<div class="chips"><span class="chips__k">Add-ons</span>' +
-            addOns.map(function (a) { return '<span class="chip">' + esc(a) + '</span>'; }).join('') +
-            '</div>' : '') +
-        (conds.length
-          ? '<div class="chips"><span class="chips__k">About the home</span>' +
-            conds.map(function (c) { return '<span class="chip chip--warn">' + esc(c) + '</span>'; }).join('') +
-            '</div>' : '') +
-        '<div class="profile__grid">' +
-          field('What they told us', 'notes', l.notes, { multiline: true }) +
-        '</div>' +
-      '</section>' +
-
-      '<section class="profile__block profile__block--mine">' +
-        '<h4>Your quote</h4>' +
-        (state.quotesByLead[l.id] == null
-          ? '<p class="muted">Loading quote…</p>'
-          : composerHtml({
-              leadId: l.id,
-              quote: (state.quotesByLead[l.id] || [])[0] || {},
-              seed: seedItemsFromLead(l)
-            })) +
-        '<div class="profile__grid" style="margin-top:1rem">' +
-          field('Next visit', 'next_visit', l.next_visit, { placeholder: 'e.g. Tue 9 Sep, 9am' }) +
-        '</div>' +
-        (l.quoted_at ? '<p class="profile__stamp">Quoted ' + esc(fullDate(l.quoted_at)) + '</p>' : '') +
-        '<div class="profile__grid">' +
-          field('Your notes', 'admin_notes', l.admin_notes, {
-            multiline: true,
-            placeholder: 'What you quoted and why, when you called, anything to remember.'
-          }) +
-        '</div>' +
-      '</section>' +
-
+      leadActions(l) +
       '<p class="profile__stamp">Came in ' + esc(fullDate(l.created_at)) +
-        (l.updated_at ? ' · last edited ' + esc(when(l.updated_at)) : '') + '</p>' +
-    '</div>';
+        (l.updated_at ? ' · edited ' + esc(when(l.updated_at)) : '') + '</p></div>';
   }
 
   function row(l) {
     var flag = l.followup && l.followup !== 'none'
-      ? '<span class="pill pill--flag">' + (l.followup === 'visit' ? 'Wants a visit' : 'Wants a call') + '</span>'
-      : '';
+      ? '<span class="pill pill--flag">' + (l.followup === 'visit' ? 'Wants a visit' : 'Wants a call') + '</span>' : '';
     var open = state.open === l.id;
     return '<article class="lead' + (open ? ' is-open' : '') + '" data-id="' + esc(l.id) + '">' +
-             '<button type="button" class="lead__head" data-toggle aria-expanded="' + open + '">' +
-               '<span class="lead__name">' + esc(l.name) + '</span>' +
-               pill(l.status) + flag +
-               '<span class="lead__meta">' + esc(l.service_label || l.service) +
-                 (l.city ? ' · ' + esc(l.city) : '') + '</span>' +
-               (l.quoted_amount ? '<span class="lead__quote">' + esc(l.quoted_amount) + '</span>' : '') +
-               '<span class="lead__when">' + esc(when(l.created_at)) + '</span>' +
-             '</button>' +
-             (open ? '<div class="lead__body">' + detail(l) + '</div>' : '') +
-           '</article>';
+      '<button type="button" class="lead__head" data-toggle aria-expanded="' + open + '">' +
+        '<span class="lead__chev" aria-hidden="true"></span>' +
+        '<span class="lead__name">' + esc(l.name) + '</span>' + pill(l.status) + flag +
+        '<span class="lead__meta">' + esc(l.service_label || l.service) + (l.city ? ' · ' + esc(l.city) : '') + '</span>' +
+        (l.quoted_amount ? '<span class="lead__quote">' + esc(l.quoted_amount) + '</span>' : '') +
+        '<span class="lead__when">' + esc(when(l.created_at)) + '</span></button>' +
+      (open ? '<div class="lead__body">' + detail(l) + '</div>' : '') + '</article>';
   }
 
   function render() {
     signout.hidden = false;
-    if (newquoteBtn) { newquoteBtn.hidden = false; }
     var counts = state.counts;
-    var total = Object.keys(counts).reduce(function (n, k) { return n + counts[k]; }, 0);
+    var activeTotal = STATUSES.reduce(function (n, s) { return n + (counts[s] || 0); }, 0);
 
     var shown = state.leads.filter(function (l) {
       if (!state.q) { return true; }
-      var hay = [l.name, l.phone, l.email, l.city, l.address, l.service_label]
-        .join(' ').toLowerCase();
+      var hay = [l.name, l.phone, l.email, l.city, l.address, l.service_label].join(' ').toLowerCase();
       return hay.indexOf(state.q.toLowerCase()) !== -1;
     });
 
-    var composer = state.composeNew
-      ? '<div class="card qnew">' +
-          '<div class="qnew__bar"><h2>Write a quote</h2>' +
-            '<button type="button" class="btn btn--ghost" data-q-cancel>Cancel</button></div>' +
-          composerHtml({ standalone: true, seed: [{ description: '', qty: 1, unit_price: '' }] }) +
-        '</div>'
-      : '';
-
     root.innerHTML =
-      composer +
       '<div class="toolbar">' +
-        '<div class="filters">' +
-          '<button type="button" data-filter=""' + (state.filter === '' ? ' class="is-on"' : '') + '>' +
-            'All<b>' + total + '</b></button>' +
-          STATUSES.map(function (s) {
-            return '<button type="button" data-filter="' + s + '"' +
-                   (state.filter === s ? ' class="is-on"' : '') + '>' +
-                   s + '<b>' + (counts[s] || 0) + '</b></button>';
-          }).join('') +
+        '<div class="vtabs">' +
+          '<button type="button" data-view="active"' + (state.view === 'active' ? ' class="is-on"' : '') +
+            '>Active<b>' + activeTotal + '</b></button>' +
+          '<button type="button" data-view="archived"' + (state.view === 'archived' ? ' class="is-on"' : '') +
+            '>Archived<b>' + (counts.archived || 0) + '</b></button>' +
         '</div>' +
-        '<input type="search" id="search" class="toolbar__search" placeholder="Search name, phone, city…" ' +
-          'value="' + esc(state.q) + '">' +
+        (state.view === 'active'
+          ? '<label class="toolbar__select"><span class="sr-only">Status</span><select id="status-filter">' +
+            '<option value="">All statuses</option>' +
+            STATUSES.map(function (s) {
+              return '<option value="' + s + '"' + (state.filter === s ? ' selected' : '') + '>' +
+                s.charAt(0).toUpperCase() + s.slice(1) + ' (' + (counts[s] || 0) + ')</option>';
+            }).join('') + '</select></label>' +
+            '<button type="button" class="btn btn--primary btn--new-quote" data-new-quote>+ New Quote</button>'
+          : '') +
+        '<input type="search" id="search" class="toolbar__search" placeholder="Search…" value="' + esc(state.q) + '">' +
       '</div>' +
-      (shown.length
-        ? '<div class="leads">' + shown.map(row).join('') + '</div>'
-        : '<p class="empty">' + (state.q ? 'Nothing matches that.' :
-            'Nothing here yet. New quote requests appear at the top, newest first.') + '</p>');
+      (state.composing ? newQuotePanelHtml() : '') +
+      (shown.length ? '<div class="leads">' + shown.map(row).join('') + '</div>'
+        : '<p class="empty">' + (state.q ? 'Nothing matches.' : state.view === 'archived'
+          ? 'No archived leads.' : 'No quote requests yet.') + '</p>');
 
     var search = document.getElementById('search');
-    if (search && state.q) {
-      search.focus();
-      search.setSelectionRange(search.value.length, search.value.length);
+    if (search && state.q) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+    if (state.composing) {
+      var cn = root.querySelector('.quote-customer-name');
+      if (cn) cn.focus();
     }
+    if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') { loadQuotes(state.open); }
   }
 
-  /* --------------------------------------------------------------- events */
-  root.addEventListener('click', function (e) {
-    var f = e.target.closest('[data-filter]');
-    if (f) { state.filter = f.dataset.filter; state.open = null; load(); return; }
+  /* ---- quote builder (unchanged logic, + archive/delete) ---- */
+  function quoteLineHtml(line) {
+    line = line || {};
+    return '<div class="quote-line">' +
+      '<input type="text" class="quote-label" placeholder="Description" value="' + esc(line.label || '') + '">' +
+      '<input type="number" class="quote-qty" min="1" value="' + esc(line.qty || 1) + '">' +
+      '<input type="text" class="quote-price" inputmode="decimal" placeholder="$0.00" value="' +
+        esc(line.unit_dollars != null ? line.unit_dollars : (line.unit_price ? (line.unit_price / 100).toFixed(2) : '')) + '">' +
+      '<button type="button" class="quote-line__remove" data-remove-line>&times;</button></div>';
+  }
 
-    var t = e.target.closest('[data-toggle]');
-    if (t) {
-      var card = t.closest('.lead');
-      var id = card.dataset.id;
-      state.open = state.open === id ? null : id;
-      if (state.open && state.quotesByLead[state.open] === undefined) {
-        state.quotesByLead[state.open] = null;
-        fetchQuotes(state.open);
-      }
-      render();
-      return;
-    }
+  function quoteEditorHtml(l, quote, opts) {
+    quote = quote || {};
+    opts = opts || {};
+    var standalone = opts.standalone;
+    var defaultLabel = standalone ? 'Cleaning service' : (l.service_label || 'Cleaning visit');
+    var lines = (quote.line_items && quote.line_items.length)
+      ? quote.line_items : [{ label: defaultLabel, qty: 1, unit_dollars: '' }];
+    var customerFields = standalone
+      ? '<div class="profile__grid compose__customer">' +
+          '<label class="pf"><span class="pf__k">Customer</span><input class="pf__v quote-customer-name" type="text" placeholder="Full name" value="' +
+            esc(quote.customer_name || '') + '"></label>' +
+          '<label class="pf"><span class="pf__k">Email</span><input class="pf__v quote-email" type="email" placeholder="name@email.com" value="' +
+            esc(quote.customer_email || '') + '"></label>' +
+          '<label class="pf"><span class="pf__k">Phone</span><input class="pf__v quote-phone" type="tel" placeholder="Optional" value=""></label>' +
+          '<label class="pf"><span class="pf__k">Service</span><input class="pf__v quote-service" type="text" placeholder="e.g. Airbnb turnover" value=""></label>' +
+        '</div>'
+      : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
+          esc(quote.customer_email || l.email) + '"></label>';
+    var summary = standalone ? 'Build a brand-new quote' : 'New / Edit Draft';
+    return (standalone ? '' : '<details class="acc" open><summary class="acc__sum"><span class="acc__icon"></span>' + summary + '</summary><div class="acc__in">') +
+      '<div class="quote-editor"' + (standalone ? ' data-standalone="1"' : '') +
+        ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '">' +
+      customerFields +
+      '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
+      '<button type="button" class="btn btn--ghost btn--tiny" data-add-line>+ Line Item</button>' +
+      '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
+      '<label class="pf pf--wide"><span class="pf__k">Note</span><textarea class="pf__v quote-notes" rows="2">' +
+        esc(quote.notes || '') + '</textarea></label>' +
+      '<div class="quote-actions">' +
+        '<button type="button" class="btn btn--ghost" data-save-quote>Save Draft</button>' +
+        '<button type="button" class="btn btn--primary" data-send-quote>Send to Customer</button></div>' +
+      '<div class="quote-msg form-status" role="alert" hidden></div></div>' +
+      (standalone ? '' : '</div></details>');
+  }
 
-    if (e.target.closest('[data-q-add]')) {
-      var body = e.target.closest('[data-composer]').querySelector('.qitems tbody');
-      body.insertAdjacentHTML('beforeend', itemRow({ description: '', qty: 1, unit_price: '' }));
-      return;
-    }
-    if (e.target.closest('[data-q-del]')) {
-      var row = e.target.closest('[data-q-row]');
-      var tbody = row && row.parentNode;
-      if (row && tbody && tbody.querySelectorAll('[data-q-row]').length > 1) { row.remove(); }
-      else if (row) {
-        row.querySelectorAll('input').forEach(function (inp) { inp.value = inp.getAttribute('data-qi') === 'qty' ? '1' : ''; });
+  function newQuotePanelHtml() {
+    return '<section class="compose" aria-labelledby="compose-title">' +
+      '<div class="compose__head">' +
+        '<div class="compose__titles">' +
+          '<h2 id="compose-title" class="compose__title">New Quote</h2>' +
+          '<p class="compose__sub muted">Start fresh — no intake form needed.</p>' +
+        '</div>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-close-compose>Cancel</button>' +
+      '</div>' +
+      quoteEditorHtml(null, {}, { standalone: true }) +
+    '</section>';
+  }
+
+  function calcLineTotal(lines) {
+    return (lines || []).reduce(function (sum, line) {
+      var qty = Math.max(1, parseInt(line.qty, 10) || 1);
+      var unit = line.unit_price != null ? line.unit_price : parseDollars(line.unit_dollars);
+      return sum + qty * unit;
+    }, 0);
+  }
+
+  function parseEventDetail(raw) {
+    try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+  }
+
+  function trackingSummary(q) {
+    var bits = [];
+    if (q.email_status && q.email_status !== 'pending') bits.push(EMAIL_STATUS_LABELS[q.email_status] || q.email_status);
+    if (q.first_viewed_at) bits.push('Viewed' + (q.view_count > 1 ? ' (' + q.view_count + '×)' : ''));
+    if (q.accepted_at) bits.push('Accepted');
+    else if (q.declined_at) bits.push('Declined');
+    else if (q.status === 'sent' && !q.first_viewed_at) bits.push('Awaiting response');
+    return bits.join(' · ');
+  }
+
+  function quoteTimeline(q) {
+    var events = (q.events || []).slice().sort(function (a, b) {
+      return String(a.created_at).localeCompare(String(b.created_at));
+    });
+    if (!events.length) return '';
+    return '<details class="acc acc--nested"><summary class="acc__sum acc__sum--sm"><span class="acc__icon"></span>Activity Timeline</summary><div class="acc__in">' +
+      '<div class="quote-timeline">' + events.map(function (ev, i) {
+        var detail = parseEventDetail(ev.detail);
+        var meta = fullDate(ev.created_at);
+        if (ev.kind === 'sent' && detail && detail.to) meta += ' · ' + detail.to;
+        return '<div class="quote-timeline__item' + (i === events.length - 1 ? ' is-last' : '') + '">' +
+          '<span class="quote-timeline__dot"></span><div class="quote-timeline__body"><strong>' +
+          esc(EVENT_LABELS[ev.kind] || ev.kind) + '</strong><span class="muted">' + esc(meta) + '</span></div></div>';
+      }).join('') + '</div></div></details>';
+  }
+
+  function quoteCard(q) {
+    var summary = trackingSummary(q);
+    var isArchived = !!q.archived_at;
+    var acts = isArchived
+      ? '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="restore" data-quote-id="' + esc(q.id) + '">Restore</button>' +
+        '<button type="button" class="btn btn--danger btn--tiny" data-quote-action="delete" data-quote-id="' + esc(q.id) + '">Delete</button>'
+      : '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="archive" data-quote-id="' + esc(q.id) + '">Archive</button>' +
+        '<button type="button" class="btn btn--danger btn--tiny" data-quote-action="delete" data-quote-id="' + esc(q.id) + '">Delete</button>';
+    return '<details class="acc acc--quote" data-quote-id="' + esc(q.id) + '"' + (q.status === 'sent' && !isArchived ? ' open' : '') + '>' +
+      '<summary class="acc__sum acc__sum--quote">' +
+        '<span class="acc__icon" aria-hidden="true"></span>' + esc(money(q.total)) + ' · ' + esc(QUOTE_STATUS_LABELS[q.status] || q.status) +
+        (isArchived ? ' · Archived' : '') +
+        '<span class="muted" style="margin-left:.5rem;font-weight:400">' + esc(when(q.created_at)) + '</span></summary>' +
+      '<div class="acc__in quote-card-mini">' + quotePill(q.status) +
+        (q.status !== 'draft' ? '<span class="quote-link"><a href="/proposal?t=' + esc(q.token) + '" target="_blank" rel="noopener">Customer Link</a></span>' : '') +
+        (summary ? '<p class="quote-card-mini__track muted">' + esc(summary) + '</p>' : '') +
+        quoteTimeline(q) +
+        '<div class="quote-card-mini__acts">' + acts + '</div></div></details>';
+  }
+
+  function renderQuotePanel(l, quotes) {
+    var list = (quotes || []).filter(function (q) { return q.status !== 'draft'; }).map(quoteCard).join('');
+    var draft = (quotes || []).find(function (q) { return q.status === 'draft' && !q.archived_at; });
+    return (list ? '<div class="quote-list">' + list + '</div>' : '') +
+      (state.view === 'archived' ? '' : quoteEditorHtml(l, draft));
+  }
+
+  function loadQuotes(leadId) {
+    var panel = root.querySelector('[data-quote-panel="' + leadId + '"] .quote-panel__body');
+    if (!panel) return;
+    var lead = state.leads.find(function (l) { return l.id === leadId; });
+    if (!lead) return;
+    var qs = '?lead_id=' + encodeURIComponent(leadId);
+    if (state.view === 'archived') qs += '&include_archived=1';
+    api('/api/admin/quotes' + qs).then(function (r) {
+      if (!r.ok) {
+        panel.innerHTML = '<p class="muted">' + esc(r.body.error || 'Quotes unavailable.') + '</p>';
+        return;
       }
-      updateComposerTotals(e.target.closest('[data-composer]'));
-      return;
+      state.quotes[leadId] = r.body.quotes || [];
+      panel.innerHTML = renderQuotePanel(lead, state.quotes[leadId]);
+      var ed = panel.querySelector('.quote-editor');
+      if (ed) updateQuoteTotal(ed);
+    });
+  }
+
+  function quotePayload(editor) {
+    var payload = {
+      id: editor.dataset.quoteId || undefined,
+      lead_id: editor.dataset.leadId || undefined,
+      line_items: Array.prototype.map.call(editor.querySelectorAll('.quote-line'), function (row) {
+        return {
+          label: row.querySelector('.quote-label').value,
+          qty: row.querySelector('.quote-qty').value,
+          unit_dollars: row.querySelector('.quote-price').value
+        };
+      }),
+      notes: editor.querySelector('.quote-notes').value,
+      customer_email: editor.querySelector('.quote-email').value
+    };
+    if (editor.dataset.standalone) {
+      payload.customer_name = editor.querySelector('.quote-customer-name').value.trim();
+      payload.phone = editor.querySelector('.quote-phone').value.trim();
+      payload.service_label = editor.querySelector('.quote-service').value.trim();
+      delete payload.lead_id;
+      delete payload.id;
     }
-    if (e.target.closest('[data-q-save]')) { saveComposer(e.target.closest('[data-composer]'), false); return; }
-    if (e.target.closest('[data-q-send]')) { saveComposer(e.target.closest('[data-composer]'), true); return; }
-    if (e.target.closest('[data-q-cancel]')) { state.composeNew = false; render(); return; }
-    if (e.target.closest('[data-q-fresh]')) {
-      var box = e.target.closest('[data-composer]');
-      var leadId = box && box.getAttribute('data-lead-id');
-      if (leadId) { state.quotesByLead[leadId] = []; }
-      render();
-      return;
+    return payload;
+  }
+
+  function afterQuoteSaved(editor, r) {
+    if (!editor.dataset.standalone) return false;
+    var leadId = r.body.lead_id || (r.body.quote && r.body.quote.lead_id);
+    state.composing = false;
+    if (leadId) {
+      state.open = leadId;
+      state.leadTab[leadId] = 'quotes';
     }
-    if (e.target.closest('[data-q-copy]')) {
-      var boxCopy = e.target.closest('[data-composer]');
-      var code = boxCopy && boxCopy.querySelector('.qcompose__link code');
-      var path = code ? code.textContent : '';
-      if (!path) { return; }
-      var url = window.location.origin + path;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(function () {
-          showComposerMsg(boxCopy, 'Link copied.', 'ok');
+    load();
+    return true;
+  }
+
+  function updateQuoteTotal(editor) {
+    var el = editor.querySelector('[data-quote-total]');
+    if (el) el.textContent = money(calcLineTotal(quotePayload(editor).line_items));
+  }
+
+  function showQuoteMsg(editor, text, ok) {
+    var el = editor.querySelector('.quote-msg');
+    if (!el) return;
+    el.hidden = !text;
+    el.className = 'quote-msg form-status' + (ok ? '' : ' form-status--err');
+    el.textContent = text || '';
+  }
+
+  function saveQuote(editor) {
+    var payload = quotePayload(editor);
+    if (editor.dataset.standalone && !payload.customer_name) {
+      showQuoteMsg(editor, 'Add customer name.', false); return;
+    }
+    var isNew = !payload.id;
+    api('/api/admin/quotes', { method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(payload) })
+      .then(function (r) {
+        if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Could not save.', false); return; }
+        if (afterQuoteSaved(editor, r)) return;
+        showQuoteMsg(editor, 'Draft saved.', true);
+        loadQuotes(payload.lead_id);
+      });
+  }
+
+  function sendQuote(editor) {
+    var payload = quotePayload(editor);
+    if (editor.dataset.standalone && !payload.customer_name) {
+      showQuoteMsg(editor, 'Add customer name.', false); return;
+    }
+    if (!payload.customer_email) { showQuoteMsg(editor, 'Add customer email.', false); return; }
+    function doSend(id, leadId) {
+      api('/api/admin/quotes/send', { method: 'POST', body: JSON.stringify({ id: id, customer_email: payload.customer_email }) })
+        .then(function (r) {
+          if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Send failed.', false); return; }
+          if (editor.dataset.standalone) {
+            state.composing = false;
+            state.open = leadId;
+            state.leadTab[leadId] = 'quotes';
+            load();
+            return;
+          }
+          showQuoteMsg(editor, 'Sent — track delivery in timeline.', true);
+          loadQuotes(payload.lead_id); load();
         });
-      } else {
-        window.prompt('Copy this link', url);
-      }
     }
+    if (payload.id) {
+      api('/api/admin/quotes', { method: 'PATCH', body: JSON.stringify(payload) })
+        .then(function (r) { if (r.ok) doSend(r.body.quote.id, r.body.quote.lead_id); });
+      return;
+    }
+    api('/api/admin/quotes', { method: 'POST', body: JSON.stringify(payload) })
+      .then(function (r) {
+        if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Could not save.', false); return; }
+        doSend(r.body.quote.id, r.body.lead_id || r.body.quote.lead_id);
+      });
+  }
+
+  function leadAction(card, action) {
+    var id = card.dataset.id;
+    var msg = action === 'delete' ? 'Delete this lead permanently? This cannot be undone.'
+      : action === 'archive' ? 'Archive this lead? You can restore it from the Archived tab.' : '';
+    if (msg && !window.confirm(msg)) return;
+    api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify({ id: id, action: action }) })
+      .then(function (r) {
+        if (!r.ok) return;
+        state.open = null;
+        load();
+      });
+  }
+
+  function quoteAction(btn, action) {
+    var qid = btn.getAttribute('data-quote-id') ||
+      (btn.closest('[data-quote-id]') && btn.closest('[data-quote-id]').getAttribute('data-quote-id'));
+    var card = btn.closest('.lead');
+    var leadId = card && card.dataset.id;
+    if (!qid) return;
+    if (action === 'delete' && !window.confirm('Delete this quote permanently?')) return;
+    api('/api/admin/quotes', { method: 'PATCH', body: JSON.stringify({ id: qid, action: action }) })
+      .then(function (r) { if (r.ok && leadId) loadQuotes(leadId); });
+  }
+
+  root.addEventListener('click', function (e) {
+    if (e.target.matches('[data-view]')) {
+      state.view = e.target.dataset.view;
+      state.filter = ''; state.open = null; state.composing = false;
+      load(); return;
+    }
+    if (e.target.matches('[data-new-quote]')) {
+      state.composing = true; state.open = null;
+      render(); return;
+    }
+    if (e.target.matches('[data-close-compose]')) {
+      state.composing = false;
+      render(); return;
+    }
+    if (e.target.matches('[data-ptab]')) {
+      var card = e.target.closest('.lead');
+      state.leadTab[card.dataset.id] = e.target.dataset.ptab;
+      render();
+      if (e.target.dataset.ptab === 'quotes') loadQuotes(card.dataset.id);
+      return;
+    }
+    if (e.target.matches('[data-toggle]')) {
+      var c = e.target.closest('.lead');
+      state.open = state.open === c.dataset.id ? null : c.dataset.id;
+      render();
+      if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') loadQuotes(state.open);
+      return;
+    }
+    if (e.target.matches('[data-lead-action]')) {
+      leadAction(e.target.closest('.lead'), e.target.dataset.leadAction);
+      return;
+    }
+    if (e.target.matches('[data-quote-action]')) {
+      quoteAction(e.target, e.target.dataset.quoteAction);
+      return;
+    }
+    if (e.target.matches('[data-add-line]')) {
+      var ed = e.target.closest('.quote-editor');
+      ed.querySelector('.quote-lines').insertAdjacentHTML('beforeend', quoteLineHtml({}));
+      updateQuoteTotal(ed); return;
+    }
+    if (e.target.matches('[data-remove-line]')) {
+      var row = e.target.closest('.quote-line');
+      var editor = e.target.closest('.quote-editor');
+      if (editor.querySelectorAll('.quote-line').length > 1) { row.remove(); updateQuoteTotal(editor); }
+      return;
+    }
+    if (e.target.matches('[data-save-quote]')) saveQuote(e.target.closest('.quote-editor'));
+    if (e.target.matches('[data-send-quote]') && window.confirm('Send this quote by email?')) {
+      sendQuote(e.target.closest('.quote-editor'));
+    }
+  });
+
+  root.addEventListener('change', function (e) {
+    if (e.target.id === 'status-filter') { state.filter = e.target.value; state.open = null; load(); }
+    if (e.target.matches('select[data-col]')) saveField(e.target);
   });
 
   root.addEventListener('input', function (e) {
     if (e.target.id === 'search') { state.q = e.target.value; render(); }
-    if (e.target.matches('[data-qi], [data-q="price_note"]')) {
-      updateComposerTotals(e.target.closest('[data-composer]'));
-    }
+    if (e.target.matches('.quote-label, .quote-qty, .quote-price')) updateQuoteTotal(e.target.closest('.quote-editor'));
   });
 
-  // Saves happen on change for menus and on blur for typed fields, so nothing
-  // needs a save button and nothing is lost by clicking away.
-  root.addEventListener('change', function (e) {
-    if (e.target.matches('select[data-col]')) { save(e.target); }
-  });
   root.addEventListener('blur', function (e) {
-    if (e.target.matches('input[data-col], textarea[data-col]')) { save(e.target); }
+    if (e.target.matches('input[data-col], textarea[data-col]')) saveField(e.target);
   }, true);
 
-  function save(el) {
+  function saveField(el) {
     var card = el.closest('.lead');
-    if (!card) { return; }
-    var col = el.dataset.col;
-    if (!col || col.indexOf('nq-') === 0) { return; }
+    if (!card) return;
     var payload = { id: card.dataset.id };
-    payload[col] = el.value;
-
-    api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify(payload) })
-      .then(function (r) {
-        if (!r.ok) { return; }
-        var saved = card.querySelector('[data-saved]');
-        if (saved) {
-          saved.hidden = false;
-          setTimeout(function () { saved.hidden = true; }, 1500);
-        }
-        // keep our copy current so a re-render does not show stale values
-        state.leads.forEach(function (l) { if (l.id === card.dataset.id) { l[col] = el.value; } });
-        if (col === 'status') {
-          var head = card.querySelector('.lead__head .pill');
-          head.className = 'pill pill--' + el.value;
-          head.textContent = el.value;
-        }
-      });
-  }
-
-  if (newquoteBtn) {
-    newquoteBtn.addEventListener('click', function () {
-      state.composeNew = true;
-      state.open = null;
-      render();
-      var first = root.querySelector('[data-col="nq-name"]');
-      if (first) { first.focus(); }
+    payload[el.dataset.col] = el.value;
+    api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify(payload) }).then(function (r) {
+      if (!r.ok) return;
+      var saved = card.querySelector('[data-saved]');
+      if (saved) { saved.hidden = false; setTimeout(function () { saved.hidden = true; }, 1500); }
+      state.leads.forEach(function (l) { if (l.id === card.dataset.id) l[el.dataset.col] = el.value; });
+      if (el.dataset.col === 'status') {
+        var head = card.querySelector('.lead__head .pill');
+        head.className = 'pill pill--' + el.value;
+        head.textContent = el.value.charAt(0).toUpperCase() + el.value.slice(1);
+      }
     });
   }
 
@@ -671,36 +628,27 @@
     api('/api/admin/logout', { method: 'POST' }).then(function () { showSignIn(''); });
   });
 
-  function fetchQuotes(leadId) {
-    api('/api/admin/quotes?lead_id=' + encodeURIComponent(leadId), { method: 'GET' })
-      .then(function (r) {
-        if (r.body && r.body.setup) { state.quoteSetup = r.body.error || 'Quotes table is not set up yet.'; }
-        state.quotesByLead[leadId] = (r.body && r.body.quotes) || [];
-        if (state.open === leadId) { render(); }
-      });
-  }
-
-  /* ----------------------------------------------------------------- boot */
   function load() {
-    api('/api/admin/status', { method: 'GET' }).then(function (s) {
+    api('/api/admin/status').then(function (s) {
       var status = s.body || {};
       if (!status.authConfigured) { showSetup(status); return; }
       if (!status.signedIn) { showSignIn(''); return; }
       if (!status.databaseConfigured) { showSetup(status); return; }
 
-      api('/api/admin/leads' + (state.filter ? '?status=' + state.filter : ''), { method: 'GET' })
-        .then(function (r) {
-          if (r.status === 401) { showSignIn(''); return; }
-          if (!r.ok) {
-            signout.hidden = false;
-            root.innerHTML = '<div class="card setup"><h2>The database is not ready</h2>' +
-              '<p>' + esc(r.body.error || 'Something went wrong.') + '</p></div>';
-            return;
-          }
-          state.leads = r.body.leads || [];
-          state.counts = r.body.counts || {};
-          render();
-        });
+      var qs = '?archived=' + (state.view === 'archived' ? '1' : '0');
+      if (state.filter && state.view === 'active') qs += '&status=' + encodeURIComponent(state.filter);
+
+      api('/api/admin/leads' + qs).then(function (r) {
+        if (r.status === 401) { showSignIn(''); return; }
+        if (!r.ok) {
+          root.innerHTML = '<div class="card setup"><h2>Database not ready</h2><p>' +
+            esc(r.body.error || '') + '</p><p class="muted">Run: <code>npx wrangler d1 migrations apply oasis --remote</code></p></div>';
+          return;
+        }
+        state.leads = r.body.leads || [];
+        state.counts = r.body.counts || {};
+        render();
+      });
     });
   }
 

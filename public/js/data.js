@@ -76,13 +76,13 @@ window.OASIS = {
   nav: [
     { label: 'Home',          href: '/' },
     { label: 'Services',      href: '/services' },
-    { label: 'Corporate',     href: '/corporate' },
-    { label: 'Airbnb',        href: '/airbnb' },
-    { label: 'Areas',         href: '/service-areas' },
+    { label: 'Corporate',     href: '/corporate-cleaning' },
+    { label: 'Vacation Rentals', href: '/airbnb-cleaning' },
+    { label: 'Pricing',       href: '/pricing' },
+    { label: 'Service Areas', href: '/service-areas' },
     { label: 'About',         href: '/about' },
-    { label: 'Contact',       href: '/contact' },
-    { label: 'Pricing',       href: '/pricing', footerOnly: true },
-    { label: 'FAQ',           href: '/faq',     footerOnly: true }
+    { label: 'FAQ',           href: '/faq' },
+    { label: 'Contact',       href: '/contact' }
   ],
 
   /* --------------------------------------------------------------- services
@@ -125,8 +125,7 @@ window.OASIS = {
     {
       id: 'office',
       active: true,
-      href: '/corporate',
-      name: 'Corporate & Office Cleaning',
+      name: 'Office Cleaning',
       short: 'Small offices and suites, after hours or before you open.',
       blurb: 'Cleaning that happens on your schedule instead of in the middle of your day. ' +
              'Desks and shared surfaces, glass, break room, restrooms restocked, floors and ' +
@@ -226,8 +225,7 @@ window.OASIS = {
     {
       id: 'turnover',
       active: true,
-      href: '/airbnb',
-      name: 'Airbnb & Short-Term Rentals',
+      name: 'Rental Turnovers',
       short: 'Same-day resets between guests.',
       blurb: 'Linens stripped and remade, towels counted, amenities restocked, and a photo ' +
              'set sent before the next check-in so you know it is ready.',
@@ -238,7 +236,7 @@ window.OASIS = {
         'Consumables restocked from your supply',
         'Photo report sent before check-in'
       ],
-      icon: 'key',
+      icon: 'office',
       recurring: true,
       sizes: [
         { id: 't1', label: 'Studio or 1 bedroom' },
@@ -312,35 +310,22 @@ window.OASIS = {
       group: 'Around the house', services: ['home', 'turnover'] },
     { id: 'laundry',      label: 'Laundry',             note: 'Washed, dried and folded while we are there',
       group: 'Around the house', services: ['home', 'turnover'] },
-    { id: 'linens',       label: 'Linen laundry',       note: 'Sheets and towels washed, dried and back on the beds',
-      group: 'Around the house', services: ['turnover'] },
-    { id: 'restock',      label: 'Amenity restock',     note: 'Toiletries, coffee, paper goods from your supply',
-      group: 'Around the house', services: ['turnover'] },
     { id: 'trash',        label: 'Trash removal',       note: 'Hauled away, beyond the usual bins to the curb',
       group: 'Around the house', services: ['home', 'office', 'movein', 'turnover', 'postconstruction'] },
     { id: 'blinds',       label: 'Dusting blinds',      note: 'Slat by slat, not a pass with a duster',
       group: 'Around the house', services: ['home', 'office', 'movein'] },
     { id: 'walls',        label: 'Wall washing',        note: 'Marks, scuffs and fingerprints off painted walls',
       group: 'Around the house', services: ['home', 'office', 'movein', 'postconstruction'] },
-    { id: 'patio',        label: 'Patio or balcony',    note: 'Furniture wiped, floors swept, outdoor table reset',
-      group: 'Around the house', services: ['home', 'turnover'] },
 
     { id: 'windows-in',   label: 'Interior window',     note: 'Glass, sills and tracks from inside',
       group: 'Windows',       services: ['home', 'office', 'movein', 'postconstruction'] },
     { id: 'windows-out',  label: 'Exterior window',     note: 'Ground-floor glass from outside',
       group: 'Windows',       services: ['home', 'office'] },
 
-    { id: 'midstay',      label: 'Mid-stay refresh',    note: 'Towels, trash, kitchen and a quick pass while guests are out',
-      group: 'Rentals',       services: ['turnover'] },
-    { id: 'photos',       label: 'Photo report',        note: 'Timestamped photos before the next check-in',
-      group: 'Rentals',       services: ['turnover'] },
-
     { id: 'closets',      label: 'Closet organization', note: 'Emptied, sorted with you and put back to a system',
       group: 'Organizing',    services: ['home', 'organizing'] },
     { id: 'cabinet-org',  label: 'Cabinet organization', note: 'Pantry or kitchen cabinets grouped and labelled',
-      group: 'Organizing',    services: ['home', 'organizing'] },
-    { id: 'sanitizing',   label: 'High-touch sanitizing', note: 'Switches, handles, shared desks and the break-room taps',
-      group: 'Office',        services: ['office'] }
+      group: 'Organizing',    services: ['home', 'organizing'] }
   ],
 
   /* --------------------------------------------------------------- bundling
@@ -423,26 +408,6 @@ window.OASIS = {
   areaFootnote: 'Just outside the list? Ask anyway. Routes shift as the schedule fills, ' +
                 'and a neighbor two streets over often makes it work.',
 
-  /* -------------------------------------------------------------- landings
-     Dedicated pages that sit beside the generic services list. Cards on
-     the home page and the services page read this. */
-  landings: [
-    {
-      id: 'corporate',
-      href: '/corporate',
-      name: 'Corporate Cleaning',
-      short: 'Offices, suites and small teams that need the work done around the workday.',
-      icon: 'office'
-    },
-    {
-      id: 'airbnb',
-      href: '/airbnb',
-      name: 'Airbnb & Short-Term Rentals',
-      short: 'Same-day turnovers, photo reports and a listing that is ready before check-in.',
-      icon: 'key'
-    }
-  ],
-
   /* -------------------------------------------------------------- trust bar
      The three short promises under the hero. */
   promises: [
@@ -513,63 +478,40 @@ window.OASIS = {
     { q: 'Do you clean seasonal homes while I am away?',
       a: 'Yes, and it is a good chunk of what we do. Monthly checks through the off season, then ' +
          'a full open-up clean before you land. Send us your dates and we schedule around them.' },
-    { q: 'Do you clean offices?',
-      a: 'Yes. Small suites through mid-size offices, usually after hours or before you open. ' +
-         'Certificates of insurance go straight to building management when they ask. The ' +
-         'corporate page has the full picture, and the quote form has a box for it.' },
-    { q: 'Do you do Airbnb and short-term rental turnovers?',
-      a: 'Yes. Same-day resets between guests: linens, towels, amenities, kitchen, and a photo ' +
-         'set before the next check-in. Mid-stay refreshes too. There is a dedicated page for hosts.' },
     { q: 'How far do you travel?',
       a: 'Palm Beach and Broward, coast to the western communities. The service area page has ' +
-         'the full list, and if you are just outside it, ask anyway.' }
-  ],
+         'the full list, and if you are just outside it, ask anyway.' },
 
-  corporateFaqs: [
-    { q: 'Can you work around our hours?',
-      a: 'That is the usual arrangement. Evenings, early mornings or weekends — whatever keeps ' +
-         'the office open and the work out of the way. Recurring visits land on the same day ' +
-         'and the same window so your team can plan around them.' },
-    { q: 'Will you send a certificate of insurance to the building?',
-      a: 'Yes. Liability coverage is in place before the first visit. Send the management ' +
-         'company’s email and we have the certificate forwarded directly to them.' },
-    { q: 'How do you get in after hours?',
-      a: 'Keys, fobs, alarm codes, garage clickers — however your building is set up. Access ' +
-         'is logged, and you get a text when we arrive and when we leave. If the building has ' +
-         'a specific sign-in, we follow it.' },
-    { q: 'What size office do you take on?',
-      a: 'From a one-room suite to several thousand square feet. If the space is larger than ' +
-         'we can do well on a single visit, we will say so and quote accordingly rather than ' +
-         'stretch a crew that is not there.' },
-    { q: 'Do we have to sign a contract?',
-      a: 'No. Recurring office visits continue until you pause or stop them, with a week of ' +
-         'notice. Plenty of clients start with a trial month.' },
-    { q: 'Can you restock the restrooms and break room?',
-      a: 'Paper goods and liners are part of the visit when you keep supply on site. If you ' +
-         'would rather we buy and bill it back, say so on the quote and it goes on the line items.' }
-  ],
-
-  airbnbFaqs: [
-    { q: 'Can you turn a listing over the same day?',
-      a: 'Yes, that is the job. Give us the check-out and check-in times and we schedule inside ' +
-         'the window. If two bookings sit too close together to do the work properly, we will ' +
-         'tell you before we take it on.' },
-    { q: 'Do you send photos before the next guest arrives?',
-      a: 'A photo set is part of every turnover. You get it before check-in so you can see the ' +
-         'beds, the bathrooms and the kitchen without driving over.' },
-    { q: 'What about linens and amenities?',
-      a: 'Beds are stripped and remade with your linens. Towels are counted, replaced and logged. ' +
-         'Coffee, toiletries and paper goods are restocked from the supply you keep at the property ' +
-         '— or we can hold a small stock for you and bill it back.' },
-    { q: 'How do you get in without us there?',
-      a: 'Lockbox, smart lock, hide-a-key, building fob — whatever you already use for guests. ' +
-         'Codes stay on the job record, not in a shared chat. Arrival and departure are texted.' },
-    { q: 'Do you do mid-stay cleans?',
-      a: 'Yes. A shorter visit while guests are out: fresh towels, trash, kitchen reset and a ' +
-         'pass through the bathrooms. Useful on week-plus stays.' },
-    { q: 'What if something is broken or missing?',
-      a: 'It goes on the photo report that day — a missing remote, a stain that will not lift, ' +
-         'a bulb that is out — so you can fix it before the next review is written.' }
+    /* ---- Landing-page FAQs (filtered on corporate-cleaning and airbnb-cleaning pages) ---- */
+    { q: 'Do you clean after business hours?',
+      tags: ['corporate'],
+      a: 'Yes. Most office clients prefer evenings, early mornings, or weekends so cleaning never ' +
+         'interrupts the workday. Tell us your building access rules and we work around them.' },
+    { q: 'Can you send proof of insurance to our building?',
+      tags: ['corporate'],
+      a: 'Yes. A certificate of insurance can go directly to your property manager or building ' +
+         'management before the first visit.' },
+    { q: 'How quickly can you start a new office?',
+      tags: ['corporate'],
+      a: 'Usually within a week of accepting the quote, depending on the schedule. A walkthrough ' +
+         'first visit helps us learn the space and lock in the rhythm.' },
+    { q: 'Can you handle same-day turnovers between guests?',
+      tags: ['airbnb'],
+      a: 'Yes — that is what this service is built for. Checkout at 11 and check-in at 4 is a ' +
+         'normal window. Send your calendar and we schedule around it.' },
+    { q: 'Do you send photos after each turnover?',
+      tags: ['airbnb'],
+      a: 'Yes. A quick photo set goes out before the next check-in so you know the place is ' +
+         'guest-ready without driving over.' },
+    { q: 'Who supplies linens and consumables?',
+      tags: ['airbnb'],
+      a: 'You keep your preferred linens and restock items on site. We strip, remake, count towels, ' +
+         'and restock from your supply. If you want us to handle laundry off-site, ask — that can ' +
+         'be added to the quote.' },
+    { q: 'I have multiple rental units — can I get one quote for all of them?',
+      tags: ['airbnb'],
+      a: 'Each property gets its own quote because bedrooms, turnover windows, and supplies differ. ' +
+         'Once we know the portfolio, standing rates are easy to repeat.' }
   ],
 
   /* ------------------------------------------------------------------ about

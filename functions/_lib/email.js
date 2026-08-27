@@ -16,8 +16,7 @@
  *   - Both a rich HTML part and a clean plain-text part are always produced,
  *     which also helps a message land in the inbox instead of spam.
  */
-import { escapeHtml, siteBase } from './util.js';
-import { formatMoney, formatTotalLabel, quoteTotals, normalizeLineItems, parseItems } from './quotes.js';
+import { escapeHtml } from './util.js';
 
 /* Brand palette — mirrors public/tokens.css (email cannot use CSS variables). */
 const C = {
@@ -45,6 +44,12 @@ const BUSINESS = {
 };
 
 const telHref = (phone) => 'tel:' + String(phone).replace(/[^0-9+]/g, '');
+
+/** Where the site lives, for absolute image and link URLs. */
+function siteBase(env) {
+  const raw = (env && (env.SITE_URL || env.QUOTE_SITE_URL)) || 'https://www.oasiscoastalcleaning.com';
+  return String(raw).replace(/\/+$/, '');
+}
 
 /* ------------------------------------------------------------ HTML building */
 
@@ -129,14 +134,10 @@ function ctaButton(label, url) {
  * title band, the caller's content rows, an optional CTA, then the footer.
  * contentHtml is one or more <tr>...</tr> rows.
  */
-function shell(env, { preheaderText, title, subtitle, contentHtml, cta, audience }) {
+function shell(env, { preheaderText, title, subtitle, contentHtml, cta }) {
   const base = siteBase(env);
   const logo = `${base}/logo/logo-primary-800.png`;
   const year = new Date().getFullYear();
-  const notice = audience === 'customer'
-    ? ''
-    : `<p style="margin:16px 0 0;font-family:${FONT_BODY};font-size:11px;color:${C.muted}">` +
-      `This is an automated notification from your website.</p>`;
 
   return (
     `<!doctype html><html lang="en"><head>` +
@@ -191,7 +192,8 @@ function shell(env, { preheaderText, title, subtitle, contentHtml, cta, audience
 
     `</table>` +
 
-    notice +
+    `<p style="margin:16px 0 0;font-family:${FONT_BODY};font-size:11px;color:${C.muted}">` +
+    `This is an automated notification from your website.</p>` +
 
     `</td></tr></table></body></html>`
   );
@@ -360,151 +362,251 @@ export function buildFollowupEmail(env, { name, kindLabel, id }) {
   return { subject, html, text };
 }
 
-/**
- * Build the branded quote Kristina sends to a customer. viewUrl is the
- * private /q/{token} page where they can click Accept.
- */
-export function buildCustomerQuoteEmail(env, quote, viewUrl) {
-  const { lines, total } = quoteTotals(normalizeLineItems(parseItems(quote.line_items)));
-  const who = firstName(quote.customer_name);
-  const totalLabel = formatTotalLabel(total, quote.price_note);
-  const service = quote.service_label || 'cleaning';
-
-  const introHtml = quote.intro
-    ? `<tr><td style="padding:20px 32px 0"><p style="margin:0;font-family:${FONT_BODY};font-size:15px;` +
-      `line-height:1.65;color:${C.ink}">${escapeHtml(quote.intro).replace(/\n/g, '<br>')}</p></td></tr>`
-    : `<tr><td style="padding:20px 32px 0"><p style="margin:0;font-family:${FONT_BODY};font-size:15px;` +
-      `line-height:1.65;color:${C.ink}">Hi ${escapeHtml(who)}, here is the quote we discussed. ` +
-      `Open it to review the line items and accept when you are ready.</p></td></tr>`;
-
-  const contentHtml =
-    introHtml +
-    lineItemsHtml(lines, totalLabel) +
-    section('Details', [
-      ['Service', quote.service_label],
-      ['Rhythm', quote.frequency],
-      ['Quote good until', formatDateLabel(quote.valid_until)]
-    ]) +
-    noteBlock('About this quote', quote.notes);
-
-  const html = shell(env, {
-    preheaderText: `Your quote from Oasis Coastal Cleaning — ${totalLabel}.`,
-    title: 'Your quote',
-    subtitle: totalLabel + (quote.service_label ? ` · ${quote.service_label}` : ''),
-    contentHtml,
-    cta: { label: 'View and accept this quote', url: viewUrl },
-    audience: 'customer'
-  });
-
-  const textLines = lines.map((i) => {
-    const qty = i.qty === 1 ? '' : `  × ${i.qty}`;
-    return `  ${i.description}${qty}  ${formatMoney(i.amount)}`;
-  });
-
-  const text = textShell(env, {
-    title: 'Your quote from Oasis Coastal Cleaning',
-    subtitle: totalLabel,
-    blocks: [
-      quote.intro ? `${quote.intro}\n` : `Hi ${who}, here is the quote we discussed.\n`,
-      textSection('The work', [
-        ['Service', quote.service_label],
-        ['Rhythm', quote.frequency],
-        ['Good until', formatDateLabel(quote.valid_until)]
-      ]),
-      `LINE ITEMS\n${textLines.join('\n')}\n\n  Total: ${totalLabel}\n`,
-      quote.notes ? `ABOUT THIS QUOTE\n  ${String(quote.notes).replace(/\n/g, '\n  ')}\n` : ''
-    ],
-    cta: { label: 'View and accept this quote', url: viewUrl }
-  });
-
-  const subject = `Your quote from Oasis Coastal Cleaning — ${service}`;
-  return { subject, html, text };
-}
-
-/** Notify Kristina that a customer accepted. */
-export function buildQuoteAcceptedEmail(env, quote) {
-  const { total } = quoteTotals(normalizeLineItems(parseItems(quote.line_items)));
-  const totalLabel = formatTotalLabel(total, quote.price_note);
-  const who = quote.accepted_name || quote.customer_name || 'A customer';
-  const base = siteBase(env);
-  const adminUrl = `${base}/admin/`;
-
-  const contentHtml =
-    `<tr><td style="padding:22px 32px 0">` +
-    `<div style="background:${C.cream};border:1px solid ${C.goldSoft};border-radius:12px;padding:18px 20px">` +
-    `<p style="margin:0;font-family:${FONT_BODY};font-size:16px;line-height:1.55;color:${C.ink}">` +
-    `<strong style="color:${C.teal}">${escapeHtml(who)}</strong> accepted the quote` +
-    (quote.service_label ? ` for <strong>${escapeHtml(quote.service_label)}</strong>` : '') +
-    ` — ${escapeHtml(totalLabel)}.</p></div>` +
-    `<p style="margin:16px 0 0;font-family:${FONT_BODY};font-size:14px;line-height:1.6;color:${C.ink}">` +
-    `Reach them at ` +
-    (quote.customer_phone
-      ? `<a href="${telHref(quote.customer_phone)}" style="color:${C.teal};font-weight:600;text-decoration:none">${escapeHtml(quote.customer_phone)}</a> or `
-      : '') +
-    `<a href="mailto:${escapeHtml(quote.customer_email)}" style="color:${C.teal};font-weight:600;text-decoration:none">${escapeHtml(quote.customer_email)}</a>` +
-    ` to lock in the first date.</p>` +
-    `</td></tr>`;
-
-  const html = shell(env, {
-    preheaderText: `${who} accepted — ${totalLabel}.`,
-    title: 'Quote accepted',
-    subtitle: who,
-    contentHtml,
-    cta: { label: 'Open this lead in your portal', url: adminUrl }
-  });
-
-  const text = textShell(env, {
-    title: 'Quote accepted',
-    subtitle: who,
-    blocks: [
-      `${who} accepted the quote${quote.service_label ? ' for ' + quote.service_label : ''} — ${totalLabel}.\n`,
-      `Phone: ${quote.customer_phone || '—'}\nEmail: ${quote.customer_email || '—'}\n`
-    ],
-    cta: { label: 'Open this lead in your portal', url: adminUrl }
-  });
-
-  return {
-    subject: `Quote accepted — ${who}${quote.service_label ? ' · ' + quote.service_label : ''}`,
-    html,
-    text
-  };
-}
-
-function lineItemsHtml(lines, totalLabel) {
-  if (!lines.length) return '';
-  const rows = lines.map((i, idx) => {
-    const border = idx === 0 ? '' : `border-top:1px solid ${C.line};`;
-    const qty = i.qty === 1 ? '' : ` × ${escapeHtml(String(i.qty))}`;
+/** Line-item table for customer-facing quote emails and the proposal page. */
+function lineItemsTable(items, { moneyFn = money } = {}) {
+  if (!items || !items.length) return '';
+  const rows = items.map((it, i) => {
+    const border = i === 0 ? '' : `border-top:1px solid ${C.line};`;
+    const desc = it.description
+      ? `<br><span style="font-weight:400;color:${C.muted};font-size:12px">${escapeHtml(it.description)}</span>`
+      : '';
     return (
       `<tr>` +
-      `<td style="${border}padding:10px 12px 10px 0;font-family:${FONT_BODY};font-size:14px;` +
-      `line-height:1.45;color:${C.ink}">${escapeHtml(i.description)}${qty}</td>` +
-      `<td style="${border}padding:10px 0;font-family:${FONT_BODY};font-size:14px;font-weight:600;` +
-      `color:${C.ink};text-align:right;white-space:nowrap;vertical-align:top">${escapeHtml(formatMoney(i.amount))}</td>` +
+      `<td style="${border}padding:10px 14px 10px 0;font-family:${FONT_BODY};font-size:14px;line-height:1.5;color:${C.ink};vertical-align:top">` +
+      `${escapeHtml(it.label)}${desc}</td>` +
+      `<td style="${border}padding:10px 8px;font-family:${FONT_BODY};font-size:13px;color:${C.muted};text-align:center;vertical-align:top">${escapeHtml(String(it.qty || 1))}</td>` +
+      `<td style="${border}padding:10px 0;font-family:${FONT_BODY};font-size:14px;font-weight:700;color:${C.ink};text-align:right;vertical-align:top;white-space:nowrap">` +
+      `${escapeHtml(moneyFn(it.total))}</td>` +
       `</tr>`
     );
   }).join('');
 
   return (
-    `<tr><td style="padding:22px 32px 0">` +
-    eyebrow('Line items') +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">` +
-    rows +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-top:8px">` +
     `<tr>` +
-    `<td style="border-top:2px solid ${C.gold};padding:14px 12px 4px 0;font-family:${FONT_BODY};` +
-    `font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${C.gold}">Total</td>` +
-    `<td style="border-top:2px solid ${C.gold};padding:14px 0 4px;font-family:${FONT_HEAD};` +
-    `font-size:20px;color:${C.teal};text-align:right;white-space:nowrap">${escapeHtml(totalLabel)}</td>` +
+    `<th align="left" style="padding:0 14px 8px 0;font-family:${FONT_BODY};font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:${C.gold}">Item</th>` +
+    `<th style="padding:0 8px 8px;font-family:${FONT_BODY};font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:${C.gold}">Qty</th>` +
+    `<th align="right" style="padding:0 0 8px;font-family:${FONT_BODY};font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:${C.gold}">Amount</th>` +
     `</tr>` +
-    `</table></td></tr>`
+    rows +
+    `</table>`
   );
 }
 
-function formatDateLabel(isoDay) {
-  if (!isoDay) return '';
-  const d = new Date(`${String(isoDay).slice(0, 10)}T12:00:00`);
-  if (isNaN(d)) return String(isoDay);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+function totalsBlock(subtotal, total, { moneyFn = money } = {}) {
+  return (
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px">` +
+    `<tr><td align="right" style="padding:8px 0;font-family:${FONT_BODY};font-size:14px;color:${C.muted}">Subtotal</td>` +
+    `<td align="right" style="padding:8px 0 8px 16px;font-family:${FONT_BODY};font-size:14px;font-weight:600;color:${C.ink};width:120px">${escapeHtml(moneyFn(subtotal))}</td></tr>` +
+    `<tr><td align="right" style="padding:8px 0;border-top:2px solid ${C.teal};font-family:${FONT_HEAD};font-size:16px;color:${C.teal}">Total</td>` +
+    `<td align="right" style="padding:8px 0 8px 16px;border-top:2px solid ${C.teal};font-family:${FONT_HEAD};font-size:18px;font-weight:600;color:${C.teal}">${escapeHtml(moneyFn(total))}</td></tr>` +
+    `</table>`
+  );
+}
+
+function formatExpiry(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+/**
+ * Branded quote email to the customer plus an admin copy for Kristina.
+ * Returns separate customer and admin payloads.
+ */
+export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
+  const who = firstName(quote.customer_name || lead.lead_name || lead.name);
+  const service = lead.service_label || 'cleaning';
+  const city = lead.city ? ` in ${lead.city}` : '';
+  const expiry = formatExpiry(quote.expires_at);
+  const items = Array.isArray(quote.line_items) ? quote.line_items : [];
+
+  const customerSubject = `Your quote from Oasis Coastal Cleaning — ${money(quote.total)}`;
+  const adminSubject = `Quote sent to ${quote.customer_name || lead.lead_name || 'customer'} — ${money(quote.total)}`;
+
+  const intro =
+    `<tr><td style="padding:20px 32px 0"><p style="margin:0;font-family:${FONT_BODY};font-size:15px;line-height:1.65;color:${C.ink}">` +
+    `Hi ${escapeHtml(who)},<br><br>` +
+    `Here is your quote for <strong>${escapeHtml(service)}</strong>${escapeHtml(city)}. ` +
+    `Review the details below and click the button to accept when you are ready.` +
+    `</p></td></tr>`;
+
+  const quoteBody =
+    `<tr><td style="padding:22px 32px 0">` +
+    eyebrow('Your quote') +
+    lineItemsTable(items) +
+    totalsBlock(quote.subtotal, quote.total) +
+    (expiry
+      ? `<p style="margin:14px 0 0;font-family:${FONT_BODY};font-size:12px;color:${C.muted}">Valid through ${escapeHtml(expiry)}</p>`
+      : '') +
+    `</td></tr>` +
+    noteBlock('A note from Kristina', quote.notes) +
+    (quote.terms
+      ? `<tr><td style="padding:16px 32px 0"><p style="margin:0;font-family:${FONT_BODY};font-size:12px;line-height:1.55;color:${C.muted}">${escapeHtml(quote.terms)}</p></td></tr>`
+      : '');
+
+  const customerHtml = shell(env, {
+    preheaderText: `Your Oasis Coastal Cleaning quote totals ${money(quote.total)}.`,
+    title: 'Your cleaning quote',
+    subtitle: service,
+    contentHtml: intro + quoteBody,
+    cta: { label: 'View and accept quote', url: proposalUrl }
+  });
+
+  const customerText = textShell(env, {
+    title: 'Your cleaning quote',
+    subtitle: service,
+    blocks: [
+      `Hi ${who},\n\nHere is your quote for ${service}${city}. Open the link below to review and accept.\n`,
+      items.map((it) => `  ${it.qty || 1} × ${it.label} — ${money(it.total)}`).join('\n'),
+      `\nTotal: ${money(quote.total)}`,
+      expiry ? `\nValid through: ${expiry}` : '',
+      quote.notes ? `\nNote from Kristina:\n  ${String(quote.notes).replace(/\n/g, '\n  ')}` : ''
+    ],
+    cta: { label: 'View and accept quote', url: proposalUrl }
+  });
+
+  const adminHtml = shell(env, {
+    preheaderText: `You sent a ${money(quote.total)} quote to ${who}.`,
+    title: 'Quote sent',
+    subtitle: quote.customer_name || lead.lead_name,
+    contentHtml:
+      `<tr><td style="padding:20px 32px 0"><p style="margin:0;font-family:${FONT_BODY};font-size:14px;line-height:1.6;color:${C.ink}">` +
+      `Your quote for <strong>${escapeHtml(quote.customer_name || lead.lead_name)}</strong> was emailed to ` +
+      `<strong>${escapeHtml(quote.customer_email || lead.lead_email)}</strong>.</p></td></tr>` +
+      `<tr><td style="padding:22px 32px 0">` +
+      eyebrow('Quote summary') +
+      lineItemsTable(items) +
+      totalsBlock(quote.subtotal, quote.total) +
+      `</td></tr>`,
+    cta: { label: 'Open lead in portal', url: `${siteBase(env)}/admin/` }
+  });
+
+  const adminText = textShell(env, {
+    title: 'Quote sent',
+    subtitle: quote.customer_name || lead.lead_name,
+    blocks: [
+      `Quote emailed to ${quote.customer_email || lead.lead_email}.`,
+      `Total: ${money(quote.total)}`,
+      `Customer link: ${proposalUrl}`
+    ],
+    cta: { label: 'Open lead in portal', url: `${siteBase(env)}/admin/` }
+  });
+
+  return { customerSubject, customerHtml, customerText, adminSubject, adminHtml, adminText };
+}
+
+/**
+ * Notify Kristina when a customer accepts a quote online.
+ */
+export function buildQuoteAcceptedEmail(env, { quote, lead }) {
+  const who = quote.customer_name || lead.lead_name || 'A customer';
+  const items = Array.isArray(quote.line_items) ? quote.line_items : [];
+  const adminUrl = `${siteBase(env)}/admin/`;
+
+  const contentHtml =
+    `<tr><td style="padding:22px 32px 0">` +
+    `<div style="background:${C.cream};border:1px solid ${C.goldSoft};border-radius:12px;padding:18px 20px">` +
+    `<p style="margin:0;font-family:${FONT_BODY};font-size:16px;line-height:1.55;color:${C.ink}">` +
+    `<strong style="color:${C.teal}">${escapeHtml(who)}</strong> accepted your quote for ` +
+    `<strong>${escapeHtml(money(quote.total))}</strong>.</p></div></td></tr>` +
+    `<tr><td style="padding:22px 32px 0">` +
+    eyebrow('Accepted quote') +
+    lineItemsTable(items) +
+    totalsBlock(quote.subtotal, quote.total) +
+    `</td></tr>`;
+
+  const html = shell(env, {
+    preheaderText: `${who} accepted your ${money(quote.total)} quote.`,
+    title: 'Quote accepted',
+    subtitle: who,
+    contentHtml,
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const text = textShell(env, {
+    title: 'Quote accepted',
+    subtitle: who,
+    blocks: [
+      `${who} accepted your quote for ${money(quote.total)}.`,
+      items.map((it) => `  ${it.qty || 1} × ${it.label} — ${money(it.total)}`).join('\n')
+    ],
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const subject = `Quote accepted — ${who} · ${money(quote.total)}`;
+  return { subject, html, text };
+}
+
+/**
+ * Notify Kristina when a customer declines a quote online.
+ */
+export function buildQuoteDeclinedEmail(env, { quote, lead }) {
+  const who = quote.customer_name || lead.lead_name || 'A customer';
+  const adminUrl = `${siteBase(env)}/admin/`;
+
+  const contentHtml =
+    `<tr><td style="padding:22px 32px 0">` +
+    `<div style="background:${C.cream};border:1px solid ${C.goldSoft};border-radius:12px;padding:18px 20px">` +
+    `<p style="margin:0;font-family:${FONT_BODY};font-size:16px;line-height:1.55;color:${C.ink}">` +
+    `<strong style="color:${C.teal}">${escapeHtml(who)}</strong> declined your quote for ` +
+    `<strong>${escapeHtml(money(quote.total))}</strong>.</p>` +
+    `<p style="margin:10px 0 0;font-family:${FONT_BODY};font-size:13px;color:${C.muted}">` +
+    `Follow up if you would like to revise the quote or ask what changed.</p></div></td></tr>`;
+
+  const html = shell(env, {
+    preheaderText: `${who} declined your ${money(quote.total)} quote.`,
+    title: 'Quote Declined',
+    subtitle: who,
+    contentHtml,
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const text = textShell(env, {
+    title: 'Quote Declined',
+    subtitle: who,
+    blocks: [`${who} declined your quote for ${money(quote.total)}.`],
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const subject = `Quote declined — ${who} · ${money(quote.total)}`;
+  return { subject, html, text };
+}
+
+/**
+ * Alert Kristina when a quote email bounces or fails to deliver.
+ */
+export function buildQuoteDeliveryEmail(env, { quote, kind, detail }) {
+  const who = quote.customer_name || 'Customer';
+  const adminUrl = `${siteBase(env)}/admin/`;
+  const label = kind === 'email_bounced' ? 'Email Bounced' : 'Email Delivery Problem';
+  const reason = detail?.message || 'The provider reported a delivery problem.';
+
+  const contentHtml =
+    `<tr><td style="padding:22px 32px 0">` +
+    `<div style="background:#FBEEDA;border:1px solid #E8D3AE;border-radius:12px;padding:18px 20px">` +
+    `<p style="margin:0;font-family:${FONT_BODY};font-size:15px;line-height:1.55;color:${C.ink}">` +
+    `Your quote email to <strong>${escapeHtml(quote.customer_email || detail?.to || who)}</strong> ` +
+    `<strong>${escapeHtml(label.toLowerCase())}</strong>.</p>` +
+    `<p style="margin:10px 0 0;font-family:${FONT_BODY};font-size:13px;color:${C.muted}">${escapeHtml(reason)}</p>` +
+    `</div></td></tr>`;
+
+  const html = shell(env, {
+    preheaderText: `${label} for ${who}.`,
+    title: label,
+    subtitle: who,
+    contentHtml,
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const text = textShell(env, {
+    title: label,
+    subtitle: who,
+    blocks: [`Quote email to ${quote.customer_email || detail?.to || who}: ${reason}`],
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const subject = `${label} — ${who}`;
+  return { subject, html, text };
 }
 
 /* --------------------------------------------------------------- helpers */

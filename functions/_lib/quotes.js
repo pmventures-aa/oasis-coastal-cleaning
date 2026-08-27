@@ -1,135 +1,194 @@
-/**
- * Quote line items, totals and the public shape of a quote.
- *
- * Kept free of Cloudflare / request objects so the same functions can be
- * unit-tested with plain Node.
- */
+/** Shared helpers for branded quotes with line items. */
 
-export const MAX_ITEMS = 40;
-export const DESC_MAX = 200;
+import { newId } from './util.js';
 
-export function newToken() {
-  const bytes = crypto.getRandomValues(new Uint8Array(18));
-  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+export const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'declined', 'expired'];
+export const EMAIL_STATUSES = ['pending', 'sending', 'sent', 'delivered', 'opened', 'failed', 'bounced'];
+
+export const QUOTE_EVENT_LABELS = {
+  created: 'Quote Created',
+  sent: 'Email Sent',
+  email_delivered: 'Email Delivered',
+  email_opened: 'Email Opened',
+  email_bounced: 'Email Bounced',
+  email_failed: 'Email Failed',
+  viewed: 'Quote Viewed',
+  accepted: 'Quote Accepted',
+  declined: 'Quote Declined',
+  expired: 'Quote Expired'
+};
+
+/** Human-readable Title Case for status slugs shown in the admin UI. */
+export function titleCase(value) {
+  return String(value || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function defaultValidUntil(days = 14) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
+export const newToken = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+export const formatMoney = (cents) => {
+  const n = Number(cents);
+  if (!Number.isFinite(n)) return '$0.00';
+  return '$' + (n / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+};
+
+export const parseDollars = (v) => {
+  const n = Number(String(v ?? '').replace(/[^0-9.-]/g, ''));
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100);
+};
+
+/** Normalize line items and compute subtotal/total in cents. */
+export function normalizeLineItems(raw) {
+  if (!Array.isArray(raw) || !raw.length) {
+    throw new Error('Add at least one line item.');
+  }
+
+  const items = raw.slice(0, 40).map((row, i) => {
+    const label = String(row.label || '').trim().slice(0, 160);
+    if (!label) throw new Error(`Line item ${i + 1} needs a description.`);
+
+    const description = String(row.description || '').trim().slice(0, 400);
+    const qty = Math.max(1, Math.min(999, Math.round(Number(row.qty) || 1)));
+    const unitPrice = Number.isFinite(+row.unit_price)
+      ? Math.max(0, Math.round(+row.unit_price))
+      : parseDollars(row.unit_dollars);
+    const total = qty * unitPrice;
+
+    return { label, description, qty, unit_price: unitPrice, total };
+  });
+
+  const subtotal = items.reduce((sum, it) => sum + it.total, 0);
+  return { items, subtotal, tax: 0, total: subtotal };
 }
 
-export function parseItems(raw) {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw !== 'string' || !raw) return [];
+export function parseStoredLineItems(json) {
   try {
-    const out = JSON.parse(raw);
+    const out = JSON.parse(json || '[]');
     return Array.isArray(out) ? out : [];
   } catch {
     return [];
   }
 }
 
-function roundMoney(n) {
-  return Math.round(Number(n) * 100) / 100;
+export function quoteFromRow(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    line_items: parseStoredLineItems(row.line_items)
+  };
 }
 
-/**
- * Coerce whatever the admin form sent into a clean list of line items.
- * Blank descriptions are dropped. Quantities default to 1.
- */
-export function normalizeLineItems(raw) {
-  if (!Array.isArray(raw)) return [];
+export function isExpired(quote) {
+  if (!quote || !quote.expires_at) return false;
+  const t = Date.parse(quote.expires_at);
+  return Number.isFinite(t) && t < Date.now();
+}
+
+export function proposalUrl(env, token) {
+  const base = (env.SITE_URL || env.QUOTE_SITE_URL || 'https://www.oasiscoastalcleaning.com')
+    .replace(/\/+$/, '');
+  return `${base}/proposal?t=${encodeURIComponent(token)}`;
+}
+
+export function defaultExpiry(days = 14) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
+
+export async function logQuoteEvent(db, quoteId, kind, detail = null) {
+  if (!db || !quoteId || !kind) return;
+  await db.prepare(
+    'INSERT INTO quote_events (id, quote_id, created_at, kind, detail) VALUES (?, ?, ?, ?, ?)'
+  ).bind(
+    newId(),
+    quoteId,
+    new Date().toISOString(),
+    kind,
+    detail ? JSON.stringify(detail) : null
+  ).run();
+}
+
+export async function getQuoteEvents(db, quoteId) {
+  if (!db || !quoteId) return [];
+  try {
+    const { results } = await db.prepare(
+      'SELECT * FROM quote_events WHERE quote_id = ? ORDER BY created_at ASC'
+    ).bind(quoteId).all();
+    return results || [];
+  } catch {
+    return [];
+  }
+}
+
+export function parseEventDetail(raw) {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return { message: raw }; }
+}
+
+export async function attachQuoteEvents(db, quotes) {
   const out = [];
-  for (const item of raw.slice(0, MAX_ITEMS)) {
-    if (!item || typeof item !== 'object') continue;
-    const description = String(item.description || item.label || '')
-      .trim()
-      .slice(0, DESC_MAX);
-    if (!description) continue;
-    const qtyRaw = Number(item.qty);
-    const qty = Number.isFinite(qtyRaw) && qtyRaw > 0 ? roundMoney(qtyRaw) : 1;
-    const priceRaw = Number(item.unit_price ?? item.price ?? item.amount);
-    const unit_price = Number.isFinite(priceRaw) ? roundMoney(priceRaw) : 0;
-    out.push({ description, qty, unit_price });
+  for (const row of quotes) {
+    const quote = quoteFromRow(row);
+    quote.events = await getQuoteEvents(db, quote.id);
+    out.push(quote);
   }
   return out;
 }
 
-export function quoteTotals(items) {
-  const lines = items.map((i) => ({
-    description: i.description,
-    qty: i.qty,
-    unit_price: i.unit_price,
-    amount: roundMoney(i.qty * i.unit_price)
-  }));
-  const total = roundMoney(lines.reduce((sum, i) => sum + i.amount, 0));
-  return { lines, total };
+export async function recordQuoteView(db, quote) {
+  if (!db || !quote || quote.status === 'draft') return;
+  const now = new Date().toISOString();
+  const isFirst = !quote.first_viewed_at;
+  await db.prepare(
+    `UPDATE quotes SET
+      first_viewed_at = COALESCE(first_viewed_at, ?),
+      last_viewed_at = ?,
+      view_count = COALESCE(view_count, 0) + 1,
+      updated_at = ?
+     WHERE id = ?`
+  ).bind(now, now, now, quote.id).run();
+  if (isFirst) await logQuoteEvent(db, quote.id, 'viewed');
 }
 
-export function formatMoney(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return '$0';
-  const abs = Math.abs(x);
-  const formatted = abs.toLocaleString('en-US', {
-    minimumFractionDigits: abs % 1 ? 2 : 0,
-    maximumFractionDigits: 2
-  });
-  return (x < 0 ? '-$' : '$') + formatted;
+export async function findQuoteByEmailProviderId(db, providerId) {
+  if (!db || !providerId) return null;
+  return db.prepare('SELECT * FROM quotes WHERE email_provider_id = ? LIMIT 1').bind(providerId).first();
 }
 
-export function formatTotalLabel(total, priceNote) {
-  const money = formatMoney(total);
-  const note = String(priceNote || '').trim();
-  return note ? `${money} ${note}` : money;
-}
+export async function applyEmailWebhook(db, providerId, kind, detail = null) {
+  const row = await findQuoteByEmailProviderId(db, providerId);
+  if (!row) return null;
 
-export function isExpired(validUntil, now = new Date()) {
-  if (!validUntil) return false;
-  const day = String(validUntil).slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
-  const end = new Date(`${day}T23:59:59.000Z`);
-  return Number.isFinite(end.getTime()) && now.getTime() > end.getTime();
-}
+  const now = new Date().toISOString();
+  const quote = quoteFromRow(row);
 
-/** Fields a customer (or the quote page) is allowed to see. */
-export function publicQuote(row) {
-  const { lines, total } = quoteTotals(normalizeLineItems(parseItems(row.line_items)));
-  return {
-    status: row.status,
-    customer_name: row.customer_name,
-    service_label: row.service_label || '',
-    frequency: row.frequency || '',
-    intro: row.intro || '',
-    notes: row.notes || '',
-    price_note: row.price_note || '',
-    valid_until: row.valid_until || '',
-    line_items: lines,
-    total,
-    total_label: formatTotalLabel(total, row.price_note),
-    sent_at: row.sent_at || null,
-    accepted_at: row.accepted_at || null,
-    accepted_name: row.accepted_name || '',
-    expired: isExpired(row.valid_until)
-  };
-}
-
-export function seedItemsFromLead(lead) {
-  const items = [];
-  const parts = [
-    lead.service_label || lead.service,
-    lead.size_label,
-    lead.frequency
-  ].filter(Boolean);
-  if (parts.length) {
-    items.push({ description: parts.join(' — '), qty: 1, unit_price: 0 });
+  if (kind === 'email_delivered') {
+    await db.prepare(
+      `UPDATE quotes SET email_status = 'delivered', email_delivered_at = COALESCE(email_delivered_at, ?), updated_at = ? WHERE id = ?`
+    ).bind(now, now, quote.id).run();
+  } else if (kind === 'email_opened') {
+    await db.prepare(
+      `UPDATE quotes SET email_status = 'opened', email_opened_at = COALESCE(email_opened_at, ?), updated_at = ? WHERE id = ?`
+    ).bind(now, now, quote.id).run();
+  } else if (kind === 'email_bounced') {
+    await db.prepare(
+      `UPDATE quotes SET email_status = 'bounced', email_error = ?, updated_at = ? WHERE id = ?`
+    ).bind(detail?.message || 'Email bounced', now, quote.id).run();
+  } else if (kind === 'email_failed') {
+    await db.prepare(
+      `UPDATE quotes SET email_status = 'failed', email_error = ?, updated_at = ? WHERE id = ?`
+    ).bind(detail?.message || 'Email failed', now, quote.id).run();
+  } else {
+    return quote;
   }
-  const addOns = parseItems(lead.add_ons);
-  addOns.forEach((label) => {
-    if (label) items.push({ description: String(label), qty: 1, unit_price: 0 });
-  });
-  if (!items.length) {
-    items.push({ description: '', qty: 1, unit_price: 0 });
-  }
-  return items;
+
+  await logQuoteEvent(db, quote.id, kind, detail);
+  return quoteFromRow(await db.prepare('SELECT * FROM quotes WHERE id = ?').bind(quote.id).first());
 }
