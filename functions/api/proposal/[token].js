@@ -1,11 +1,13 @@
 /**
  * GET  /api/proposal/[token] — public quote view
- * POST /api/proposal/[token] — accept or decline { action: 'accept'|'decline' }
+ * POST /api/proposal/[token] — accept or decline
+ *   { action: 'accept'|'decline', add_ons?: string[], reason?: string }
  */
 import { json, clean, sendEmail } from '../../_lib/util.js';
 import {
   quoteFromRow, isExpired, recordQuoteView, logQuoteEvent
 } from '../../_lib/quotes.js';
+import { availableAddons, resolveSelectedAddons } from '../../_lib/addons.js';
 import { buildQuoteAcceptedEmail, buildQuoteDeclinedEmail } from '../../_lib/email.js';
 
 export async function onRequestGet({ request, env, params }) {
@@ -37,6 +39,10 @@ export async function onRequestGet({ request, env, params }) {
     const fresh = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(quote.id).first();
     quote = quoteFromRow(fresh || row);
 
+    const addons = quote.status === 'sent'
+      ? availableAddons(quote.line_items).map(({ id, label, note, group }) => ({ id, label, note, group }))
+      : [];
+
     return json({
       quote: {
         id: quote.id,
@@ -63,6 +69,7 @@ export async function onRequestGet({ request, env, params }) {
         property_type: row.property_type,
         size_label: row.size_label
       },
+      available_addons: addons,
       business: {
         name: 'Oasis Coastal Cleaning',
         phone: '(561) 201-7123',
@@ -109,12 +116,13 @@ export async function onRequestPost({ request, env, params }) {
   const now = new Date().toISOString();
 
   if (action === 'decline') {
+    const reason = clean(body.reason, 1000);
     await env.DB.prepare(
       `UPDATE quotes SET status = 'declined', declined_at = ?, updated_at = ? WHERE id = ?`
     ).bind(now, now, quote.id).run();
-    await logQuoteEvent(env.DB, quote.id, 'declined');
+    await logQuoteEvent(env.DB, quote.id, 'declined', reason ? { reason } : null);
     try {
-      const mail = buildQuoteDeclinedEmail(env, { quote, lead: row });
+      const mail = buildQuoteDeclinedEmail(env, { quote, lead: row, reason });
       await sendEmail(env, {
         subject: mail.subject,
         html: mail.html,
@@ -127,17 +135,31 @@ export async function onRequestPost({ request, env, params }) {
     return json({ ok: true, status: 'declined' });
   }
 
+  // Only allow add-ons that were not already on the quote.
+  const allowed = new Set(availableAddons(quote.line_items).map((a) => a.id));
+  const requestedIds = (Array.isArray(body.add_ons) ? body.add_ons : [])
+    .map((id) => String(id || '').trim())
+    .filter((id) => allowed.has(id));
+  const requestedAddons = resolveSelectedAddons(requestedIds);
+
   await env.DB.prepare(
     `UPDATE quotes SET status = 'accepted', accepted_at = ?, updated_at = ? WHERE id = ?`
   ).bind(now, now, quote.id).run();
-  await logQuoteEvent(env.DB, quote.id, 'accepted');
+  await logQuoteEvent(
+    env.DB,
+    quote.id,
+    'accepted',
+    requestedAddons.length
+      ? { add_ons: requestedAddons.map((a) => ({ id: a.id, label: a.label })) }
+      : null
+  );
 
   await env.DB.prepare(
     `UPDATE leads SET status = 'booked', updated_at = ? WHERE id = ?`
   ).bind(now, quote.lead_id).run();
 
   try {
-    const mail = buildQuoteAcceptedEmail(env, { quote, lead: row });
+    const mail = buildQuoteAcceptedEmail(env, { quote, lead: row, requestedAddons });
     await sendEmail(env, {
       subject: mail.subject,
       html: mail.html,
