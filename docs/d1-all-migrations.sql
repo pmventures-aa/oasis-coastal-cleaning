@@ -1,5 +1,5 @@
 -- Run once in Cloudflare → D1 → oasis → Console if wrangler is unavailable.
--- Safe to re-run: uses IF NOT EXISTS / ignores duplicate column errors.
+-- Safe to re-run: uses IF NOT EXISTS. Duplicate ALTER COLUMN errors can be ignored.
 
 -- 0002 quotes
 CREATE TABLE IF NOT EXISTS quotes (
@@ -27,7 +27,16 @@ CREATE INDEX IF NOT EXISTS idx_quotes_lead ON quotes(lead_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_token ON quotes(token);
 CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
 
--- 0003 tracking (skip column if already exists)
+-- 0003 tracking (ignore errors if columns already exist)
+ALTER TABLE quotes ADD COLUMN email_status TEXT DEFAULT 'pending';
+ALTER TABLE quotes ADD COLUMN email_error TEXT;
+ALTER TABLE quotes ADD COLUMN email_provider_id TEXT;
+ALTER TABLE quotes ADD COLUMN email_delivered_at TEXT;
+ALTER TABLE quotes ADD COLUMN email_opened_at TEXT;
+ALTER TABLE quotes ADD COLUMN first_viewed_at TEXT;
+ALTER TABLE quotes ADD COLUMN last_viewed_at TEXT;
+ALTER TABLE quotes ADD COLUMN view_count INTEGER DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS quote_events (
   id         TEXT PRIMARY KEY,
   quote_id   TEXT NOT NULL,
@@ -39,6 +48,8 @@ CREATE TABLE IF NOT EXISTS quote_events (
 CREATE INDEX IF NOT EXISTS idx_quote_events_quote ON quote_events(quote_id);
 CREATE INDEX IF NOT EXISTS idx_quotes_email_provider ON quotes(email_provider_id);
 
--- 0004 archive
+-- 0004 archive (ignore errors if columns already exist)
+ALTER TABLE leads ADD COLUMN archived_at TEXT;
+ALTER TABLE quotes ADD COLUMN archived_at TEXT;
 CREATE INDEX IF NOT EXISTS idx_leads_archived ON leads(archived_at);
 CREATE INDEX IF NOT EXISTS idx_quotes_archived ON quotes(archived_at);
