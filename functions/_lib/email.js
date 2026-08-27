@@ -537,6 +537,78 @@ export function buildQuoteAcceptedEmail(env, { quote, lead }) {
   return { subject, html, text };
 }
 
+/**
+ * Notify Kristina when a customer declines a quote online.
+ */
+export function buildQuoteDeclinedEmail(env, { quote, lead }) {
+  const who = quote.customer_name || lead.lead_name || 'A customer';
+  const adminUrl = `${siteBase(env)}/admin/`;
+
+  const contentHtml =
+    `<tr><td style="padding:22px 32px 0">` +
+    `<div style="background:${C.cream};border:1px solid ${C.goldSoft};border-radius:12px;padding:18px 20px">` +
+    `<p style="margin:0;font-family:${FONT_BODY};font-size:16px;line-height:1.55;color:${C.ink}">` +
+    `<strong style="color:${C.teal}">${escapeHtml(who)}</strong> declined your quote for ` +
+    `<strong>${escapeHtml(money(quote.total))}</strong>.</p>` +
+    `<p style="margin:10px 0 0;font-family:${FONT_BODY};font-size:13px;color:${C.muted}">` +
+    `Follow up if you would like to revise the quote or ask what changed.</p></div></td></tr>`;
+
+  const html = shell(env, {
+    preheaderText: `${who} declined your ${money(quote.total)} quote.`,
+    title: 'Quote Declined',
+    subtitle: who,
+    contentHtml,
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const text = textShell(env, {
+    title: 'Quote Declined',
+    subtitle: who,
+    blocks: [`${who} declined your quote for ${money(quote.total)}.`],
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const subject = `Quote declined — ${who} · ${money(quote.total)}`;
+  return { subject, html, text };
+}
+
+/**
+ * Alert Kristina when a quote email bounces or fails to deliver.
+ */
+export function buildQuoteDeliveryEmail(env, { quote, kind, detail }) {
+  const who = quote.customer_name || 'Customer';
+  const adminUrl = `${siteBase(env)}/admin/`;
+  const label = kind === 'email_bounced' ? 'Email Bounced' : 'Email Delivery Problem';
+  const reason = detail?.message || 'The provider reported a delivery problem.';
+
+  const contentHtml =
+    `<tr><td style="padding:22px 32px 0">` +
+    `<div style="background:#FBEEDA;border:1px solid #E8D3AE;border-radius:12px;padding:18px 20px">` +
+    `<p style="margin:0;font-family:${FONT_BODY};font-size:15px;line-height:1.55;color:${C.ink}">` +
+    `Your quote email to <strong>${escapeHtml(quote.customer_email || detail?.to || who)}</strong> ` +
+    `<strong>${escapeHtml(label.toLowerCase())}</strong>.</p>` +
+    `<p style="margin:10px 0 0;font-family:${FONT_BODY};font-size:13px;color:${C.muted}">${escapeHtml(reason)}</p>` +
+    `</div></td></tr>`;
+
+  const html = shell(env, {
+    preheaderText: `${label} for ${who}.`,
+    title: label,
+    subtitle: who,
+    contentHtml,
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const text = textShell(env, {
+    title: label,
+    subtitle: who,
+    blocks: [`Quote email to ${quote.customer_email || detail?.to || who}: ${reason}`],
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const subject = `${label} — ${who}`;
+  return { subject, html, text };
+}
+
 /* --------------------------------------------------------------- helpers */
 
 function firstName(name) {

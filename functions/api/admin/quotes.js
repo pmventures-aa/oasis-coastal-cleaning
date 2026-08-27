@@ -6,7 +6,7 @@
 import { json, clean, newId } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import {
-  newToken, normalizeLineItems, quoteFromRow, defaultExpiry
+  newToken, normalizeLineItems, quoteFromRow, defaultExpiry, logQuoteEvent, attachQuoteEvents
 } from '../../_lib/quotes.js';
 
 const guard = async (request, env) => {
@@ -26,7 +26,8 @@ export async function onRequestGet({ request, env }) {
     const { results } = await env.DB.prepare(
       'SELECT * FROM quotes WHERE lead_id = ? ORDER BY created_at DESC LIMIT 20'
     ).bind(leadId).all();
-    return json({ quotes: (results || []).map(quoteFromRow) });
+    const quotes = await attachQuoteEvents(env.DB, results || []);
+    return json({ quotes });
   } catch (err) {
     return json({
       error: 'The quotes table is missing. Apply migration 0002_quotes.sql.',
@@ -76,6 +77,7 @@ export async function onRequestPost({ request, env }) {
     ).run();
 
     const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
+    await logQuoteEvent(env.DB, id, 'created');
     return json({ quote: quoteFromRow(row) }, 201);
   } catch (err) {
     return json({

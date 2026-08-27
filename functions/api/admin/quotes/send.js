@@ -3,7 +3,7 @@
  */
 import { json, clean, sendEmail } from '../../../_lib/util.js';
 import { isSignedIn } from '../../../_lib/auth.js';
-import { quoteFromRow, proposalUrl, isExpired } from '../../../_lib/quotes.js';
+import { quoteFromRow, proposalUrl, isExpired, logQuoteEvent } from '../../../_lib/quotes.js';
 import { buildCustomerQuoteEmail } from '../../../_lib/email.js';
 
 const guard = async (request, env) => {
@@ -42,7 +42,7 @@ export async function onRequestPost({ request, env }) {
   const url = proposalUrl(env, quote.token);
   const mail = buildCustomerQuoteEmail(env, { quote, lead: row, proposalUrl: url });
 
-  const customerErr = await sendCustomerEmail(env, {
+  const customerSend = await sendCustomerEmail(env, {
     to: customerEmail,
     subject: mail.customerSubject,
     html: mail.customerHtml,
@@ -56,13 +56,24 @@ export async function onRequestPost({ request, env }) {
     text: mail.adminText
   });
 
-  if (customerErr) {
-    return json({ error: 'Could not send quote to customer.', detail: customerErr }, 502);
+  if (customerSend.error) {
+    await env.DB.prepare(
+      `UPDATE quotes SET email_status = 'failed', email_error = ?, updated_at = ? WHERE id = ?`
+    ).bind(customerSend.error.slice(0, 500), now, id).run();
+    await logQuoteEvent(env.DB, id, 'email_failed', { message: customerSend.error, to: customerEmail });
+    return json({ error: 'Could not send quote to customer.', detail: customerSend.error }, 502);
   }
 
   await env.DB.prepare(
-    `UPDATE quotes SET status = 'sent', sent_at = ?, updated_at = ?, customer_email = ? WHERE id = ?`
-  ).bind(now, now, customerEmail, id).run();
+    `UPDATE quotes SET status = 'sent', sent_at = ?, updated_at = ?, customer_email = ?,
+      email_status = 'sent', email_error = NULL, email_provider_id = ? WHERE id = ?`
+  ).bind(now, now, customerEmail, customerSend.providerId || null, id).run();
+
+  await logQuoteEvent(env.DB, id, 'sent', {
+    to: customerEmail,
+    provider: customerSend.provider,
+    provider_id: customerSend.providerId || null
+  });
 
   await env.DB.prepare(
     `UPDATE leads SET status = 'quoted', updated_at = ?,
@@ -96,8 +107,11 @@ async function sendCustomerEmail(env, { to, subject, text, html }) {
         subject, text, html
       })
     });
-    if (res.ok) return null;
-    return `Resend returned ${res.status}: ${await res.text()}`;
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) {
+      return { error: null, provider: 'resend', providerId: body.id || null };
+    }
+    return { error: `Resend returned ${res.status}: ${JSON.stringify(body)}` };
   }
 
   if (env.BREVO_API_KEY) {
@@ -114,9 +128,12 @@ async function sendCustomerEmail(env, { to, subject, text, html }) {
         htmlContent: html
       })
     });
-    if (res.ok) return null;
-    return `Brevo returned ${res.status}: ${await res.text()}`;
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) {
+      return { error: null, provider: 'brevo', providerId: body.messageId ? String(body.messageId) : null };
+    }
+    return { error: `Brevo returned ${res.status}: ${JSON.stringify(body)}` };
   }
 
-  return 'No email provider configured for customer delivery.';
+  return { error: 'No email provider configured for customer delivery.' };
 }

@@ -16,6 +16,34 @@
   if (!root) { return; }
 
   var STATUSES = ['new', 'contacted', 'quoted', 'booked', 'closed'];
+  var QUOTE_STATUS_LABELS = {
+    draft: 'Draft',
+    sent: 'Sent',
+    accepted: 'Accepted',
+    declined: 'Declined',
+    expired: 'Expired'
+  };
+  var EMAIL_STATUS_LABELS = {
+    pending: 'Pending',
+    sending: 'Sending',
+    sent: 'Sent',
+    delivered: 'Delivered',
+    opened: 'Opened',
+    failed: 'Failed',
+    bounced: 'Bounced'
+  };
+  var EVENT_LABELS = {
+    created: 'Quote Created',
+    sent: 'Email Sent',
+    email_delivered: 'Email Delivered',
+    email_opened: 'Email Opened',
+    email_bounced: 'Email Bounced',
+    email_failed: 'Email Failed',
+    viewed: 'Quote Viewed',
+    accepted: 'Quote Accepted',
+    declined: 'Quote Declined',
+    expired: 'Quote Expired'
+  };
   var state = { filter: '', open: null, leads: [], counts: {}, q: '', quotes: {} };
 
   var esc = function (s) {
@@ -127,8 +155,20 @@
   }
 
   /* --------------------------------------------------------------- pieces */
-  function pill(status) {
-    return '<span class="pill pill--' + esc(status) + '">' + esc(status) + '</span>';
+  function pill(status, label) {
+    label = label || (STATUSES.indexOf(status) !== -1
+      ? status.charAt(0).toUpperCase() + status.slice(1)
+      : (QUOTE_STATUS_LABELS[status] || status));
+    return '<span class="pill pill--' + esc(status) + '">' + esc(label) + '</span>';
+  }
+
+  function quotePill(status) {
+    var mapped = status === 'sent' ? 'quoted'
+      : status === 'accepted' ? 'booked'
+      : status === 'declined' ? 'closed'
+      : status === 'expired' ? 'closed'
+      : 'new';
+    return pill(mapped, QUOTE_STATUS_LABELS[status] || status);
   }
 
   function field(l, col, value, opts) {
@@ -243,8 +283,8 @@
       '</section>' +
 
       '<section class="profile__block profile__block--quote" data-quote-panel="' + esc(l.id) + '">' +
-        '<h4>Branded quote</h4>' +
-        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Build a line-item quote and email it to the customer. They can open the link and accept online.</p>' +
+        '<h4>Branded Quote</h4>' +
+        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Build a line-item quote and email it to the customer. Track delivery, views, and accept/decline here.</p>' +
         '<div class="quote-panel__body"><p class="muted" style="font-size:var(--step--1)">Loading quotes…</p></div>' +
       '</section>' +
 
@@ -291,7 +331,7 @@
           STATUSES.map(function (s) {
             return '<button type="button" data-filter="' + s + '"' +
                    (state.filter === s ? ' class="is-on"' : '') + '>' +
-                   s + '<b>' + (counts[s] || 0) + '</b></button>';
+                   (s.charAt(0).toUpperCase() + s.slice(1)) + '<b>' + (counts[s] || 0) + '</b></button>';
           }).join('') +
         '</div>' +
         '<input type="search" id="search" class="toolbar__search" placeholder="Search name, phone, city…" ' +
@@ -329,7 +369,7 @@
     return '<div class="quote-editor" data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l.id) + '">' +
       '<div class="quote-list">' + (quote.id ? '' : '') + '</div>' +
       '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
-      '<button type="button" class="btn btn--ghost" data-add-line style="font-size:.68rem;padding:.45em 1em">+ Add line item</button>' +
+      '<button type="button" class="btn btn--ghost" data-add-line style="font-size:.68rem;padding:.45em 1em">+ Add Line Item</button>' +
       '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
       '<label class="pf"><span class="pf__k">Send to</span>' +
         '<input class="pf__v quote-email" type="email" value="' + esc(quote.customer_email || l.email) + '" placeholder="customer@email.com"></label>' +
@@ -337,8 +377,8 @@
         '<textarea class="pf__v quote-notes" rows="2" placeholder="Anything you want them to read before accepting">' +
           esc(quote.notes || '') + '</textarea></label>' +
       '<div class="quote-actions">' +
-        '<button type="button" class="btn btn--ghost" data-save-quote>Save draft</button>' +
-        '<button type="button" class="btn btn--primary" data-send-quote>Send to customer</button>' +
+        '<button type="button" class="btn btn--ghost" data-save-quote>Save Draft</button>' +
+        '<button type="button" class="btn btn--primary" data-send-quote>Send to Customer</button>' +
       '</div>' +
       '<div class="quote-msg form-status" role="alert" hidden></div>' +
     '</div>';
@@ -367,17 +407,61 @@
     if (totalEl) { totalEl.textContent = money(calcLineTotal(readQuoteLines(editor))); }
   }
 
+  function parseEventDetail(raw) {
+    if (!raw) { return null; }
+    try { return JSON.parse(raw); } catch (e) { return { message: raw }; }
+  }
+
+  function trackingSummary(q) {
+    var bits = [];
+    if (q.email_status && q.email_status !== 'pending') {
+      bits.push('Email: ' + (EMAIL_STATUS_LABELS[q.email_status] || q.email_status));
+    }
+    if (q.first_viewed_at) {
+      bits.push('Viewed' + (q.view_count > 1 ? ' (' + q.view_count + '×)' : ''));
+    }
+    if (q.accepted_at) { bits.push('Accepted'); }
+    else if (q.declined_at) { bits.push('Declined'); }
+    else if (q.status === 'sent' && !q.first_viewed_at) { bits.push('Awaiting response'); }
+    return bits.length ? bits.join(' · ') : '';
+  }
+
+  function quoteTimeline(q) {
+    var events = (q.events || []).slice().sort(function (a, b) {
+      return String(a.created_at).localeCompare(String(b.created_at));
+    });
+    if (!events.length) { return ''; }
+
+    return '<div class="quote-timeline">' +
+      events.map(function (ev, i) {
+        var detail = parseEventDetail(ev.detail);
+        var meta = fullDate(ev.created_at);
+        if (ev.kind === 'sent' && detail && detail.to) { meta += ' · to ' + detail.to; }
+        if (ev.kind === 'email_failed' && detail && detail.message) { meta += ' · ' + detail.message; }
+        if (ev.kind === 'email_bounced' && detail && detail.message) { meta += ' · ' + detail.message; }
+        return '<div class="quote-timeline__item' + (i === events.length - 1 ? ' is-last' : '') + '">' +
+          '<span class="quote-timeline__dot"></span>' +
+          '<div class="quote-timeline__body">' +
+            '<strong>' + esc(EVENT_LABELS[ev.kind] || ev.kind) + '</strong>' +
+            '<span class="muted">' + esc(meta) + '</span>' +
+          '</div></div>';
+      }).join('') +
+    '</div>';
+  }
+
   function renderQuotePanel(l, quotes) {
     var list = (quotes || []).map(function (q) {
+      var summary = trackingSummary(q);
       var link = q.status !== 'draft'
-        ? '<span class="quote-link"><a href="/proposal?t=' + esc(q.token) + '" target="_blank" rel="noopener">Customer link</a></span>'
+        ? '<span class="quote-link"><a href="/proposal?t=' + esc(q.token) + '" target="_blank" rel="noopener">Customer Link</a></span>'
         : '';
       return '<div class="quote-card-mini">' +
-        '<span class="pill pill--' + esc(q.status === 'sent' ? 'quoted' : q.status === 'accepted' ? 'booked' : q.status === 'declined' ? 'closed' : 'new') + '">' +
-          esc(q.status) + '</span>' +
+        quotePill(q.status) +
         '<strong>' + esc(money(q.total)) + '</strong>' +
         '<span class="muted">' + esc(when(q.created_at)) + '</span>' +
         link +
+        (summary ? '<span class="quote-card-mini__track muted">' + esc(summary) + '</span>' : '') +
+        quoteTimeline(q) +
       '</div>';
     }).join('');
 
@@ -455,7 +539,7 @@
           showQuoteMsg(editor, r.body.error || 'Could not send.', false);
           return;
         }
-        showQuoteMsg(editor, 'Sent. The customer can accept from their email link.', true);
+        showQuoteMsg(editor, 'Sent. Track delivery and customer response in the timeline above.', true);
         loadQuotes(payload.lead_id);
         load();
       });
@@ -562,7 +646,7 @@
         if (col === 'status') {
           var head = card.querySelector('.lead__head .pill');
           head.className = 'pill pill--' + el.value;
-          head.textContent = el.value;
+          head.textContent = el.value.charAt(0).toUpperCase() + el.value.slice(1);
         }
       });
   }

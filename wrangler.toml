@@ -55,5 +55,9 @@ migrations_dir = "migrations"
 #   TURNSTILE_SECRET_KEY   optional spam check; pairs with turnstileSiteKey
 #                          in public/js/data.js
 #
+# Quote delivery tracking (optional):
+#   Add a Resend webhook pointing to /api/webhooks/resend for delivered,
+#   opened, and bounced events on customer quote emails.
+#
 # Environment changes only apply to a NEW deployment. After adding them, go to
 # Deployments and retry the latest one.

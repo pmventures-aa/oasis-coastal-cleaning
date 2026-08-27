@@ -4,9 +4,9 @@
  */
 import { json, clean, sendEmail } from '../../_lib/util.js';
 import {
-  quoteFromRow, isExpired
+  quoteFromRow, isExpired, recordQuoteView, logQuoteEvent
 } from '../../_lib/quotes.js';
-import { buildQuoteAcceptedEmail } from '../../_lib/email.js';
+import { buildQuoteAcceptedEmail, buildQuoteDeclinedEmail } from '../../_lib/email.js';
 
 export async function onRequestGet({ request, env, params }) {
   if (!env.DB) return json({ error: 'Service unavailable.' }, 503);
@@ -22,15 +22,20 @@ export async function onRequestGet({ request, env, params }) {
 
     if (!row) return json({ error: 'Quote not found.' }, 404);
 
-    const quote = quoteFromRow(row);
+    let quote = quoteFromRow(row);
     if (quote.status === 'draft') return json({ error: 'This quote is not ready yet.' }, 403);
 
     if (isExpired(quote) && quote.status === 'sent') {
       await env.DB.prepare(
         `UPDATE quotes SET status = 'expired', updated_at = ? WHERE id = ?`
       ).bind(new Date().toISOString(), quote.id).run();
+      await logQuoteEvent(env.DB, quote.id, 'expired');
       quote.status = 'expired';
     }
+
+    await recordQuoteView(env.DB, quote);
+    const fresh = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(quote.id).first();
+    quote = quoteFromRow(fresh || row);
 
     return json({
       quote: {
@@ -47,6 +52,12 @@ export async function onRequestGet({ request, env, params }) {
         sent_at: quote.sent_at,
         accepted_at: quote.accepted_at,
         declined_at: quote.declined_at,
+        email_status: quote.email_status,
+        email_delivered_at: quote.email_delivered_at,
+        email_opened_at: quote.email_opened_at,
+        first_viewed_at: quote.first_viewed_at,
+        last_viewed_at: quote.last_viewed_at,
+        view_count: quote.view_count,
         service_label: row.service_label,
         city: row.city,
         property_type: row.property_type,
@@ -101,12 +112,25 @@ export async function onRequestPost({ request, env, params }) {
     await env.DB.prepare(
       `UPDATE quotes SET status = 'declined', declined_at = ?, updated_at = ? WHERE id = ?`
     ).bind(now, now, quote.id).run();
+    await logQuoteEvent(env.DB, quote.id, 'declined');
+    try {
+      const mail = buildQuoteDeclinedEmail(env, { quote, lead: row });
+      await sendEmail(env, {
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
+        replyTo: row.lead_email || undefined
+      });
+    } catch (err) {
+      console.error('Decline notification email failed:', err);
+    }
     return json({ ok: true, status: 'declined' });
   }
 
   await env.DB.prepare(
     `UPDATE quotes SET status = 'accepted', accepted_at = ?, updated_at = ? WHERE id = ?`
   ).bind(now, now, quote.id).run();
+  await logQuoteEvent(env.DB, quote.id, 'accepted');
 
   await env.DB.prepare(
     `UPDATE leads SET status = 'booked', updated_at = ? WHERE id = ?`

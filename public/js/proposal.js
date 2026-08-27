@@ -62,7 +62,7 @@
     if (status === 'sent') {
       actions =
         '<div class="proposal__actions">' +
-          '<button type="button" class="btn btn--primary" id="accept">Accept this quote</button>' +
+          '<button type="button" class="btn btn--primary" id="accept">Accept This Quote</button>' +
           '<button type="button" class="btn btn--ghost" id="decline">Decline</button>' +
         '</div>' +
         '<p class="proposal__fine muted">Accepting confirms you would like to book at the quoted price. ' +

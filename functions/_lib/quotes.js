@@ -1,6 +1,29 @@
 /** Shared helpers for branded quotes with line items. */
 
+import { newId } from './util.js';
+
 export const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'declined', 'expired'];
+export const EMAIL_STATUSES = ['pending', 'sending', 'sent', 'delivered', 'opened', 'failed', 'bounced'];
+
+export const QUOTE_EVENT_LABELS = {
+  created: 'Quote Created',
+  sent: 'Email Sent',
+  email_delivered: 'Email Delivered',
+  email_opened: 'Email Opened',
+  email_bounced: 'Email Bounced',
+  email_failed: 'Email Failed',
+  viewed: 'Quote Viewed',
+  accepted: 'Quote Accepted',
+  declined: 'Quote Declined',
+  expired: 'Quote Expired'
+};
+
+/** Human-readable Title Case for status slugs shown in the admin UI. */
+export function titleCase(value) {
+  return String(value || '')
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export const newToken = () => {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
@@ -77,4 +100,95 @@ export function defaultExpiry(days = 14) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString();
+}
+
+export async function logQuoteEvent(db, quoteId, kind, detail = null) {
+  if (!db || !quoteId || !kind) return;
+  await db.prepare(
+    'INSERT INTO quote_events (id, quote_id, created_at, kind, detail) VALUES (?, ?, ?, ?, ?)'
+  ).bind(
+    newId(),
+    quoteId,
+    new Date().toISOString(),
+    kind,
+    detail ? JSON.stringify(detail) : null
+  ).run();
+}
+
+export async function getQuoteEvents(db, quoteId) {
+  if (!db || !quoteId) return [];
+  try {
+    const { results } = await db.prepare(
+      'SELECT * FROM quote_events WHERE quote_id = ? ORDER BY created_at ASC'
+    ).bind(quoteId).all();
+    return results || [];
+  } catch {
+    return [];
+  }
+}
+
+export function parseEventDetail(raw) {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return { message: raw }; }
+}
+
+export async function attachQuoteEvents(db, quotes) {
+  const out = [];
+  for (const row of quotes) {
+    const quote = quoteFromRow(row);
+    quote.events = await getQuoteEvents(db, quote.id);
+    out.push(quote);
+  }
+  return out;
+}
+
+export async function recordQuoteView(db, quote) {
+  if (!db || !quote || quote.status === 'draft') return;
+  const now = new Date().toISOString();
+  const isFirst = !quote.first_viewed_at;
+  await db.prepare(
+    `UPDATE quotes SET
+      first_viewed_at = COALESCE(first_viewed_at, ?),
+      last_viewed_at = ?,
+      view_count = COALESCE(view_count, 0) + 1,
+      updated_at = ?
+     WHERE id = ?`
+  ).bind(now, now, now, quote.id).run();
+  if (isFirst) await logQuoteEvent(db, quote.id, 'viewed');
+}
+
+export async function findQuoteByEmailProviderId(db, providerId) {
+  if (!db || !providerId) return null;
+  return db.prepare('SELECT * FROM quotes WHERE email_provider_id = ? LIMIT 1').bind(providerId).first();
+}
+
+export async function applyEmailWebhook(db, providerId, kind, detail = null) {
+  const row = await findQuoteByEmailProviderId(db, providerId);
+  if (!row) return null;
+
+  const now = new Date().toISOString();
+  const quote = quoteFromRow(row);
+
+  if (kind === 'email_delivered') {
+    await db.prepare(
+      `UPDATE quotes SET email_status = 'delivered', email_delivered_at = COALESCE(email_delivered_at, ?), updated_at = ? WHERE id = ?`
+    ).bind(now, now, quote.id).run();
+  } else if (kind === 'email_opened') {
+    await db.prepare(
+      `UPDATE quotes SET email_status = 'opened', email_opened_at = COALESCE(email_opened_at, ?), updated_at = ? WHERE id = ?`
+    ).bind(now, now, quote.id).run();
+  } else if (kind === 'email_bounced') {
+    await db.prepare(
+      `UPDATE quotes SET email_status = 'bounced', email_error = ?, updated_at = ? WHERE id = ?`
+    ).bind(detail?.message || 'Email bounced', now, quote.id).run();
+  } else if (kind === 'email_failed') {
+    await db.prepare(
+      `UPDATE quotes SET email_status = 'failed', email_error = ?, updated_at = ? WHERE id = ?`
+    ).bind(detail?.message || 'Email failed', now, quote.id).run();
+  } else {
+    return quote;
+  }
+
+  await logQuoteEvent(db, quote.id, kind, detail);
+  return quoteFromRow(await db.prepare('SELECT * FROM quotes WHERE id = ?').bind(quote.id).first());
 }
