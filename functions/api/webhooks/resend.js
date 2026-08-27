@@ -1,15 +1,16 @@
 /**
  * POST /api/webhooks/resend — delivery, open, and bounce events for quote emails.
  *
- * Configure in Resend dashboard → Webhooks → add endpoint:
+ * Resend dashboard → Webhooks → endpoint:
  *   https://www.oasiscoastalcleaning.com/api/webhooks/resend
  *
- * Optional: set RESEND_WEBHOOK_SECRET and verify the svix signature.
+ * Set secret RESEND_WEBHOOK_SECRET (Svix signing secret from the webhook page).
  */
 import { json } from '../../_lib/util.js';
 import { applyEmailWebhook } from '../../_lib/quotes.js';
 import { sendEmail } from '../../_lib/util.js';
 import { buildQuoteDeliveryEmail } from '../../_lib/email.js';
+import { verifySvixWebhook } from '../../_lib/webhook.js';
 
 const EVENT_MAP = {
   'email.delivered': 'email_delivered',
@@ -23,6 +24,9 @@ export async function onRequestPost({ request, env }) {
   if (!env.DB) return json({ error: 'No database.' }, 503);
 
   const raw = await request.text();
+  const sigErr = await verifySvixWebhook(request, raw, env.RESEND_WEBHOOK_SECRET);
+  if (sigErr) return json({ error: sigErr }, 401);
+
   let payload;
   try { payload = JSON.parse(raw); } catch { return json({ error: 'Invalid JSON.' }, 400); }
 

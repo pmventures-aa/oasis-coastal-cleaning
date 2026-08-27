@@ -27,10 +27,19 @@ That works immediately, sending from `onboarding@resend.dev`. Resend's shared
 address will only deliver to the address the account was opened with — fine
 here, since that is exactly where the leads are going.
 
-To send from her own domain instead: Domains → Add `oasiscoastalcleaning.com` →
-Resend shows three DNS records → add them in Cloudflare DNS (same account, so
-this is a two-minute job) → then add `QUOTE_FROM_EMAIL` as a plain variable,
-e.g. `Oasis Coastal Cleaning <leads@oasiscoastalcleaning.com>`.
+To send from her own domain instead: Domains → Add `send.oasiscoastalcleaning.com` →
+Resend shows DNS records → add them in Cloudflare DNS → then set `QUOTE_FROM_EMAIL`
+in wrangler.toml, e.g. `Oasis Coastal Cleaning <quotes@send.oasiscoastalcleaning.com>`.
+
+### Quote delivery tracking (Resend webhook)
+
+Webhook endpoint (live): `https://www.oasiscoastalcleaning.com/api/webhooks/resend`
+
+Events: `email.delivered`, `email.opened`, `email.bounced`, `email.complained`
+
+Add secret `RESEND_WEBHOOK_SECRET` — the **Signing Secret** shown when the webhook
+was created in Resend (starts with `whsec_`). Without it the endpoint still works,
+but signatures are not verified.
 
 ## Option 2 — Brevo
 

@@ -20,9 +20,7 @@ pages_build_output_dir = "public"
 
 [vars]
 QUOTE_TO_EMAIL = "info@oasiscoastalcleaning.com"
-# A sender verified in Resend. Leave commented until the domain is verified —
-# until then Resend's shared onboarding sender is used.
-# QUOTE_FROM_EMAIL = "Oasis Coastal Cleaning <quotes@oasiscoastalcleaning.com>"
+QUOTE_FROM_EMAIL = "Oasis Coastal Cleaning <quotes@send.oasiscoastalcleaning.com>"
 
 # ---------------------------------------------------------------- database
 # The leads portal needs this. The site deploys and works without it — quote
@@ -52,12 +50,12 @@ migrations_dir = "migrations"
 #   ADMIN_PASSWORD         the password for the leads portal at /admin
 #   SESSION_SECRET         any long random string; signs the login cookie
 #   RESEND_API_KEY         so new requests reach the inbox
+#   RESEND_WEBHOOK_SECRET  Svix signing secret from Resend → Webhooks (quote tracking)
 #   TURNSTILE_SECRET_KEY   optional spam check; pairs with turnstileSiteKey
 #                          in public/js/data.js
 #
-# Quote delivery tracking (optional):
-#   Add a Resend webhook pointing to /api/webhooks/resend for delivered,
-#   opened, and bounced events on customer quote emails.
+# Resend webhook (configured): https://www.oasiscoastalcleaning.com/api/webhooks/resend
+# Events: email.delivered, email.opened, email.bounced, email.complained
 #
 # Environment changes only apply to a NEW deployment. After adding them, go to
 # Deployments and retry the latest one.
