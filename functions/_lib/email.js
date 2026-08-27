@@ -16,7 +16,8 @@
  *   - Both a rich HTML part and a clean plain-text part are always produced,
  *     which also helps a message land in the inbox instead of spam.
  */
-import { escapeHtml } from './util.js';
+import { escapeHtml, siteBase } from './util.js';
+import { formatMoney, formatTotalLabel, quoteTotals, normalizeLineItems, parseItems } from './quotes.js';
 
 /* Brand palette — mirrors public/tokens.css (email cannot use CSS variables). */
 const C = {
@@ -44,12 +45,6 @@ const BUSINESS = {
 };
 
 const telHref = (phone) => 'tel:' + String(phone).replace(/[^0-9+]/g, '');
-
-/** Where the site lives, for absolute image and link URLs. */
-function siteBase(env) {
-  const raw = (env && (env.SITE_URL || env.QUOTE_SITE_URL)) || 'https://www.oasiscoastalcleaning.com';
-  return String(raw).replace(/\/+$/, '');
-}
 
 /* ------------------------------------------------------------ HTML building */
 
@@ -134,10 +129,14 @@ function ctaButton(label, url) {
  * title band, the caller's content rows, an optional CTA, then the footer.
  * contentHtml is one or more <tr>...</tr> rows.
  */
-function shell(env, { preheaderText, title, subtitle, contentHtml, cta }) {
+function shell(env, { preheaderText, title, subtitle, contentHtml, cta, audience }) {
   const base = siteBase(env);
   const logo = `${base}/logo/logo-primary-800.png`;
   const year = new Date().getFullYear();
+  const notice = audience === 'customer'
+    ? ''
+    : `<p style="margin:16px 0 0;font-family:${FONT_BODY};font-size:11px;color:${C.muted}">` +
+      `This is an automated notification from your website.</p>`;
 
   return (
     `<!doctype html><html lang="en"><head>` +
@@ -192,8 +191,7 @@ function shell(env, { preheaderText, title, subtitle, contentHtml, cta }) {
 
     `</table>` +
 
-    `<p style="margin:16px 0 0;font-family:${FONT_BODY};font-size:11px;color:${C.muted}">` +
-    `This is an automated notification from your website.</p>` +
+    notice +
 
     `</td></tr></table></body></html>`
   );
@@ -360,6 +358,153 @@ export function buildFollowupEmail(env, { name, kindLabel, id }) {
   const subject = `Follow-up requested — ${kindLabel}${name ? ' for ' + name : ''}`;
 
   return { subject, html, text };
+}
+
+/**
+ * Build the branded quote Kristina sends to a customer. viewUrl is the
+ * private /q/{token} page where they can click Accept.
+ */
+export function buildCustomerQuoteEmail(env, quote, viewUrl) {
+  const { lines, total } = quoteTotals(normalizeLineItems(parseItems(quote.line_items)));
+  const who = firstName(quote.customer_name);
+  const totalLabel = formatTotalLabel(total, quote.price_note);
+  const service = quote.service_label || 'cleaning';
+
+  const introHtml = quote.intro
+    ? `<tr><td style="padding:20px 32px 0"><p style="margin:0;font-family:${FONT_BODY};font-size:15px;` +
+      `line-height:1.65;color:${C.ink}">${escapeHtml(quote.intro).replace(/\n/g, '<br>')}</p></td></tr>`
+    : `<tr><td style="padding:20px 32px 0"><p style="margin:0;font-family:${FONT_BODY};font-size:15px;` +
+      `line-height:1.65;color:${C.ink}">Hi ${escapeHtml(who)}, here is the quote we discussed. ` +
+      `Open it to review the line items and accept when you are ready.</p></td></tr>`;
+
+  const contentHtml =
+    introHtml +
+    lineItemsHtml(lines, totalLabel) +
+    section('Details', [
+      ['Service', quote.service_label],
+      ['Rhythm', quote.frequency],
+      ['Quote good until', formatDateLabel(quote.valid_until)]
+    ]) +
+    noteBlock('About this quote', quote.notes);
+
+  const html = shell(env, {
+    preheaderText: `Your quote from Oasis Coastal Cleaning — ${totalLabel}.`,
+    title: 'Your quote',
+    subtitle: totalLabel + (quote.service_label ? ` · ${quote.service_label}` : ''),
+    contentHtml,
+    cta: { label: 'View and accept this quote', url: viewUrl },
+    audience: 'customer'
+  });
+
+  const textLines = lines.map((i) => {
+    const qty = i.qty === 1 ? '' : `  × ${i.qty}`;
+    return `  ${i.description}${qty}  ${formatMoney(i.amount)}`;
+  });
+
+  const text = textShell(env, {
+    title: 'Your quote from Oasis Coastal Cleaning',
+    subtitle: totalLabel,
+    blocks: [
+      quote.intro ? `${quote.intro}\n` : `Hi ${who}, here is the quote we discussed.\n`,
+      textSection('The work', [
+        ['Service', quote.service_label],
+        ['Rhythm', quote.frequency],
+        ['Good until', formatDateLabel(quote.valid_until)]
+      ]),
+      `LINE ITEMS\n${textLines.join('\n')}\n\n  Total: ${totalLabel}\n`,
+      quote.notes ? `ABOUT THIS QUOTE\n  ${String(quote.notes).replace(/\n/g, '\n  ')}\n` : ''
+    ],
+    cta: { label: 'View and accept this quote', url: viewUrl }
+  });
+
+  const subject = `Your quote from Oasis Coastal Cleaning — ${service}`;
+  return { subject, html, text };
+}
+
+/** Notify Kristina that a customer accepted. */
+export function buildQuoteAcceptedEmail(env, quote) {
+  const { total } = quoteTotals(normalizeLineItems(parseItems(quote.line_items)));
+  const totalLabel = formatTotalLabel(total, quote.price_note);
+  const who = quote.accepted_name || quote.customer_name || 'A customer';
+  const base = siteBase(env);
+  const adminUrl = `${base}/admin/`;
+
+  const contentHtml =
+    `<tr><td style="padding:22px 32px 0">` +
+    `<div style="background:${C.cream};border:1px solid ${C.goldSoft};border-radius:12px;padding:18px 20px">` +
+    `<p style="margin:0;font-family:${FONT_BODY};font-size:16px;line-height:1.55;color:${C.ink}">` +
+    `<strong style="color:${C.teal}">${escapeHtml(who)}</strong> accepted the quote` +
+    (quote.service_label ? ` for <strong>${escapeHtml(quote.service_label)}</strong>` : '') +
+    ` — ${escapeHtml(totalLabel)}.</p></div>` +
+    `<p style="margin:16px 0 0;font-family:${FONT_BODY};font-size:14px;line-height:1.6;color:${C.ink}">` +
+    `Reach them at ` +
+    (quote.customer_phone
+      ? `<a href="${telHref(quote.customer_phone)}" style="color:${C.teal};font-weight:600;text-decoration:none">${escapeHtml(quote.customer_phone)}</a> or `
+      : '') +
+    `<a href="mailto:${escapeHtml(quote.customer_email)}" style="color:${C.teal};font-weight:600;text-decoration:none">${escapeHtml(quote.customer_email)}</a>` +
+    ` to lock in the first date.</p>` +
+    `</td></tr>`;
+
+  const html = shell(env, {
+    preheaderText: `${who} accepted — ${totalLabel}.`,
+    title: 'Quote accepted',
+    subtitle: who,
+    contentHtml,
+    cta: { label: 'Open this lead in your portal', url: adminUrl }
+  });
+
+  const text = textShell(env, {
+    title: 'Quote accepted',
+    subtitle: who,
+    blocks: [
+      `${who} accepted the quote${quote.service_label ? ' for ' + quote.service_label : ''} — ${totalLabel}.\n`,
+      `Phone: ${quote.customer_phone || '—'}\nEmail: ${quote.customer_email || '—'}\n`
+    ],
+    cta: { label: 'Open this lead in your portal', url: adminUrl }
+  });
+
+  return {
+    subject: `Quote accepted — ${who}${quote.service_label ? ' · ' + quote.service_label : ''}`,
+    html,
+    text
+  };
+}
+
+function lineItemsHtml(lines, totalLabel) {
+  if (!lines.length) return '';
+  const rows = lines.map((i, idx) => {
+    const border = idx === 0 ? '' : `border-top:1px solid ${C.line};`;
+    const qty = i.qty === 1 ? '' : ` × ${escapeHtml(String(i.qty))}`;
+    return (
+      `<tr>` +
+      `<td style="${border}padding:10px 12px 10px 0;font-family:${FONT_BODY};font-size:14px;` +
+      `line-height:1.45;color:${C.ink}">${escapeHtml(i.description)}${qty}</td>` +
+      `<td style="${border}padding:10px 0;font-family:${FONT_BODY};font-size:14px;font-weight:600;` +
+      `color:${C.ink};text-align:right;white-space:nowrap;vertical-align:top">${escapeHtml(formatMoney(i.amount))}</td>` +
+      `</tr>`
+    );
+  }).join('');
+
+  return (
+    `<tr><td style="padding:22px 32px 0">` +
+    eyebrow('Line items') +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">` +
+    rows +
+    `<tr>` +
+    `<td style="border-top:2px solid ${C.gold};padding:14px 12px 4px 0;font-family:${FONT_BODY};` +
+    `font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${C.gold}">Total</td>` +
+    `<td style="border-top:2px solid ${C.gold};padding:14px 0 4px;font-family:${FONT_HEAD};` +
+    `font-size:20px;color:${C.teal};text-align:right;white-space:nowrap">${escapeHtml(totalLabel)}</td>` +
+    `</tr>` +
+    `</table></td></tr>`
+  );
+}
+
+function formatDateLabel(isoDay) {
+  if (!isoDay) return '';
+  const d = new Date(`${String(isoDay).slice(0, 10)}T12:00:00`);
+  if (isNaN(d)) return String(isoDay);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 /* --------------------------------------------------------------- helpers */

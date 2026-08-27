@@ -64,14 +64,19 @@ export async function verifyTurnstile(token, secret, ip) {
 
    Returns null when at least one of them accepted the message, or a reason
    string when none did. */
-export async function sendEmail(env, { subject, text, html, replyTo }) {
-  const to = env.QUOTE_TO_EMAIL || 'info@oasiscoastalcleaning.com';
+export function siteBase(env) {
+  const raw = (env && (env.SITE_URL || env.QUOTE_SITE_URL)) || 'https://www.oasiscoastalcleaning.com';
+  return String(raw).replace(/\/+$/, '');
+}
+
+export async function sendEmail(env, { to, bcc, subject, text, html, replyTo }) {
+  const dest = to || env.QUOTE_TO_EMAIL || 'info@oasiscoastalcleaning.com';
   const fromName = env.QUOTE_FROM_NAME || 'Oasis Coastal Cleaning';
   const jobs = [];
 
-  if (env.RESEND_API_KEY) jobs.push(sendResend(env, { to, fromName, subject, text, html, replyTo }));
-  if (env.BREVO_API_KEY) jobs.push(sendBrevo(env, { to, fromName, subject, text, html, replyTo }));
-  if (env.NOTIFY_WEBHOOK_URL) jobs.push(sendWebhook(env, { to, subject, text, replyTo }));
+  if (env.RESEND_API_KEY) jobs.push(sendResend(env, { to: dest, bcc, fromName, subject, text, html, replyTo }));
+  if (env.BREVO_API_KEY) jobs.push(sendBrevo(env, { to: dest, bcc, fromName, subject, text, html, replyTo }));
+  if (env.NOTIFY_WEBHOOK_URL) jobs.push(sendWebhook(env, { to: dest, subject, text, replyTo }));
 
   if (!jobs.length) return 'No notification channel is configured';
 
@@ -80,35 +85,49 @@ export async function sendEmail(env, { subject, text, html, replyTo }) {
   return results.filter(Boolean).join(' | ');
 }
 
-async function sendResend(env, { to, fromName, subject, text, html, replyTo }) {
+function asList(value) {
+  if (!value) return [];
+  return (Array.isArray(value) ? value : [value]).map((v) => String(v).trim()).filter(Boolean);
+}
+
+async function sendResend(env, { to, bcc, fromName, subject, text, html, replyTo }) {
+  const payload = {
+    from: env.QUOTE_FROM_EMAIL || `${fromName} <onboarding@resend.dev>`,
+    to: asList(to),
+    reply_to: replyTo,
+    subject, text, html
+  };
+  const bccList = asList(bcc).filter((addr) => !payload.to.includes(addr));
+  if (bccList.length) payload.bcc = bccList;
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: env.QUOTE_FROM_EMAIL || `${fromName} <onboarding@resend.dev>`,
-      to: [to],
-      reply_to: replyTo,
-      subject, text, html
-    })
+    body: JSON.stringify(payload)
   });
   if (res.ok) return null;
   return `Resend returned ${res.status}: ${await res.text()}`;
 }
 
-async function sendBrevo(env, { to, fromName, subject, text, html, replyTo }) {
+async function sendBrevo(env, { to, bcc, fromName, subject, text, html, replyTo }) {
   // Brevo wants the address on its own, not inside a "Name <addr>" string.
   const fromEmail = bareAddress(env.QUOTE_FROM_EMAIL) || 'noreply@oasiscoastalcleaning.com';
+  const toList = asList(to).map((email) => ({ email }));
+  const bccList = asList(bcc)
+    .filter((email) => !asList(to).includes(email))
+    .map((email) => ({ email }));
+  const payload = {
+    sender: { name: fromName, email: fromEmail },
+    to: toList,
+    replyTo: replyTo ? { email: replyTo } : undefined,
+    subject,
+    textContent: text,
+    htmlContent: html
+  };
+  if (bccList.length) payload.bcc = bccList;
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': env.BREVO_API_KEY, 'Content-Type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({
-      sender: { name: fromName, email: fromEmail },
-      to: [{ email: to }],
-      replyTo: replyTo ? { email: replyTo } : undefined,
-      subject,
-      textContent: text,
-      htmlContent: html
-    })
+    body: JSON.stringify(payload)
   });
   if (res.ok) return null;
   return `Brevo returned ${res.status}: ${await res.text()}`;

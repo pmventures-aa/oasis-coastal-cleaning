@@ -13,10 +13,14 @@
 
   var root = document.getElementById('admin-root');
   var signout = document.getElementById('signout');
+  var newquoteBtn = document.getElementById('newquote');
   if (!root) { return; }
 
   var STATUSES = ['new', 'contacted', 'quoted', 'booked', 'closed'];
-  var state = { filter: '', open: null, leads: [], counts: {}, q: '' };
+  var state = {
+    filter: '', open: null, leads: [], counts: {}, q: '',
+    quotesByLead: {}, quoteSetup: '', composeNew: false, flash: null
+  };
 
   var esc = function (s) {
     return String(s == null ? '' : s)
@@ -61,6 +65,7 @@
   /* ------------------------------------------------------------- sign in */
   function showSignIn(msg) {
     signout.hidden = true;
+    if (newquoteBtn) { newquoteBtn.hidden = true; }
     root.innerHTML =
       '<div class="card signin">' +
         '<h2>Sign in</h2>' +
@@ -92,6 +97,7 @@
 
   function showSetup(status) {
     signout.hidden = true;
+    if (newquoteBtn) { newquoteBtn.hidden = true; }
     root.innerHTML =
       '<div class="card setup">' +
         '<h2>Two settings and this is yours</h2>' +
@@ -115,7 +121,249 @@
       '</div>';
   }
 
-  /* --------------------------------------------------------------- pieces */
+  function money(n) {
+    var x = Number(n);
+    if (!isFinite(x)) { return '$0'; }
+    var abs = Math.abs(x);
+    var formatted = abs.toLocaleString('en-US', {
+      minimumFractionDigits: abs % 1 ? 2 : 0,
+      maximumFractionDigits: 2
+    });
+    return (x < 0 ? '-$' : '$') + formatted;
+  }
+
+  function defaultUntil() {
+    var d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function parseList(json) {
+    try { var a = JSON.parse(json || '[]'); return Array.isArray(a) ? a : []; }
+    catch (e) { return []; }
+  }
+
+  function seedItemsFromLead(l) {
+    var items = [];
+    var parts = [l.service_label || l.service, l.size_label, l.frequency].filter(Boolean);
+    if (parts.length) { items.push({ description: parts.join(' — '), qty: 1, unit_price: '' }); }
+    parseList(l.add_ons).forEach(function (a) {
+      items.push({ description: a, qty: 1, unit_price: '' });
+    });
+    if (!items.length) { items.push({ description: '', qty: 1, unit_price: '' }); }
+    return items;
+  }
+
+  function itemRow(item) {
+    item = item || {};
+    var amt = (Number(item.qty) || 1) * (Number(item.unit_price) || 0);
+    return '<tr data-q-row>' +
+      '<td><input type="text" data-qi="description" placeholder="e.g. Weekly office clean" value="' +
+        esc(item.description || '') + '"></td>' +
+      '<td><input type="number" data-qi="qty" min="0" step="0.01" inputmode="decimal" value="' +
+        esc(item.qty == null || item.qty === '' ? '1' : String(item.qty)) + '"></td>' +
+      '<td><input type="number" data-qi="unit_price" min="0" step="0.01" inputmode="decimal" placeholder="0" value="' +
+        esc(item.unit_price == null || item.unit_price === '' ? '' : String(item.unit_price)) + '"></td>' +
+      '<td class="qitems__amt">' + esc(money(amt)) + '</td>' +
+      '<td><button type="button" class="qitems__del" data-q-del aria-label="Remove line">&times;</button></td>' +
+    '</tr>';
+  }
+
+  function composerHtml(opts) {
+    opts = opts || {};
+    var q = opts.quote || {};
+    var items = (q.line_items && q.line_items.length) ? q.line_items : (opts.seed || [{ description: '', qty: 1, unit_price: '' }]);
+    var accepted = q.status === 'accepted';
+    var totalLabel = q.total_label || money(q.total || 0);
+    var statusLine = '';
+    if (state.flash && state.flash.leadId === (opts.leadId || q.lead_id)) {
+      statusLine = '<p class="qcompose__msg qcompose__msg--' + esc(state.flash.kind || 'ok') + '">' +
+        esc(state.flash.text) + '</p>';
+      state.flash = null;
+    } else if (state.quoteSetup) {
+      statusLine = '<p class="qcompose__warn">' + esc(state.quoteSetup) + '</p>';
+    } else if (accepted) {
+      statusLine = '<p class="qcompose__ok">Accepted' +
+        (q.accepted_name ? ' by ' + esc(q.accepted_name) : '') +
+        (q.accepted_at ? ' on ' + esc(fullDate(q.accepted_at)) : '') + '.</p>';
+    } else if (q.status === 'sent') {
+      statusLine = '<p class="qcompose__sent">Sent' + (q.sent_at ? ' ' + esc(fullDate(q.sent_at)) : '') +
+        '. They can open the link and click Accept.</p>';
+    }
+
+    var link = q.view_path
+      ? '<p class="qcompose__link">Customer link: <code>' + esc(q.view_path) + '</code> ' +
+        '<button type="button" class="btn btn--ghost" data-q-copy>Copy</button> ' +
+        '<a class="btn btn--ghost" href="' + esc(q.view_path) + '" target="_blank" rel="noopener">Preview</a></p>'
+      : '';
+
+    var locked = accepted ? ' disabled' : '';
+
+    var contact = opts.standalone
+      ? '<div class="profile__grid">' +
+          field('Name', 'nq-name', q.customer_name || '', { placeholder: 'Customer name' }) +
+          field('Email', 'nq-email', q.customer_email || '', { placeholder: 'they@example.com' }) +
+          field('Phone', 'nq-phone', q.customer_phone || '') +
+          field('Service', 'nq-service', q.service_label || '', { placeholder: 'e.g. Corporate cleaning' }) +
+        '</div>'
+      : '';
+
+    return '<div class="qcompose" data-composer data-quote-id="' + esc(q.id || '') + '"' +
+        (opts.leadId ? ' data-lead-id="' + esc(opts.leadId) + '"' : '') + '>' +
+      statusLine +
+      contact +
+      '<label class="pf pf--wide"><span class="pf__k">Note to them</span>' +
+        '<textarea class="pf__v" data-q="intro" rows="3" placeholder="A short note at the top of the quote."' +
+          locked + '>' + esc(q.intro || '') + '</textarea></label>' +
+      '<div class="qitems-wrap"><table class="qitems">' +
+        '<thead><tr><th>Line item</th><th>Qty</th><th>Price</th><th>Amount</th><th></th></tr></thead>' +
+        '<tbody>' + items.map(itemRow).join('') + '</tbody>' +
+      '</table>' +
+      (accepted ? '' : '<button type="button" class="qitems__add" data-q-add>+ Add a line</button>') +
+      '</div>' +
+      '<div class="qcompose__total">' +
+        '<span>Total</span><strong data-q-total>' + esc(totalLabel) + '</strong>' +
+        '<input type="text" data-q="price_note" placeholder="per visit" value="' + esc(q.price_note || '') + '"' +
+          locked + ' title="Shown next to the total, e.g. per visit">' +
+      '</div>' +
+      '<div class="profile__grid">' +
+        '<label class="pf pf--wide"><span class="pf__k">Under the total</span>' +
+          '<textarea class="pf__v" data-q="notes" rows="2" placeholder="What is included, first-visit note, how to pay."' +
+            locked + '>' + esc(q.notes || '') + '</textarea></label>' +
+        '<label class="pf"><span class="pf__k">Good until</span>' +
+          '<input class="pf__v" type="date" data-q="valid_until" value="' +
+            esc(q.valid_until || defaultUntil()) + '"' + locked + '></label>' +
+      '</div>' +
+      link +
+      '<p class="qcompose__msg" data-q-msg hidden></p>' +
+      (accepted
+        ? '<p class="qcompose__actions"><button type="button" class="btn btn--ghost" data-q-fresh>Write a new quote</button></p>'
+        : '<p class="qcompose__actions">' +
+            '<button type="button" class="btn btn--ghost" data-q-save>Save draft</button>' +
+            '<button type="button" class="btn btn--primary" data-q-send>Email this quote</button>' +
+          '</p>') +
+    '</div>';
+  }
+
+  function readComposer(box) {
+    var items = [];
+    box.querySelectorAll('[data-q-row]').forEach(function (row) {
+      items.push({
+        description: (row.querySelector('[data-qi="description"]') || {}).value || '',
+        qty: (row.querySelector('[data-qi="qty"]') || {}).value || '1',
+        unit_price: (row.querySelector('[data-qi="unit_price"]') || {}).value || '0'
+      });
+    });
+    var val = function (sel) {
+      var el = box.querySelector(sel);
+      return el ? el.value : '';
+    };
+    return {
+      intro: val('[data-q="intro"]'),
+      notes: val('[data-q="notes"]'),
+      price_note: val('[data-q="price_note"]'),
+      valid_until: val('[data-q="valid_until"]'),
+      line_items: items,
+      customer_name: val('[data-col="nq-name"]') || val('[data-col="name"]'),
+      customer_email: val('[data-col="nq-email"]') || val('[data-col="email"]'),
+      customer_phone: val('[data-col="nq-phone"]') || val('[data-col="phone"]'),
+      service_label: val('[data-col="nq-service"]')
+    };
+  }
+
+  function updateComposerTotals(box) {
+    if (!box) { return; }
+    var sum = 0;
+    box.querySelectorAll('[data-q-row]').forEach(function (row) {
+      var qty = Number((row.querySelector('[data-qi="qty"]') || {}).value) || 0;
+      var price = Number((row.querySelector('[data-qi="unit_price"]') || {}).value) || 0;
+      var amt = Math.round(qty * price * 100) / 100;
+      sum += amt;
+      var cell = row.querySelector('.qitems__amt');
+      if (cell) { cell.textContent = money(amt); }
+    });
+    var note = (box.querySelector('[data-q="price_note"]') || {}).value || '';
+    var label = money(sum) + (note.trim() ? ' ' + note.trim() : '');
+    var total = box.querySelector('[data-q-total]');
+    if (total) { total.textContent = label; }
+  }
+
+  function showComposerMsg(box, text, kind) {
+    var el = box.querySelector('[data-q-msg]');
+    if (!el) { return; }
+    el.hidden = !text;
+    el.textContent = text || '';
+    el.className = 'qcompose__msg' + (kind ? ' qcompose__msg--' + kind : '');
+  }
+
+  function payloadFromComposer(box, send) {
+    var data = readComposer(box);
+    var lead = box.closest('.lead');
+    var leadId = box.getAttribute('data-lead-id') || (lead && lead.dataset.id) || '';
+    if (lead && !data.customer_name) {
+      var nameEl = lead.querySelector('[data-col="name"]');
+      var emailEl = lead.querySelector('[data-col="email"]');
+      var phoneEl = lead.querySelector('[data-col="phone"]');
+      data.customer_name = nameEl ? nameEl.value : '';
+      data.customer_email = emailEl ? emailEl.value : '';
+      data.customer_phone = phoneEl ? phoneEl.value : '';
+    }
+    if (lead && !data.service_label) {
+      var found = state.leads.filter(function (l) { return l.id === leadId; })[0];
+      if (found) {
+        data.service_label = found.service_label || found.service || '';
+        data.frequency = found.frequency || '';
+      }
+    }
+    data.lead_id = leadId || undefined;
+    data.send = !!send;
+    var id = box.getAttribute('data-quote-id');
+    if (id) { data.id = id; }
+    return data;
+  }
+
+  function saveComposer(box, send) {
+    var data = payloadFromComposer(box, send);
+    if (!data.line_items.some(function (i) { return String(i.description).trim(); })) {
+      showComposerMsg(box, 'Add at least one line item.', 'err');
+      return;
+    }
+    if (!data.customer_email) {
+      showComposerMsg(box, 'An email address is needed to send this.', 'err');
+      return;
+    }
+    showComposerMsg(box, send ? 'Sending…' : 'Saving…', '');
+    var method = data.id ? 'PATCH' : 'POST';
+    api('/api/admin/quotes', { method: method, body: JSON.stringify(data) })
+      .then(function (r) {
+        if (!r.ok) {
+          showComposerMsg(box, r.body.error || 'That did not save.', 'err');
+          if (r.body.setup) { state.quoteSetup = r.body.error; }
+          return;
+        }
+        var q = r.body.quote;
+        var kind = 'ok';
+        var text = 'Draft saved.';
+        if (send && r.body.emailed === false) {
+          kind = 'warn';
+          text = 'Quote is ready, but email did not send. Copy the link and text it. ' +
+            (r.body.mailProblem || '');
+        } else if (send) {
+          text = 'Sent. They can open the link and click Accept.';
+        }
+        if (state.composeNew && q && q.lead_id) {
+          state.composeNew = false;
+          state.open = q.lead_id;
+        }
+        if (q && q.lead_id) {
+          state.quotesByLead[q.lead_id] = [q];
+          state.flash = { leadId: q.lead_id, text: text, kind: kind };
+          load();
+        } else {
+          showComposerMsg(box, text, kind);
+        }
+      });
+  }
   function pill(status) {
     return '<span class="pill pill--' + esc(status) + '">' + esc(status) + '</span>';
   }
@@ -218,8 +466,14 @@
 
       '<section class="profile__block profile__block--mine">' +
         '<h4>Your quote</h4>' +
-        '<div class="profile__grid">' +
-          field('Amount quoted', 'quoted_amount', l.quoted_amount, { placeholder: 'e.g. $185 per visit' }) +
+        (state.quotesByLead[l.id] == null
+          ? '<p class="muted">Loading quote…</p>'
+          : composerHtml({
+              leadId: l.id,
+              quote: (state.quotesByLead[l.id] || [])[0] || {},
+              seed: seedItemsFromLead(l)
+            })) +
+        '<div class="profile__grid" style="margin-top:1rem">' +
           field('Next visit', 'next_visit', l.next_visit, { placeholder: 'e.g. Tue 9 Sep, 9am' }) +
         '</div>' +
         (l.quoted_at ? '<p class="profile__stamp">Quoted ' + esc(fullDate(l.quoted_at)) + '</p>' : '') +
@@ -256,6 +510,7 @@
 
   function render() {
     signout.hidden = false;
+    if (newquoteBtn) { newquoteBtn.hidden = false; }
     var counts = state.counts;
     var total = Object.keys(counts).reduce(function (n, k) { return n + counts[k]; }, 0);
 
@@ -266,7 +521,16 @@
       return hay.indexOf(state.q.toLowerCase()) !== -1;
     });
 
+    var composer = state.composeNew
+      ? '<div class="card qnew">' +
+          '<div class="qnew__bar"><h2>Write a quote</h2>' +
+            '<button type="button" class="btn btn--ghost" data-q-cancel>Cancel</button></div>' +
+          composerHtml({ standalone: true, seed: [{ description: '', qty: 1, unit_price: '' }] }) +
+        '</div>'
+      : '';
+
     root.innerHTML =
+      composer +
       '<div class="toolbar">' +
         '<div class="filters">' +
           '<button type="button" data-filter=""' + (state.filter === '' ? ' class="is-on"' : '') + '>' +
@@ -300,13 +564,62 @@
     var t = e.target.closest('[data-toggle]');
     if (t) {
       var card = t.closest('.lead');
-      state.open = state.open === card.dataset.id ? null : card.dataset.id;
+      var id = card.dataset.id;
+      state.open = state.open === id ? null : id;
+      if (state.open && state.quotesByLead[state.open] === undefined) {
+        state.quotesByLead[state.open] = null;
+        fetchQuotes(state.open);
+      }
       render();
+      return;
+    }
+
+    if (e.target.closest('[data-q-add]')) {
+      var body = e.target.closest('[data-composer]').querySelector('.qitems tbody');
+      body.insertAdjacentHTML('beforeend', itemRow({ description: '', qty: 1, unit_price: '' }));
+      return;
+    }
+    if (e.target.closest('[data-q-del]')) {
+      var row = e.target.closest('[data-q-row]');
+      var tbody = row && row.parentNode;
+      if (row && tbody && tbody.querySelectorAll('[data-q-row]').length > 1) { row.remove(); }
+      else if (row) {
+        row.querySelectorAll('input').forEach(function (inp) { inp.value = inp.getAttribute('data-qi') === 'qty' ? '1' : ''; });
+      }
+      updateComposerTotals(e.target.closest('[data-composer]'));
+      return;
+    }
+    if (e.target.closest('[data-q-save]')) { saveComposer(e.target.closest('[data-composer]'), false); return; }
+    if (e.target.closest('[data-q-send]')) { saveComposer(e.target.closest('[data-composer]'), true); return; }
+    if (e.target.closest('[data-q-cancel]')) { state.composeNew = false; render(); return; }
+    if (e.target.closest('[data-q-fresh]')) {
+      var box = e.target.closest('[data-composer]');
+      var leadId = box && box.getAttribute('data-lead-id');
+      if (leadId) { state.quotesByLead[leadId] = []; }
+      render();
+      return;
+    }
+    if (e.target.closest('[data-q-copy]')) {
+      var boxCopy = e.target.closest('[data-composer]');
+      var code = boxCopy && boxCopy.querySelector('.qcompose__link code');
+      var path = code ? code.textContent : '';
+      if (!path) { return; }
+      var url = window.location.origin + path;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(function () {
+          showComposerMsg(boxCopy, 'Link copied.', 'ok');
+        });
+      } else {
+        window.prompt('Copy this link', url);
+      }
     }
   });
 
   root.addEventListener('input', function (e) {
     if (e.target.id === 'search') { state.q = e.target.value; render(); }
+    if (e.target.matches('[data-qi], [data-q="price_note"]')) {
+      updateComposerTotals(e.target.closest('[data-composer]'));
+    }
   });
 
   // Saves happen on change for menus and on blur for typed fields, so nothing
@@ -322,6 +635,7 @@
     var card = el.closest('.lead');
     if (!card) { return; }
     var col = el.dataset.col;
+    if (!col || col.indexOf('nq-') === 0) { return; }
     var payload = { id: card.dataset.id };
     payload[col] = el.value;
 
@@ -343,9 +657,28 @@
       });
   }
 
+  if (newquoteBtn) {
+    newquoteBtn.addEventListener('click', function () {
+      state.composeNew = true;
+      state.open = null;
+      render();
+      var first = root.querySelector('[data-col="nq-name"]');
+      if (first) { first.focus(); }
+    });
+  }
+
   signout.addEventListener('click', function () {
     api('/api/admin/logout', { method: 'POST' }).then(function () { showSignIn(''); });
   });
+
+  function fetchQuotes(leadId) {
+    api('/api/admin/quotes?lead_id=' + encodeURIComponent(leadId), { method: 'GET' })
+      .then(function (r) {
+        if (r.body && r.body.setup) { state.quoteSetup = r.body.error || 'Quotes table is not set up yet.'; }
+        state.quotesByLead[leadId] = (r.body && r.body.quotes) || [];
+        if (state.open === leadId) { render(); }
+      });
+  }
 
   /* ----------------------------------------------------------------- boot */
   function load() {

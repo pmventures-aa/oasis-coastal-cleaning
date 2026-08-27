@@ -42,5 +42,6 @@ the page, it caps what she can quote.
 
 The quote form collects enough detail to price a job properly: service, size,
 bedrooms and baths, frequency, add-ons, pets, stairs, city, access and their own
-notes. All of it lands in the dashboard at `/admin`, where there is a field to
-record what she quoted and when.
+notes. All of it lands in the dashboard at `/admin`, where she writes a branded
+quote with custom line items and emails it. The customer opens a private link
+and clicks to accept.

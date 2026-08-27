@@ -148,6 +148,22 @@ new → contacted → quoted → booked → closed, and a notes box that saves w
 click away. Anyone who asked for a call or a walkthrough on the confirmation
 screen is flagged in the list.
 
+**Sending a branded quote.** Open a request and use the line-item editor under
+**Your quote** — custom descriptions, quantities and prices, a note to the
+customer, and “good until”. **Email this quote** sends them a branded message
+with a private link (`/q/…`). They open it and click **Accept this quote**.
+That marks the lead booked and emails you. **New quote** in the header writes
+one for someone who called instead of using the form.
+
+If email is not sending yet (domain not verified in Resend, or no API key),
+the quote is still saved — copy the customer link and text it.
+
+After this change, apply the second migration so the quotes table exists:
+
+```sh
+npx wrangler d1 migrations apply oasis --remote
+```
+
 ## 4c. Two things that catch everyone out
 
 **A saved setting does nothing until the next deployment.** Adding
@@ -176,12 +192,16 @@ currently serving — not from what is saved in the dashboard. If a flag reads
 
 ```
 public/                     everything that is served — this is the site
-  index.html … contact.html the eight pages, plus thank-you and 404
+  index.html … contact.html the pages, plus thank-you and 404
+  corporate.html            dedicated corporate / office cleaning page
+  airbnb.html               dedicated Airbnb / short-term rental page
+  q.html                    the customer quote they open and accept
   admin/index.html          the leads portal
   js/data.js                ← the file to edit
   js/site.js                renders the header, footer, sticky bar and every list
   js/quote.js               the six-step quote request
-  js/admin.js               the leads portal
+  js/quote-view.js          customer accept-a-quote page
+  js/admin.js               the leads portal, including the quote composer
   css/site.css              layout and components
   css/admin.css             the portal only
   tokens.css                brand colors and type — never hard-code a hex elsewhere
@@ -191,9 +211,11 @@ public/                     everything that is served — this is the site
 functions/                  the API — must stay OUTSIDE public/
   api/quote.js              takes a request, stores it, emails her
   api/followup.js           the "call me" / "come see it" buttons
-  api/admin/*.js            sign in, sign out, list and update leads
-  _lib/                     shared helpers and session signing
+  api/q/[token].js          public fetch + accept for a sent quote
+  api/admin/*.js            sign in, sign out, leads, send quotes
+  _lib/                     shared helpers, session signing, quote math, emails
 migrations/0001_leads.sql   the leads table
+migrations/0002_quotes.sql  branded quotes customers can accept
 ```
 
 ## 6. Notes on the build
