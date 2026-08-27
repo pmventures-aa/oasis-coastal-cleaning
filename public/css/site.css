@@ -844,3 +844,43 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
   .hero__logo { animation: none; }
   .stickybar a.is-primary svg { animation: none; }
 }
+
+/* --------------------------------------------------------- proposal page */
+.proposal { padding: clamp(1.25rem, 4vw, 2rem); }
+.proposal__head { text-align: center; margin-bottom: 1.5rem; }
+.proposal__logo { width: 110px; height: auto; margin: 0 auto 1rem; display: block; }
+.proposal__table-wrap { overflow-x: auto; margin: 1rem 0; }
+.proposal__table { width: 100%; border-collapse: collapse; font-size: var(--step--1); }
+.proposal__table th {
+  text-align: left; font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--oasis-gold); padding: 0 0 0.6rem; border-bottom: 1px solid var(--oasis-line);
+}
+.proposal__table td { padding: 0.75rem 0.5rem 0.75rem 0; border-bottom: 1px solid var(--oasis-line); vertical-align: top; }
+.proposal__qty { text-align: center; width: 3rem; color: var(--oasis-muted); }
+.proposal__amt { text-align: right; white-space: nowrap; font-weight: 700; width: 6rem; }
+.proposal__totals { margin-top: 0.5rem; }
+.proposal__totals div {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0.35rem 0; font-size: var(--step--1);
+}
+.proposal__total {
+  margin-top: 0.35rem; padding-top: 0.65rem !important;
+  border-top: 2px solid var(--oasis-teal); font-size: var(--step-0) !important;
+}
+.proposal__total strong { color: var(--oasis-teal); font-family: var(--font-head); font-size: 1.15em; }
+.proposal__valid { font-size: var(--step--1); margin: 0.75rem 0 0; }
+.proposal__note {
+  margin-top: 1.25rem; padding: 1rem; background: var(--oasis-cream);
+  border-radius: var(--radius); border: 1px solid var(--oasis-line);
+}
+.proposal__note p { margin: 0.35rem 0 0; line-height: 1.55; }
+.proposal__terms { font-size: 0.78rem; margin: 1rem 0 0; line-height: 1.5; }
+.proposal__actions {
+  display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1.5rem;
+}
+.proposal__fine { font-size: 0.78rem; margin: 0.75rem 0 0; line-height: 1.45; }
+.proposal__done {
+  margin-top: 1.25rem; padding: 1rem; border-radius: var(--radius);
+  background: rgba(9, 64, 69, 0.06); font-size: var(--step--1); line-height: 1.5;
+}
+.proposal__done--ok { background: rgba(31, 98, 54, 0.1); color: #1F6236; }

@@ -1,0 +1,148 @@
+/**
+ * GET   /api/admin/quotes?lead_id=…  — quotes for one lead
+ * POST  /api/admin/quotes            — create a draft quote
+ * PATCH /api/admin/quotes            — update a draft quote
+ */
+import { json, clean, newId } from '../../_lib/util.js';
+import { isSignedIn } from '../../_lib/auth.js';
+import {
+  newToken, normalizeLineItems, quoteFromRow, defaultExpiry
+} from '../../_lib/quotes.js';
+
+const guard = async (request, env) => {
+  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  if (!env.DB) return json({ error: 'No database connected.' }, 503);
+  return null;
+};
+
+export async function onRequestGet({ request, env }) {
+  const blocked = await guard(request, env);
+  if (blocked) return blocked;
+
+  const leadId = clean(new URL(request.url).searchParams.get('lead_id'), 60);
+  if (!leadId) return json({ error: 'Which lead?' }, 400);
+
+  try {
+    const { results } = await env.DB.prepare(
+      'SELECT * FROM quotes WHERE lead_id = ? ORDER BY created_at DESC LIMIT 20'
+    ).bind(leadId).all();
+    return json({ quotes: (results || []).map(quoteFromRow) });
+  } catch (err) {
+    return json({
+      error: 'The quotes table is missing. Apply migration 0002_quotes.sql.',
+      detail: String(err && err.message || err)
+    }, 503);
+  }
+}
+
+export async function onRequestPost({ request, env }) {
+  const blocked = await guard(request, env);
+  if (blocked) return blocked;
+
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Unreadable request.' }, 400); }
+
+  const leadId = clean(body.lead_id, 60);
+  if (!leadId) return json({ error: 'Which lead?' }, 400);
+
+  let normalized;
+  try { normalized = normalizeLineItems(body.line_items); }
+  catch (err) { return json({ error: String(err.message || err) }, 400); }
+
+  const lead = await env.DB.prepare('SELECT id, name, email FROM leads WHERE id = ?').bind(leadId).first();
+  if (!lead) return json({ error: 'Lead not found.' }, 404);
+
+  const now = new Date().toISOString();
+  const id = newId();
+  const token = newToken();
+  const expiresDays = Math.min(Math.max(parseInt(body.expires_days, 10) || 14, 1), 90);
+  const notes = clean(body.notes, 4000);
+  const terms = clean(body.terms, 2000) ||
+    'This quote is valid until the date shown. Prices include labor and supplies unless noted.';
+
+  try {
+    await env.DB.prepare(
+      `INSERT INTO quotes (
+        id, lead_id, created_at, updated_at, status, token,
+        customer_name, customer_email, line_items, subtotal, tax, total,
+        notes, terms, expires_at
+      ) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      id, leadId, now, now, token,
+      clean(lead.name, 120), clean(lead.email, 160),
+      JSON.stringify(normalized.items),
+      normalized.subtotal, normalized.tax, normalized.total,
+      notes, terms, defaultExpiry(expiresDays)
+    ).run();
+
+    const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
+    return json({ quote: quoteFromRow(row) }, 201);
+  } catch (err) {
+    return json({
+      error: 'Could not save quote. Is migration 0002 applied?',
+      detail: String(err && err.message || err)
+    }, 503);
+  }
+}
+
+export async function onRequestPatch({ request, env }) {
+  const blocked = await guard(request, env);
+  if (blocked) return blocked;
+
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Unreadable request.' }, 400); }
+
+  const id = clean(body.id, 60);
+  if (!id) return json({ error: 'Which quote?' }, 400);
+
+  const existing = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
+  if (!existing) return json({ error: 'Quote not found.' }, 404);
+  if (existing.status !== 'draft') return json({ error: 'Only draft quotes can be edited.' }, 400);
+
+  const sets = [];
+  const values = [];
+
+  if (body.line_items !== undefined) {
+    let normalized;
+    try { normalized = normalizeLineItems(body.line_items); }
+    catch (err) { return json({ error: String(err.message || err) }, 400); }
+    sets.push('line_items = ?', 'subtotal = ?', 'tax = ?', 'total = ?');
+    values.push(JSON.stringify(normalized.items), normalized.subtotal, normalized.tax, normalized.total);
+  }
+
+  if (body.notes !== undefined) {
+    sets.push('notes = ?');
+    values.push(clean(body.notes, 4000));
+  }
+
+  if (body.terms !== undefined) {
+    sets.push('terms = ?');
+    values.push(clean(body.terms, 2000));
+  }
+
+  if (body.expires_days !== undefined) {
+    const days = Math.min(Math.max(parseInt(body.expires_days, 10) || 14, 1), 90);
+    sets.push('expires_at = ?');
+    values.push(defaultExpiry(days));
+  }
+
+  if (body.customer_name !== undefined) {
+    sets.push('customer_name = ?');
+    values.push(clean(body.customer_name, 120));
+  }
+
+  if (body.customer_email !== undefined) {
+    sets.push('customer_email = ?');
+    values.push(clean(body.customer_email, 160));
+  }
+
+  if (!sets.length) return json({ error: 'Nothing to change.' }, 400);
+
+  sets.push('updated_at = ?');
+  values.push(new Date().toISOString());
+  values.push(id);
+
+  await env.DB.prepare(`UPDATE quotes SET ${sets.join(', ')} WHERE id = ?`).bind(...values).run();
+  const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
+  return json({ quote: quoteFromRow(row) });
+}

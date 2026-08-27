@@ -16,7 +16,7 @@
   if (!root) { return; }
 
   var STATUSES = ['new', 'contacted', 'quoted', 'booked', 'closed'];
-  var state = { filter: '', open: null, leads: [], counts: {}, q: '' };
+  var state = { filter: '', open: null, leads: [], counts: {}, q: '', quotes: {} };
 
   var esc = function (s) {
     return String(s == null ? '' : s)
@@ -49,6 +49,17 @@
   };
 
   var digits = function (v) { return String(v || '').replace(/\D/g, ''); };
+
+  var money = function (cents) {
+    var n = Number(cents);
+    if (!Number.isFinite(n)) { return '$0.00'; }
+    return '$' + (n / 100).toFixed(2);
+  };
+
+  var parseDollars = function (v) {
+    var n = Number(String(v || '').replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(n) ? Math.round(n * 100) : 0;
+  };
 
   var api = function (path, opts) {
     return fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
@@ -231,6 +242,12 @@
         '</div>' +
       '</section>' +
 
+      '<section class="profile__block profile__block--quote" data-quote-panel="' + esc(l.id) + '">' +
+        '<h4>Branded quote</h4>' +
+        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Build a line-item quote and email it to the customer. They can open the link and accept online.</p>' +
+        '<div class="quote-panel__body"><p class="muted" style="font-size:var(--step--1)">Loading quotes…</p></div>' +
+      '</section>' +
+
       '<p class="profile__stamp">Came in ' + esc(fullDate(l.created_at)) +
         (l.updated_at ? ' · last edited ' + esc(when(l.updated_at)) : '') + '</p>' +
     '</div>';
@@ -292,6 +309,212 @@
     }
   }
 
+  /* ---------------------------------------------------------- quote builder */
+  function quoteLineHtml(line, idx) {
+    line = line || {};
+    return '<div class="quote-line" data-line="' + idx + '">' +
+      '<input type="text" class="quote-label" placeholder="Description" value="' + esc(line.label || '') + '">' +
+      '<input type="number" class="quote-qty" min="1" step="1" placeholder="Qty" value="' + esc(line.qty || 1) + '">' +
+      '<input type="text" class="quote-price" inputmode="decimal" placeholder="$0.00" value="' +
+        esc(line.unit_dollars != null ? line.unit_dollars : (line.unit_price ? (line.unit_price / 100).toFixed(2) : '')) + '">' +
+      '<button type="button" class="quote-line__remove" data-remove-line>&times; Remove</button>' +
+    '</div>';
+  }
+
+  function quoteEditorHtml(l, quote) {
+    quote = quote || {};
+    var lines = (quote.line_items && quote.line_items.length)
+      ? quote.line_items
+      : [{ label: l.service_label || 'Cleaning visit', qty: 1, unit_dollars: '' }];
+    return '<div class="quote-editor" data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l.id) + '">' +
+      '<div class="quote-list">' + (quote.id ? '' : '') + '</div>' +
+      '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
+      '<button type="button" class="btn btn--ghost" data-add-line style="font-size:.68rem;padding:.45em 1em">+ Add line item</button>' +
+      '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
+      '<label class="pf"><span class="pf__k">Send to</span>' +
+        '<input class="pf__v quote-email" type="email" value="' + esc(quote.customer_email || l.email) + '" placeholder="customer@email.com"></label>' +
+      '<label class="pf pf--wide"><span class="pf__k">Note to customer</span>' +
+        '<textarea class="pf__v quote-notes" rows="2" placeholder="Anything you want them to read before accepting">' +
+          esc(quote.notes || '') + '</textarea></label>' +
+      '<div class="quote-actions">' +
+        '<button type="button" class="btn btn--ghost" data-save-quote>Save draft</button>' +
+        '<button type="button" class="btn btn--primary" data-send-quote>Send to customer</button>' +
+      '</div>' +
+      '<div class="quote-msg form-status" role="alert" hidden></div>' +
+    '</div>';
+  }
+
+  function calcLineTotal(lines) {
+    return (lines || []).reduce(function (sum, line) {
+      var qty = Math.max(1, parseInt(line.qty, 10) || 1);
+      var unit = line.unit_price != null ? line.unit_price : parseDollars(line.unit_dollars);
+      return sum + qty * unit;
+    }, 0);
+  }
+
+  function readQuoteLines(editor) {
+    return Array.prototype.map.call(editor.querySelectorAll('.quote-line'), function (row) {
+      return {
+        label: row.querySelector('.quote-label').value,
+        qty: row.querySelector('.quote-qty').value,
+        unit_dollars: row.querySelector('.quote-price').value
+      };
+    });
+  }
+
+  function updateQuoteTotal(editor) {
+    var totalEl = editor.querySelector('[data-quote-total]');
+    if (totalEl) { totalEl.textContent = money(calcLineTotal(readQuoteLines(editor))); }
+  }
+
+  function renderQuotePanel(l, quotes) {
+    var list = (quotes || []).map(function (q) {
+      var link = q.status !== 'draft'
+        ? '<span class="quote-link"><a href="/proposal?t=' + esc(q.token) + '" target="_blank" rel="noopener">Customer link</a></span>'
+        : '';
+      return '<div class="quote-card-mini">' +
+        '<span class="pill pill--' + esc(q.status === 'sent' ? 'quoted' : q.status === 'accepted' ? 'booked' : q.status === 'declined' ? 'closed' : 'new') + '">' +
+          esc(q.status) + '</span>' +
+        '<strong>' + esc(money(q.total)) + '</strong>' +
+        '<span class="muted">' + esc(when(q.created_at)) + '</span>' +
+        link +
+      '</div>';
+    }).join('');
+
+    var draft = (quotes || []).find(function (q) { return q.status === 'draft'; });
+    return (list ? '<div class="quote-list">' + list + '</div>' : '') + quoteEditorHtml(l, draft);
+  }
+
+  function loadQuotes(leadId) {
+    var panel = root.querySelector('[data-quote-panel="' + leadId + '"] .quote-panel__body');
+    if (!panel) { return; }
+    var lead = state.leads.find(function (l) { return l.id === leadId; });
+    if (!lead) { return; }
+
+    api('/api/admin/quotes?lead_id=' + encodeURIComponent(leadId)).then(function (r) {
+      if (!r.ok) {
+        panel.innerHTML = '<p class="muted" style="font-size:var(--step--1)">' +
+          esc(r.body.error || 'Quotes are not available yet.') + '</p>';
+        return;
+      }
+      state.quotes[leadId] = r.body.quotes || [];
+      panel.innerHTML = renderQuotePanel(lead, state.quotes[leadId]);
+      updateQuoteTotal(panel.querySelector('.quote-editor'));
+    });
+  }
+
+  function quotePayload(editor) {
+    return {
+      id: editor.dataset.quoteId || undefined,
+      lead_id: editor.dataset.leadId,
+      line_items: readQuoteLines(editor),
+      notes: editor.querySelector('.quote-notes').value,
+      customer_email: editor.querySelector('.quote-email').value
+    };
+  }
+
+  function showQuoteMsg(editor, text, ok) {
+    var el = editor.querySelector('.quote-msg');
+    if (!el) { return; }
+    el.hidden = !text;
+    el.className = 'quote-msg form-status' + (ok ? '' : ' form-status--err');
+    el.textContent = text || '';
+  }
+
+  function saveQuote(editor) {
+    var payload = quotePayload(editor);
+    var isNew = !payload.id;
+    showQuoteMsg(editor, 'Saving…', true);
+    api('/api/admin/quotes' + (isNew ? '' : ''), {
+      method: isNew ? 'POST' : 'PATCH',
+      body: JSON.stringify(payload)
+    }).then(function (r) {
+      if (!r.ok) {
+        showQuoteMsg(editor, r.body.error || 'Could not save.', false);
+        return;
+      }
+      showQuoteMsg(editor, 'Draft saved.', true);
+      loadQuotes(payload.lead_id);
+    });
+  }
+
+  function sendQuote(editor) {
+    var payload = quotePayload(editor);
+    if (!payload.customer_email) {
+      showQuoteMsg(editor, 'Add the customer email first.', false);
+      return;
+    }
+
+    function doSend(id) {
+      showQuoteMsg(editor, 'Sending…', true);
+      api('/api/admin/quotes/send', {
+        method: 'POST',
+        body: JSON.stringify({ id: id, customer_email: payload.customer_email })
+      }).then(function (r) {
+        if (!r.ok) {
+          showQuoteMsg(editor, r.body.error || 'Could not send.', false);
+          return;
+        }
+        showQuoteMsg(editor, 'Sent. The customer can accept from their email link.', true);
+        loadQuotes(payload.lead_id);
+        load();
+      });
+    }
+
+    if (payload.id) {
+      api('/api/admin/quotes', { method: 'PATCH', body: JSON.stringify(payload) })
+        .then(function (r) {
+          if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Could not save.', false); return; }
+          doSend(r.body.quote.id);
+        });
+      return;
+    }
+
+    api('/api/admin/quotes', { method: 'POST', body: JSON.stringify(payload) })
+      .then(function (r) {
+        if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Could not save.', false); return; }
+        doSend(r.body.quote.id);
+      });
+  }
+
+  root.addEventListener('click', function (e) {
+    if (e.target.matches('[data-add-line]')) {
+      var editor = e.target.closest('.quote-editor');
+      var lines = editor.querySelector('.quote-lines');
+      var idx = lines.children.length;
+      lines.insertAdjacentHTML('beforeend', quoteLineHtml({}, idx));
+      updateQuoteTotal(editor);
+      return;
+    }
+
+    if (e.target.matches('[data-remove-line]')) {
+      var ed = e.target.closest('.quote-editor');
+      var row = e.target.closest('.quote-line');
+      if (ed.querySelectorAll('.quote-line').length > 1) {
+        row.remove();
+        updateQuoteTotal(ed);
+      }
+      return;
+    }
+
+    if (e.target.matches('[data-save-quote]')) {
+      saveQuote(e.target.closest('.quote-editor'));
+      return;
+    }
+
+    if (e.target.matches('[data-send-quote]')) {
+      if (window.confirm('Send this quote to the customer by email?')) {
+        sendQuote(e.target.closest('.quote-editor'));
+      }
+    }
+  });
+
+  root.addEventListener('input', function (e) {
+    if (e.target.matches('.quote-label, .quote-qty, .quote-price')) {
+      updateQuoteTotal(e.target.closest('.quote-editor'));
+    }
+  });
+
   /* --------------------------------------------------------------- events */
   root.addEventListener('click', function (e) {
     var f = e.target.closest('[data-filter]');
@@ -302,6 +525,7 @@
       var card = t.closest('.lead');
       state.open = state.open === card.dataset.id ? null : card.dataset.id;
       render();
+      if (state.open) { loadQuotes(state.open); }
     }
   });
 

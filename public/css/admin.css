@@ -187,3 +187,43 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
     background: rgba(9, 64, 69, 0.05);
   }
 }
+
+/* --------------------------------------------------------- quote builder */
+.profile__block--quote { background: rgba(39, 189, 206, 0.06); border-radius: var(--radius); padding: 0.9rem 1rem; margin-top: 0.5rem; }
+
+.quote-list { display: grid; gap: 0.5rem; margin-bottom: 1rem; }
+.quote-card-mini {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  padding: 0.65rem 0.75rem; background: var(--oasis-white);
+  border: 1px solid var(--oasis-line); border-radius: 8px; font-size: var(--step--1);
+}
+.quote-card-mini strong { color: var(--oasis-teal); font-variant-numeric: tabular-nums; }
+.quote-card-mini .pill { margin-left: auto; }
+
+.quote-lines { display: grid; gap: 0.5rem; margin: 0.75rem 0; }
+.quote-line {
+  display: grid; gap: 0.4rem; grid-template-columns: 1fr 4rem 6rem auto;
+  align-items: center; padding: 0.5rem; background: var(--oasis-white);
+  border: 1px solid var(--oasis-line); border-radius: 8px;
+}
+@media (max-width: 640px) {
+  .quote-line { grid-template-columns: 1fr 1fr; }
+  .quote-line .quote-line__remove { grid-column: 1 / -1; justify-self: start; }
+}
+.quote-line input {
+  width: 100%; font-size: var(--step--1); padding: 0.4rem 0.55rem;
+  border: 1px solid var(--oasis-line); border-radius: 6px;
+}
+.quote-line__remove {
+  border: 0; background: none; color: var(--oasis-muted); cursor: pointer;
+  font-size: 0.72rem; text-decoration: underline; padding: 0.25rem;
+}
+.quote-total {
+  text-align: right; font-size: var(--step-0); font-weight: 700;
+  color: var(--oasis-teal); margin: 0.5rem 0 0.75rem;
+}
+.quote-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.quote-link {
+  font-size: 0.72rem; color: var(--oasis-muted); word-break: break-all; margin-top: 0.5rem;
+}
+.quote-link a { color: var(--oasis-teal); }
