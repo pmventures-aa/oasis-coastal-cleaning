@@ -23,9 +23,11 @@ export async function onRequestGet({ request, env }) {
   if (!leadId) return json({ error: 'Which lead?' }, 400);
 
   try {
-    const { results } = await env.DB.prepare(
-      'SELECT * FROM quotes WHERE lead_id = ? ORDER BY created_at DESC LIMIT 20'
-    ).bind(leadId).all();
+    const includeArchived = new URL(request.url).searchParams.get('include_archived') === '1';
+    const sql = includeArchived
+      ? 'SELECT * FROM quotes WHERE lead_id = ? ORDER BY created_at DESC LIMIT 30'
+      : 'SELECT * FROM quotes WHERE lead_id = ? AND archived_at IS NULL ORDER BY created_at DESC LIMIT 30';
+    const { results } = await env.DB.prepare(sql).bind(leadId).all();
     const quotes = await attachQuoteEvents(env.DB, results || []);
     return json({ quotes });
   } catch (err) {
@@ -99,6 +101,26 @@ export async function onRequestPatch({ request, env }) {
 
   const existing = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
   if (!existing) return json({ error: 'Quote not found.' }, 404);
+
+  const action = clean(body.action, 20);
+  if (action === 'archive') {
+    await env.DB.prepare(
+      'UPDATE quotes SET archived_at = ?, updated_at = ? WHERE id = ?'
+    ).bind(new Date().toISOString(), new Date().toISOString(), id).run();
+    return json({ ok: true, action: 'archived' });
+  }
+  if (action === 'restore') {
+    await env.DB.prepare(
+      'UPDATE quotes SET archived_at = NULL, updated_at = ? WHERE id = ?'
+    ).bind(new Date().toISOString(), id).run();
+    return json({ ok: true, action: 'restored' });
+  }
+  if (action === 'delete') {
+    await env.DB.prepare('DELETE FROM quote_events WHERE quote_id = ?').bind(id).run();
+    await env.DB.prepare('DELETE FROM quotes WHERE id = ?').bind(id).run();
+    return json({ ok: true, action: 'deleted' });
+  }
+
   if (existing.status !== 'draft') return json({ error: 'Only draft quotes can be edited.' }, 400);
 
   const sets = [];
