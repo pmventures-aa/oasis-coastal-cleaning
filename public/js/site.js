@@ -310,7 +310,12 @@
 
   function renderFaqs(el) {
     var limit = parseInt(el.getAttribute('data-limit'), 10);
-    var list = limit > 0 ? D.faqs.slice(0, limit) : D.faqs;
+    var tag = el.getAttribute('data-filter');
+    var list = D.faqs.filter(function (f) {
+      if (!tag) { return !f.tags || !f.tags.length; }
+      return f.tags && f.tags.indexOf(tag) !== -1;
+    });
+    if (limit > 0) { list = list.slice(0, limit); }
     el.className = 'faq';
     el.innerHTML = list.map(function (f) {
       return '<details><summary>' + esc(f.q) + '</summary><p>' + esc(f.a) + '</p></details>';

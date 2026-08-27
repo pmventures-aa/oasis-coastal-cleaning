@@ -12,3 +12,10 @@
 /areas           /service-areas.html  301
 /service-area    /service-areas.html  301
 /locations       /service-areas.html  301
+/corporate       /corporate-cleaning.html  301
+/commercial      /corporate-cleaning.html  301
+/office-cleaning /corporate-cleaning.html  301
+/airbnb          /airbnb-cleaning.html  301
+/vacation-rental /airbnb-cleaning.html  301
+/turnover        /airbnb-cleaning.html  301
+/short-term-rental /airbnb-cleaning.html  301

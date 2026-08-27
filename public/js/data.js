@@ -76,6 +76,8 @@ window.OASIS = {
   nav: [
     { label: 'Home',          href: '/' },
     { label: 'Services',      href: '/services' },
+    { label: 'Corporate',     href: '/corporate-cleaning' },
+    { label: 'Vacation Rentals', href: '/airbnb-cleaning' },
     { label: 'Pricing',       href: '/pricing' },
     { label: 'Service Areas', href: '/service-areas' },
     { label: 'About',         href: '/about' },
@@ -222,7 +224,7 @@ window.OASIS = {
     },
     {
       id: 'turnover',
-      active: false,
+      active: true,
       name: 'Rental Turnovers',
       short: 'Same-day resets between guests.',
       blurb: 'Linens stripped and remade, towels counted, amenities restocked, and a photo ' +
@@ -478,7 +480,38 @@ window.OASIS = {
          'a full open-up clean before you land. Send us your dates and we schedule around them.' },
     { q: 'How far do you travel?',
       a: 'Palm Beach and Broward, coast to the western communities. The service area page has ' +
-         'the full list, and if you are just outside it, ask anyway.' }
+         'the full list, and if you are just outside it, ask anyway.' },
+
+    /* ---- Landing-page FAQs (filtered on corporate-cleaning and airbnb-cleaning pages) ---- */
+    { q: 'Do you clean after business hours?',
+      tags: ['corporate'],
+      a: 'Yes. Most office clients prefer evenings, early mornings, or weekends so cleaning never ' +
+         'interrupts the workday. Tell us your building access rules and we work around them.' },
+    { q: 'Can you send proof of insurance to our building?',
+      tags: ['corporate'],
+      a: 'Yes. A certificate of insurance can go directly to your property manager or building ' +
+         'management before the first visit.' },
+    { q: 'How quickly can you start a new office?',
+      tags: ['corporate'],
+      a: 'Usually within a week of accepting the quote, depending on the schedule. A walkthrough ' +
+         'first visit helps us learn the space and lock in the rhythm.' },
+    { q: 'Can you handle same-day turnovers between guests?',
+      tags: ['airbnb'],
+      a: 'Yes — that is what this service is built for. Checkout at 11 and check-in at 4 is a ' +
+         'normal window. Send your calendar and we schedule around it.' },
+    { q: 'Do you send photos after each turnover?',
+      tags: ['airbnb'],
+      a: 'Yes. A quick photo set goes out before the next check-in so you know the place is ' +
+         'guest-ready without driving over.' },
+    { q: 'Who supplies linens and consumables?',
+      tags: ['airbnb'],
+      a: 'You keep your preferred linens and restock items on site. We strip, remake, count towels, ' +
+         'and restock from your supply. If you want us to handle laundry off-site, ask — that can ' +
+         'be added to the quote.' },
+    { q: 'I have multiple rental units — can I get one quote for all of them?',
+      tags: ['airbnb'],
+      a: 'Each property gets its own quote because bedrooms, turnover windows, and supplies differ. ' +
+         'Once we know the portfolio, standing rates are easy to repeat.' }
   ],
 
   /* ------------------------------------------------------------------ about
