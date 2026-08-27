@@ -15,15 +15,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/tokens.css?v=202608252352">
   <link rel="stylesheet" href="/css/site.css?v=202608252352">
-  <link rel="stylesheet" href="/css/admin.css?v=202608270001">
+  <link rel="stylesheet" href="/css/admin.css?v=202608270002">
 </head>
-<body data-page="admin">
+<body data-page="admin" class="admin-theme">
 
 <header class="adminbar">
   <a class="adminbar__brand" href="/">
     <img src="/logo/logo-260.webp" width="260" height="260" alt="Oasis Coastal Cleaning">
   </a>
-  <h1>Quote requests</h1>
+  <div class="adminbar__title-wrap">
+    <h1>Quote requests</h1>
+    <p class="adminbar__tag">Your dashboard</p>
+  </div>
   <button type="button" id="signout" class="btn btn--ghost" hidden>Sign out</button>
 </header>
 
@@ -32,6 +35,6 @@
 </main>
 
 <script src="/js/data.js?v=202608252352"></script>
-  <script src="/js/admin.js?v=202608270001"></script>
+  <script src="/js/admin.js?v=202608270002"></script>
 </body>
 </html>

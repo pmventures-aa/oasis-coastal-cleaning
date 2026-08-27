@@ -20,7 +20,7 @@
 
   var state = {
     view: 'active', filter: '', open: null, leadTab: {},
-    leads: [], counts: {}, q: '', quotes: {}
+    leads: [], counts: {}, q: '', quotes: {}, composing: false
   };
 
   var esc = function (s) {
@@ -256,16 +256,22 @@
             STATUSES.map(function (s) {
               return '<option value="' + s + '"' + (state.filter === s ? ' selected' : '') + '>' +
                 s.charAt(0).toUpperCase() + s.slice(1) + ' (' + (counts[s] || 0) + ')</option>';
-            }).join('') + '</select></label>'
+            }).join('') + '</select></label>' +
+            '<button type="button" class="btn btn--primary btn--new-quote" data-new-quote>+ New Quote</button>'
           : '') +
         '<input type="search" id="search" class="toolbar__search" placeholder="Search…" value="' + esc(state.q) + '">' +
       '</div>' +
+      (state.composing ? newQuotePanelHtml() : '') +
       (shown.length ? '<div class="leads">' + shown.map(row).join('') + '</div>'
         : '<p class="empty">' + (state.q ? 'Nothing matches.' : state.view === 'archived'
           ? 'No archived leads.' : 'No quote requests yet.') + '</p>');
 
     var search = document.getElementById('search');
     if (search && state.q) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+    if (state.composing) {
+      var cn = root.querySelector('.quote-customer-name');
+      if (cn) cn.focus();
+    }
     if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') { loadQuotes(state.open); }
   }
 
@@ -280,23 +286,52 @@
       '<button type="button" class="quote-line__remove" data-remove-line>&times;</button></div>';
   }
 
-  function quoteEditorHtml(l, quote) {
+  function quoteEditorHtml(l, quote, opts) {
     quote = quote || {};
+    opts = opts || {};
+    var standalone = opts.standalone;
+    var defaultLabel = standalone ? 'Cleaning service' : (l.service_label || 'Cleaning visit');
     var lines = (quote.line_items && quote.line_items.length)
-      ? quote.line_items : [{ label: l.service_label || 'Cleaning visit', qty: 1, unit_dollars: '' }];
-    return '<details class="acc" open><summary class="acc__sum"><span class="acc__icon"></span>New / Edit Draft</summary><div class="acc__in">' +
-      '<div class="quote-editor" data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l.id) + '">' +
+      ? quote.line_items : [{ label: defaultLabel, qty: 1, unit_dollars: '' }];
+    var customerFields = standalone
+      ? '<div class="profile__grid compose__customer">' +
+          '<label class="pf"><span class="pf__k">Customer</span><input class="pf__v quote-customer-name" type="text" placeholder="Full name" value="' +
+            esc(quote.customer_name || '') + '"></label>' +
+          '<label class="pf"><span class="pf__k">Email</span><input class="pf__v quote-email" type="email" placeholder="name@email.com" value="' +
+            esc(quote.customer_email || '') + '"></label>' +
+          '<label class="pf"><span class="pf__k">Phone</span><input class="pf__v quote-phone" type="tel" placeholder="Optional" value=""></label>' +
+          '<label class="pf"><span class="pf__k">Service</span><input class="pf__v quote-service" type="text" placeholder="e.g. Airbnb turnover" value=""></label>' +
+        '</div>'
+      : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
+          esc(quote.customer_email || l.email) + '"></label>';
+    var summary = standalone ? 'Build a brand-new quote' : 'New / Edit Draft';
+    return (standalone ? '' : '<details class="acc" open><summary class="acc__sum"><span class="acc__icon"></span>' + summary + '</summary><div class="acc__in">') +
+      '<div class="quote-editor"' + (standalone ? ' data-standalone="1"' : '') +
+        ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '">' +
+      customerFields +
       '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
       '<button type="button" class="btn btn--ghost btn--tiny" data-add-line>+ Line Item</button>' +
       '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
-      '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
-        esc(quote.customer_email || l.email) + '"></label>' +
       '<label class="pf pf--wide"><span class="pf__k">Note</span><textarea class="pf__v quote-notes" rows="2">' +
         esc(quote.notes || '') + '</textarea></label>' +
       '<div class="quote-actions">' +
         '<button type="button" class="btn btn--ghost" data-save-quote>Save Draft</button>' +
         '<button type="button" class="btn btn--primary" data-send-quote>Send to Customer</button></div>' +
-      '<div class="quote-msg form-status" role="alert" hidden></div></div></div></details>';
+      '<div class="quote-msg form-status" role="alert" hidden></div></div>' +
+      (standalone ? '' : '</div></details>');
+  }
+
+  function newQuotePanelHtml() {
+    return '<section class="compose" aria-labelledby="compose-title">' +
+      '<div class="compose__head">' +
+        '<div class="compose__titles">' +
+          '<h2 id="compose-title" class="compose__title">New Quote</h2>' +
+          '<p class="compose__sub muted">Start fresh — no intake form needed.</p>' +
+        '</div>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-close-compose>Cancel</button>' +
+      '</div>' +
+      quoteEditorHtml(null, {}, { standalone: true }) +
+    '</section>';
   }
 
   function calcLineTotal(lines) {
@@ -384,9 +419,9 @@
   }
 
   function quotePayload(editor) {
-    return {
+    var payload = {
       id: editor.dataset.quoteId || undefined,
-      lead_id: editor.dataset.leadId,
+      lead_id: editor.dataset.leadId || undefined,
       line_items: Array.prototype.map.call(editor.querySelectorAll('.quote-line'), function (row) {
         return {
           label: row.querySelector('.quote-label').value,
@@ -397,6 +432,26 @@
       notes: editor.querySelector('.quote-notes').value,
       customer_email: editor.querySelector('.quote-email').value
     };
+    if (editor.dataset.standalone) {
+      payload.customer_name = editor.querySelector('.quote-customer-name').value.trim();
+      payload.phone = editor.querySelector('.quote-phone').value.trim();
+      payload.service_label = editor.querySelector('.quote-service').value.trim();
+      delete payload.lead_id;
+      delete payload.id;
+    }
+    return payload;
+  }
+
+  function afterQuoteSaved(editor, r) {
+    if (!editor.dataset.standalone) return false;
+    var leadId = r.body.lead_id || (r.body.quote && r.body.quote.lead_id);
+    state.composing = false;
+    if (leadId) {
+      state.open = leadId;
+      state.leadTab[leadId] = 'quotes';
+    }
+    load();
+    return true;
   }
 
   function updateQuoteTotal(editor) {
@@ -414,10 +469,14 @@
 
   function saveQuote(editor) {
     var payload = quotePayload(editor);
+    if (editor.dataset.standalone && !payload.customer_name) {
+      showQuoteMsg(editor, 'Add customer name.', false); return;
+    }
     var isNew = !payload.id;
     api('/api/admin/quotes', { method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(payload) })
       .then(function (r) {
         if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Could not save.', false); return; }
+        if (afterQuoteSaved(editor, r)) return;
         showQuoteMsg(editor, 'Draft saved.', true);
         loadQuotes(payload.lead_id);
       });
@@ -425,22 +484,35 @@
 
   function sendQuote(editor) {
     var payload = quotePayload(editor);
+    if (editor.dataset.standalone && !payload.customer_name) {
+      showQuoteMsg(editor, 'Add customer name.', false); return;
+    }
     if (!payload.customer_email) { showQuoteMsg(editor, 'Add customer email.', false); return; }
-    function doSend(id) {
+    function doSend(id, leadId) {
       api('/api/admin/quotes/send', { method: 'POST', body: JSON.stringify({ id: id, customer_email: payload.customer_email }) })
         .then(function (r) {
           if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Send failed.', false); return; }
+          if (editor.dataset.standalone) {
+            state.composing = false;
+            state.open = leadId;
+            state.leadTab[leadId] = 'quotes';
+            load();
+            return;
+          }
           showQuoteMsg(editor, 'Sent — track delivery in timeline.', true);
           loadQuotes(payload.lead_id); load();
         });
     }
     if (payload.id) {
       api('/api/admin/quotes', { method: 'PATCH', body: JSON.stringify(payload) })
-        .then(function (r) { if (r.ok) doSend(r.body.quote.id); });
+        .then(function (r) { if (r.ok) doSend(r.body.quote.id, r.body.quote.lead_id); });
       return;
     }
     api('/api/admin/quotes', { method: 'POST', body: JSON.stringify(payload) })
-      .then(function (r) { if (r.ok) doSend(r.body.quote.id); });
+      .then(function (r) {
+        if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Could not save.', false); return; }
+        doSend(r.body.quote.id, r.body.lead_id || r.body.quote.lead_id);
+      });
   }
 
   function leadAction(card, action) {
@@ -470,8 +542,16 @@
   root.addEventListener('click', function (e) {
     if (e.target.matches('[data-view]')) {
       state.view = e.target.dataset.view;
-      state.filter = ''; state.open = null;
+      state.filter = ''; state.open = null; state.composing = false;
       load(); return;
+    }
+    if (e.target.matches('[data-new-quote]')) {
+      state.composing = true; state.open = null;
+      render(); return;
+    }
+    if (e.target.matches('[data-close-compose]')) {
+      state.composing = false;
+      render(); return;
     }
     if (e.target.matches('[data-ptab]')) {
       var card = e.target.closest('.lead');

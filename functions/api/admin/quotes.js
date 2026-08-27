@@ -45,17 +45,39 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'Unreadable request.' }, 400); }
 
-  const leadId = clean(body.lead_id, 60);
-  if (!leadId) return json({ error: 'Which lead?' }, 400);
+  let leadId = clean(body.lead_id, 60);
+  const customerName = clean(body.customer_name, 120);
+  const customerEmail = clean(body.customer_email, 160);
+  const phone = clean(body.phone, 20);
+  const serviceLabel = clean(body.service_label, 120) || 'Custom quote';
 
   let normalized;
   try { normalized = normalizeLineItems(body.line_items); }
   catch (err) { return json({ error: String(err.message || err) }, 400); }
 
-  const lead = await env.DB.prepare('SELECT id, name, email FROM leads WHERE id = ?').bind(leadId).first();
-  if (!lead) return json({ error: 'Lead not found.' }, 404);
-
   const now = new Date().toISOString();
+  let lead;
+
+  if (!leadId) {
+    if (!customerName) return json({ error: 'Customer name is required for a new quote.' }, 400);
+    leadId = newId();
+    await env.DB.prepare(
+      `INSERT INTO leads (
+        id, created_at, updated_at, name, phone, email, service, service_label, status, source_page
+      ) VALUES (?, ?, ?, ?, ?, ?, 'custom', ?, 'new', 'admin-new-quote')`
+    ).bind(
+      leadId, now, now,
+      customerName,
+      phone || '—',
+      customerEmail || '',
+      serviceLabel
+    ).run();
+    lead = { id: leadId, name: customerName, email: customerEmail };
+  } else {
+    lead = await env.DB.prepare('SELECT id, name, email FROM leads WHERE id = ?').bind(leadId).first();
+    if (!lead) return json({ error: 'Lead not found.' }, 404);
+  }
+
   const id = newId();
   const token = newToken();
   const expiresDays = Math.min(Math.max(parseInt(body.expires_days, 10) || 14, 1), 90);
@@ -72,7 +94,8 @@ export async function onRequestPost({ request, env }) {
       ) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       id, leadId, now, now, token,
-      clean(lead.name, 120), clean(lead.email, 160),
+      customerName || clean(lead.name, 120),
+      customerEmail || clean(lead.email, 160),
       JSON.stringify(normalized.items),
       normalized.subtotal, normalized.tax, normalized.total,
       notes, terms, defaultExpiry(expiresDays)
@@ -80,7 +103,7 @@ export async function onRequestPost({ request, env }) {
 
     const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
     await logQuoteEvent(env.DB, id, 'created');
-    return json({ quote: quoteFromRow(row) }, 201);
+    return json({ quote: quoteFromRow(row), lead_id: leadId }, 201);
   } catch (err) {
     return json({
       error: 'Could not save quote. Is migration 0002 applied?',

@@ -24,7 +24,7 @@ export async function onRequestPost({ request, env }) {
 
   const row = await env.DB.prepare(
     'SELECT q.*, l.name AS lead_name, l.email AS lead_email, l.service_label, l.city ' +
-    'FROM quotes q JOIN leads l ON l.id = q.lead_id WHERE q.id = ?'
+    'FROM quotes q LEFT JOIN leads l ON l.id = q.lead_id WHERE q.id = ?'
   ).bind(id).first();
 
   if (!row) return json({ error: 'Quote not found.' }, 404);
@@ -75,16 +75,18 @@ export async function onRequestPost({ request, env }) {
     provider_id: customerSend.providerId || null
   });
 
-  await env.DB.prepare(
-    `UPDATE leads SET status = 'quoted', updated_at = ?,
-      quoted_amount = ?, quoted_at = COALESCE(quoted_at, ?)
-     WHERE id = ?`
-  ).bind(
-    now,
-    `$${(quote.total / 100).toFixed(2)}`,
-    now,
-    quote.lead_id
-  ).run();
+  if (quote.lead_id) {
+    await env.DB.prepare(
+      `UPDATE leads SET status = 'quoted', updated_at = ?,
+        quoted_amount = ?, quoted_at = COALESCE(quoted_at, ?)
+       WHERE id = ?`
+    ).bind(
+      now,
+      `$${(quote.total / 100).toFixed(2)}`,
+      now,
+      quote.lead_id
+    ).run();
+  }
 
   const updated = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
   return json({
