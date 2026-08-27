@@ -100,6 +100,7 @@ export async function onRequestPost({ request, env }) {
   const updated = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
   return json({
     ok: true,
+    resent: isResend,
     quote: quoteFromRow(updated),
     proposalUrl: url,
     emailWarning: notifyErr || null
