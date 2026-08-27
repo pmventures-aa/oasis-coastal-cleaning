@@ -149,6 +149,11 @@ body.admin-theme {
 }
 .profile__bar .btn { padding: 0.45em 1.1em; font-size: 0.68rem; }
 .profile__spacer { flex: 1 1 auto; }
+.profile__lookup {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+.profile__lookup-msg { font-size: 0.72rem; line-height: 1.35; }
 
 .profile__block { padding: 0.9rem 0; border-bottom: 1px solid var(--oasis-line); }
 .profile__block:last-of-type { border-bottom: 0; }

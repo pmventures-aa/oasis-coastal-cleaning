@@ -180,6 +180,20 @@
     }).join('');
   }
 
+  function renderLandingCards(el) {
+    var list = D.landings || [];
+    if (!list.length) { el.hidden = true; return; }
+    el.className = 'grid grid--2';
+    el.innerHTML = list.map(function (card) {
+      return '<a class="card card--link service-card" href="' + esc(card.href) + '">' +
+               '<span class="icon-badge">' + icon(card.icon || 'check') + '</span>' +
+               '<h3>' + esc(card.title) + '</h3>' +
+               '<p>' + esc(card.blurb) + '</p>' +
+               '<span class="price">' + esc(card.cta || 'Learn more') + ' &rarr;</span>' +
+             '</a>';
+    }).join('');
+  }
+
   function renderServiceDetails(el) {
     el.innerHTML = activeServices().map(function (s, i) {
       return '<article class="card" id="' + esc(s.id) + '" style="margin-bottom:clamp(1.25rem,3vw,2rem)">' +
@@ -451,6 +465,7 @@
     footer: renderFooter,
     stickybar: renderStickyBar,
     serviceCards: renderServiceCards,
+    landingCards: renderLandingCards,
     serviceDetails: renderServiceDetails,
     serviceNav: renderServiceNav,
     promises: renderPromises,

@@ -20,7 +20,8 @@
 
   var state = {
     view: 'active', filter: '', open: null, leadTab: {},
-    leads: [], counts: {}, q: '', quotes: {}, composing: false
+    leads: [], counts: {}, q: '', quotes: {}, composing: false,
+    focusQuoteEditor: null
   };
 
   var esc = function (s) {
@@ -160,14 +161,20 @@
   function detail(l) {
     var addOns = list(l.add_ons), conds = list(l.conditions), days = list(l.preferred_days);
     var tel = digits(l.phone);
-    var tab = state.leadTab[l.id] || 'intake';
+    // Default to Quotes so she can price the job immediately; Intake stays one tap away.
+    var tab = state.leadTab[l.id] || 'quotes';
 
     var intake =
       acc('Contact', field('Name', 'name', l.name) + field('Phone', 'phone', l.phone) +
         field('Email', 'email', l.email) +
         field('Prefers', 'contact_pref', l.contact_pref, { options: ['', 'Text', 'Call', 'Email'] }) +
         field('Best time', 'best_time', l.best_time, { options: ['', 'Morning', 'Afternoon', 'Evening', 'Any time'] }), true) +
-      acc('Property', field('Address', 'address', l.address, { placeholder: 'Street address' }) +
+      acc('Property',
+        '<div class="profile__lookup">' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-property-lookup>Lookup beds / baths / sq ft</button>' +
+          '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
+        '</div>' +
+        field('Address', 'address', l.address, { placeholder: 'Street address' }) +
         field('City', 'city', l.city) + field('ZIP', 'zip', l.zip) +
         field('Type', 'property_type', l.property_type) + field('Size', 'size_label', l.size_label) +
         field('Bedrooms', 'bedrooms', l.bedrooms) + field('Bathrooms', 'bathrooms', l.bathrooms) +
@@ -182,7 +189,7 @@
         (conds.length ? '<div class="chips"><span class="chips__k">About home</span>' +
           conds.map(function (c) { return '<span class="chip chip--warn">' + esc(c) + '</span>'; }).join('') + '</div>' : '') +
         field('Their notes', 'notes', l.notes, { multiline: true })) +
-      acc('Quick Quote',
+      acc('Quick notes (internal)',
         '<div class="profile__grid">' +
         field('Amount quoted', 'quoted_amount', l.quoted_amount, { placeholder: 'e.g. $185 per visit' }) +
         field('Next visit', 'next_visit', l.next_visit, { placeholder: 'e.g. Tue 9 Sep, 9am' }) + '</div>' +
@@ -191,7 +198,8 @@
 
     return '<div class="profile">' +
       '<div class="profile__bar">' +
-        '<a class="btn btn--primary" href="tel:+1' + tel + '">Call</a>' +
+        '<button type="button" class="btn btn--primary" data-start-quote>Quote</button>' +
+        '<a class="btn btn--ghost" href="tel:+1' + tel + '">Call</a>' +
         '<a class="btn btn--ghost" href="sms:+1' + tel + '">Text</a>' +
         '<a class="btn btn--ghost" href="mailto:' + esc(l.email) + '">Email</a>' +
         '<span class="profile__spacer"></span>' +
@@ -203,14 +211,14 @@
         '<span class="saved" data-saved hidden>Saved</span></div>' +
 
       '<div class="ptabs" role="tablist">' +
-        '<button type="button" class="ptabs__btn' + (tab === 'intake' ? ' is-on' : '') + '" data-ptab="intake" role="tab">Intake</button>' +
         '<button type="button" class="ptabs__btn' + (tab === 'quotes' ? ' is-on' : '') + '" data-ptab="quotes" role="tab">Branded Quotes</button>' +
+        '<button type="button" class="ptabs__btn' + (tab === 'intake' ? ' is-on' : '') + '" data-ptab="intake" role="tab">Intake</button>' +
       '</div>' +
 
-      '<div class="ptab' + (tab === 'intake' ? ' is-on' : '') + '" data-pane="intake">' + intake + '</div>' +
       '<div class="ptab' + (tab === 'quotes' ? ' is-on' : '') + '" data-pane="quotes" data-quote-panel="' + esc(l.id) + '">' +
-        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Build, send, and track branded quotes with delivery and accept/decline.</p>' +
+        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Price the job, send the branded quote, or resend one already out.</p>' +
         '<div class="quote-panel__body"><p class="muted" style="font-size:var(--step--1)">Loading quotes…</p></div></div>' +
+      '<div class="ptab' + (tab === 'intake' ? ' is-on' : '') + '" data-pane="intake">' + intake + '</div>' +
 
       leadActions(l) +
       '<p class="profile__stamp">Came in ' + esc(fullDate(l.created_at)) +
@@ -272,10 +280,25 @@
       var cn = root.querySelector('.quote-customer-name');
       if (cn) cn.focus();
     }
-    if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') { loadQuotes(state.open); }
+    if (state.open && (state.leadTab[state.open] || 'quotes') === 'quotes') { loadQuotes(state.open); }
   }
 
-  /* ---- quote builder (unchanged logic, + archive/delete) ---- */
+  /* ---- quote builder ---- */
+  function quoteSeedFromLead(l) {
+    if (!l) return { label: 'Cleaning service', notes: '' };
+    var label = l.service_label || 'Cleaning visit';
+    if (l.size_label) label += ' — ' + l.size_label;
+    var noteBits = [];
+    var place = [l.address, l.city, l.zip].filter(Boolean).join(', ');
+    if (place) noteBits.push(place);
+    var beds = [];
+    if (l.bedrooms) beds.push(l.bedrooms + ' bed');
+    if (l.bathrooms) beds.push(l.bathrooms + ' bath');
+    if (beds.length) noteBits.push(beds.join(' / '));
+    if (l.property_type) noteBits.push(l.property_type);
+    return { label: label, notes: noteBits.join('\n') };
+  }
+
   function quoteLineHtml(line) {
     line = line || {};
     return '<div class="quote-line">' +
@@ -290,9 +313,11 @@
     quote = quote || {};
     opts = opts || {};
     var standalone = opts.standalone;
-    var defaultLabel = standalone ? 'Cleaning service' : (l.service_label || 'Cleaning visit');
+    var seed = standalone ? { label: 'Cleaning service', notes: '' } : quoteSeedFromLead(l);
+    var defaultLabel = seed.label;
     var lines = (quote.line_items && quote.line_items.length)
       ? quote.line_items : [{ label: defaultLabel, qty: 1, unit_dollars: '' }];
+    var notesVal = quote.notes != null && quote.notes !== '' ? quote.notes : seed.notes;
     var customerFields = standalone
       ? '<div class="profile__grid compose__customer">' +
           '<label class="pf"><span class="pf__k">Customer</span><input class="pf__v quote-customer-name" type="text" placeholder="Full name" value="' +
@@ -304,8 +329,8 @@
         '</div>'
       : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
           esc(quote.customer_email || l.email) + '"></label>';
-    var summary = standalone ? 'Build a brand-new quote' : 'New / Edit Draft';
-    return (standalone ? '' : '<details class="acc" open><summary class="acc__sum"><span class="acc__icon"></span>' + summary + '</summary><div class="acc__in">') +
+    var summary = standalone ? 'Build a brand-new quote' : (quote.id ? 'Edit Draft' : 'Start Quote');
+    return (standalone ? '' : '<details class="acc" open id="quote-composer"><summary class="acc__sum"><span class="acc__icon"></span>' + summary + '</summary><div class="acc__in">') +
       '<div class="quote-editor"' + (standalone ? ' data-standalone="1"' : '') +
         ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '">' +
       customerFields +
@@ -313,7 +338,7 @@
       '<button type="button" class="btn btn--ghost btn--tiny" data-add-line>+ Line Item</button>' +
       '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
       '<label class="pf pf--wide"><span class="pf__k">Note</span><textarea class="pf__v quote-notes" rows="2">' +
-        esc(quote.notes || '') + '</textarea></label>' +
+        esc(notesVal || '') + '</textarea></label>' +
       '<div class="quote-actions">' +
         '<button type="button" class="btn btn--ghost" data-save-quote>Save Draft</button>' +
         '<button type="button" class="btn btn--primary" data-send-quote>Send to Customer</button></div>' +
@@ -365,25 +390,41 @@
       '<div class="quote-timeline">' + events.map(function (ev, i) {
         var detail = parseEventDetail(ev.detail);
         var meta = fullDate(ev.created_at);
-        if (ev.kind === 'sent' && detail && detail.to) meta += ' · ' + detail.to;
+        if (ev.kind === 'sent' && detail && detail.to) {
+          meta += ' · ' + detail.to + (detail.resend ? ' (resend)' : '');
+        }
         if (ev.kind === 'declined' && detail && detail.reason) meta += ' · “' + detail.reason + '”';
         if (ev.kind === 'accepted' && detail && detail.add_ons && detail.add_ons.length) {
           meta += ' · Add-ons: ' + detail.add_ons.map(function (a) { return a.label || a.id; }).join(', ');
         }
+        var kindLabel = (ev.kind === 'sent' && detail && detail.resend)
+          ? 'Email Resent'
+          : (EVENT_LABELS[ev.kind] || ev.kind);
         return '<div class="quote-timeline__item' + (i === events.length - 1 ? ' is-last' : '') + '">' +
           '<span class="quote-timeline__dot"></span><div class="quote-timeline__body"><strong>' +
-          esc(EVENT_LABELS[ev.kind] || ev.kind) + '</strong><span class="muted">' + esc(meta) + '</span></div></div>';
+          esc(kindLabel) + '</strong><span class="muted">' + esc(meta) + '</span></div></div>';
       }).join('') + '</div></div></details>';
   }
 
   function quoteCard(q) {
     var summary = trackingSummary(q);
     var isArchived = !!q.archived_at;
-    var acts = isArchived
-      ? '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="restore" data-quote-id="' + esc(q.id) + '">Restore</button>' +
-        '<button type="button" class="btn btn--danger btn--tiny" data-quote-action="delete" data-quote-id="' + esc(q.id) + '">Delete</button>'
-      : '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="archive" data-quote-id="' + esc(q.id) + '">Archive</button>' +
+    var canResend = !isArchived && (q.status === 'sent' || q.status === 'declined');
+    var to = q.customer_email || '';
+    var acts = '';
+    if (canResend) {
+      acts += '<button type="button" class="btn btn--primary btn--tiny" data-quote-action="resend" data-quote-id="' +
+        esc(q.id) + '" data-quote-email="' + esc(to) + '">Resend</button>';
+    }
+    if (isArchived) {
+      acts +=
+        '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="restore" data-quote-id="' + esc(q.id) + '">Restore</button>' +
         '<button type="button" class="btn btn--danger btn--tiny" data-quote-action="delete" data-quote-id="' + esc(q.id) + '">Delete</button>';
+    } else {
+      acts +=
+        '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="archive" data-quote-id="' + esc(q.id) + '">Archive</button>' +
+        '<button type="button" class="btn btn--danger btn--tiny" data-quote-action="delete" data-quote-id="' + esc(q.id) + '">Delete</button>';
+    }
     return '<details class="acc acc--quote" data-quote-id="' + esc(q.id) + '"' + (q.status === 'sent' && !isArchived ? ' open' : '') + '>' +
       '<summary class="acc__sum acc__sum--quote">' +
         '<span class="acc__icon" aria-hidden="true"></span>' + esc(money(q.total)) + ' · ' + esc(QUOTE_STATUS_LABELS[q.status] || q.status) +
@@ -391,6 +432,7 @@
         '<span class="muted" style="margin-left:.5rem;font-weight:400">' + esc(when(q.created_at)) + '</span></summary>' +
       '<div class="acc__in quote-card-mini">' + quotePill(q.status) +
         (q.status !== 'draft' ? '<span class="quote-link"><a href="/proposal?t=' + esc(q.token) + '" target="_blank" rel="noopener">Customer Link</a></span>' : '') +
+        (to ? '<p class="quote-card-mini__track muted">To ' + esc(to) + '</p>' : '') +
         (summary ? '<p class="quote-card-mini__track muted">' + esc(summary) + '</p>' : '') +
         quoteTimeline(q) +
         '<div class="quote-card-mini__acts">' + acts + '</div></div></details>';
@@ -419,6 +461,100 @@
       panel.innerHTML = renderQuotePanel(lead, state.quotes[leadId]);
       var ed = panel.querySelector('.quote-editor');
       if (ed) updateQuoteTotal(ed);
+      if (state.focusQuoteEditor === leadId) {
+        state.focusQuoteEditor = null;
+        var composer = panel.querySelector('#quote-composer') || ed;
+        if (composer && composer.scrollIntoView) composer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var price = panel.querySelector('.quote-price');
+        if (price) price.focus();
+      }
+    });
+  }
+
+  function openQuoteTab(leadId) {
+    state.leadTab[leadId] = 'quotes';
+    state.focusQuoteEditor = leadId;
+    render();
+    loadQuotes(leadId);
+  }
+
+  function resendQuote(btn) {
+    var qid = btn.getAttribute('data-quote-id');
+    var email = btn.getAttribute('data-quote-email') || '';
+    var card = btn.closest('.lead');
+    var leadId = card && card.dataset.id;
+    if (!qid) return;
+    var prompt = email
+      ? 'Resend this quote to ' + email + '?'
+      : 'Resend this quote to the customer?';
+    if (!window.confirm(prompt)) return;
+    btn.disabled = true;
+    api('/api/admin/quotes/send', {
+      method: 'POST',
+      body: JSON.stringify({ id: qid, customer_email: email || undefined })
+    }).then(function (r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        window.alert(r.body.error || 'Could not resend.');
+        return;
+      }
+      if (leadId) loadQuotes(leadId);
+    });
+  }
+
+  function lookupProperty(btn) {
+    var card = btn.closest('.lead');
+    if (!card) return;
+    var leadId = card.dataset.id;
+    var lead = state.leads.find(function (l) { return l.id === leadId; });
+    if (!lead) return;
+
+    function val(col) {
+      var el = card.querySelector('[data-col="' + col + '"]');
+      return el ? el.value.trim() : (lead[col] || '');
+    }
+
+    var msg = card.querySelector('[data-lookup-msg]');
+    var address = val('address');
+    var city = val('city');
+    var zip = val('zip');
+    if (!address) {
+      if (msg) { msg.hidden = false; msg.textContent = 'Add a street address first.'; }
+      return;
+    }
+
+    btn.disabled = true;
+    if (msg) { msg.hidden = false; msg.textContent = 'Looking up…'; }
+
+    api('/api/admin/property-lookup', {
+      method: 'POST',
+      body: JSON.stringify({ address: address, city: city, zip: zip, state: 'FL' })
+    }).then(function (r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = r.body.error || 'Lookup failed.';
+          if (r.body.setup) msg.textContent += ' ' + r.body.setup;
+        }
+        return;
+      }
+      var p = r.body.property || {};
+      var patch = { id: leadId };
+      ['bedrooms', 'bathrooms', 'size_label', 'property_type'].forEach(function (col) {
+        if (!p[col]) return;
+        patch[col] = p[col];
+        var el = card.querySelector('[data-col="' + col + '"]');
+        if (el) el.value = p[col];
+        lead[col] = p[col];
+      });
+      api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify(patch) }).then(function () {
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = 'Filled from property records' +
+            (p.square_footage ? ' · ' + Number(p.square_footage).toLocaleString('en-US') + ' sq ft' : '') + '.';
+        }
+      });
     });
   }
 
@@ -533,6 +669,7 @@
   }
 
   function quoteAction(btn, action) {
+    if (action === 'resend') { resendQuote(btn); return; }
     var qid = btn.getAttribute('data-quote-id') ||
       (btn.closest('[data-quote-id]') && btn.closest('[data-quote-id]').getAttribute('data-quote-id'));
     var card = btn.closest('.lead');
@@ -557,6 +694,15 @@
       state.composing = false;
       render(); return;
     }
+    if (e.target.matches('[data-start-quote]')) {
+      var startCard = e.target.closest('.lead');
+      if (startCard) openQuoteTab(startCard.dataset.id);
+      return;
+    }
+    if (e.target.matches('[data-property-lookup]')) {
+      lookupProperty(e.target);
+      return;
+    }
     if (e.target.matches('[data-ptab]')) {
       var card = e.target.closest('.lead');
       state.leadTab[card.dataset.id] = e.target.dataset.ptab;
@@ -568,7 +714,7 @@
       var c = e.target.closest('.lead');
       state.open = state.open === c.dataset.id ? null : c.dataset.id;
       render();
-      if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') loadQuotes(state.open);
+      if (state.open && (state.leadTab[state.open] || 'quotes') === 'quotes') loadQuotes(state.open);
       return;
     }
     if (e.target.matches('[data-lead-action]')) {

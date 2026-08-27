@@ -85,6 +85,24 @@ window.OASIS = {
     { label: 'Contact',       href: '/contact' }
   ],
 
+  /* Home-page cards for the dedicated commercial / STR landings. */
+  landings: [
+    {
+      href: '/corporate-cleaning',
+      icon: 'office',
+      title: 'Corporate & office cleaning',
+      blurb: 'Suites, shared offices and after-hours cleans that leave the desk ready for Monday.',
+      cta: 'See corporate cleaning'
+    },
+    {
+      href: '/airbnb-cleaning',
+      icon: 'laundry',
+      title: 'Airbnb & short-term turnover',
+      blurb: 'Same-day resets between guests — linens, restock and a listing-ready finish.',
+      cta: 'See vacation rental cleaning'
+    }
+  ],
+
   /* --------------------------------------------------------------- services
      `active: false` hides a service everywhere — cards, menus, quote form,
      pricing table — without deleting anything. Flip it to true when you are
