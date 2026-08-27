@@ -43,10 +43,64 @@
       });
   };
 
+  function groupAddons(list) {
+    var groups = {};
+    var order = [];
+    (list || []).forEach(function (a) {
+      var g = a.group || 'Add-ons';
+      if (!groups[g]) { groups[g] = []; order.push(g); }
+      groups[g].push(a);
+    });
+    return { groups: groups, order: order };
+  }
+
+  function addonsHtml(addons) {
+    if (!addons || !addons.length) { return ''; }
+    var g = groupAddons(addons);
+    var blocks = g.order.map(function (name) {
+      return '<div class="proposal__addon-group">' +
+        '<p class="proposal__addon-group-label">' + esc(name) + '</p>' +
+        g.groups[name].map(function (a) {
+          return '<label class="proposal__addon">' +
+            '<input type="checkbox" name="addon" value="' + esc(a.id) + '">' +
+            '<span class="proposal__addon-text">' +
+              '<strong>' + esc(a.label) + '</strong>' +
+              (a.note ? '<span class="muted">' + esc(a.note) + '</span>' : '') +
+            '</span></label>';
+        }).join('') +
+      '</div>';
+    }).join('');
+
+    return '<div class="proposal__addons" id="proposal-addons">' +
+      '<p class="eyebrow">Optional add-ons</p>' +
+      '<p class="proposal__addons-lead muted">Not already on this quote. Check any you would like — Kristina will confirm pricing.</p>' +
+      blocks +
+    '</div>';
+  }
+
+  function declinePanelHtml() {
+    return '<div class="proposal__decline" id="decline-panel" hidden>' +
+      '<label class="proposal__decline-label" for="decline-reason">Optional — tell Kristina why (helps her revise the quote)</label>' +
+      '<textarea id="decline-reason" class="proposal__decline-input" rows="3" maxlength="1000" ' +
+        'placeholder="Timing, budget, looking elsewhere…"></textarea>' +
+      '<div class="proposal__decline-acts">' +
+        '<button type="button" class="btn btn--ghost" id="decline-cancel">Cancel</button>' +
+        '<button type="button" class="btn btn--primary" id="decline-confirm">Send decline</button>' +
+      '</div></div>';
+  }
+
+  function selectedAddons() {
+    return Array.prototype.map.call(
+      root.querySelectorAll('input[name="addon"]:checked'),
+      function (el) { return el.value; }
+    );
+  }
+
   function renderQuote(data) {
     var q = data.quote;
     var items = q.line_items || [];
     var status = q.status;
+    var addons = data.available_addons || [];
 
     var rows = items.map(function (it) {
       return '<tr>' +
@@ -61,7 +115,9 @@
     var actions = '';
     if (status === 'sent') {
       actions =
-        '<div class="proposal__actions">' +
+        addonsHtml(addons) +
+        declinePanelHtml() +
+        '<div class="proposal__actions" id="proposal-actions">' +
           '<button type="button" class="btn btn--primary" id="accept">Accept This Quote</button>' +
           '<button type="button" class="btn btn--ghost" id="decline">Decline</button>' +
         '</div>' +
@@ -111,22 +167,50 @@
 
     var acceptBtn = document.getElementById('accept');
     var declineBtn = document.getElementById('decline');
+    var declinePanel = document.getElementById('decline-panel');
+    var declineCancel = document.getElementById('decline-cancel');
+    var declineConfirm = document.getElementById('decline-confirm');
+    var actionsEl = document.getElementById('proposal-actions');
+
     if (acceptBtn) {
-      acceptBtn.addEventListener('click', function () { respond('accept', acceptBtn); });
+      acceptBtn.addEventListener('click', function () {
+        respond('accept', acceptBtn, { add_ons: selectedAddons() });
+      });
     }
-    if (declineBtn) {
-      declineBtn.addEventListener('click', function () { respond('decline', declineBtn); });
+    if (declineBtn && declinePanel) {
+      declineBtn.addEventListener('click', function () {
+        declinePanel.hidden = false;
+        if (actionsEl) { actionsEl.hidden = true; }
+        var ta = document.getElementById('decline-reason');
+        if (ta) { ta.focus(); }
+      });
+    }
+    if (declineCancel && declinePanel) {
+      declineCancel.addEventListener('click', function () {
+        declinePanel.hidden = true;
+        if (actionsEl) { actionsEl.hidden = false; }
+      });
+    }
+    if (declineConfirm) {
+      declineConfirm.addEventListener('click', function () {
+        var reasonEl = document.getElementById('decline-reason');
+        respond('decline', declineConfirm, {
+          reason: reasonEl ? reasonEl.value.trim() : ''
+        });
+      });
     }
   }
 
-  function respond(action, btn) {
+  function respond(action, btn, extra) {
     var statusEl = document.getElementById('proposal-status');
     btn.disabled = true;
     statusEl.hidden = true;
 
+    var payload = Object.assign({ action: action }, extra || {});
+
     api('/api/proposal/' + encodeURIComponent(token), {
       method: 'POST',
-      body: JSON.stringify({ action: action })
+      body: JSON.stringify(payload)
     }).then(function (r) {
       if (r.ok) {
         load();

@@ -17,6 +17,7 @@
  *     which also helps a message land in the inbox instead of spam.
  */
 import { escapeHtml } from './util.js';
+import { formatMoney } from './quotes.js';
 
 /* Brand palette — mirrors public/tokens.css (email cannot use CSS variables). */
 const C = {
@@ -234,7 +235,11 @@ function textShell(env, { title, subtitle, blocks, cta }) {
 
 /* --------------------------------------------------------- public builders */
 
+/** Dollar amounts (lead estimates) — already in whole dollars, not cents. */
 const money = (n) => (Number.isFinite(+n) ? '$' + Math.round(+n).toLocaleString('en-US') : '');
+
+/** Quote amounts are stored in cents — always use formatMoney for those. */
+const cents = formatMoney;
 
 /**
  * Build the "new quote request" email from a stored lead record.
@@ -362,8 +367,8 @@ export function buildFollowupEmail(env, { name, kindLabel, id }) {
   return { subject, html, text };
 }
 
-/** Line-item table for customer-facing quote emails and the proposal page. */
-function lineItemsTable(items, { moneyFn = money } = {}) {
+/** Line-item table for customer-facing quote emails (amounts in cents). */
+function lineItemsTable(items, { moneyFn = cents } = {}) {
   if (!items || !items.length) return '';
   const rows = items.map((it, i) => {
     const border = i === 0 ? '' : `border-top:1px solid ${C.line};`;
@@ -393,7 +398,7 @@ function lineItemsTable(items, { moneyFn = money } = {}) {
   );
 }
 
-function totalsBlock(subtotal, total, { moneyFn = money } = {}) {
+function totalsBlock(subtotal, total, { moneyFn = cents } = {}) {
   return (
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px">` +
     `<tr><td align="right" style="padding:8px 0;font-family:${FONT_BODY};font-size:14px;color:${C.muted}">Subtotal</td>` +
@@ -420,8 +425,8 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
   const expiry = formatExpiry(quote.expires_at);
   const items = Array.isArray(quote.line_items) ? quote.line_items : [];
 
-  const customerSubject = `Your quote from Oasis Coastal Cleaning — ${money(quote.total)}`;
-  const adminSubject = `Quote sent to ${quote.customer_name || lead.lead_name || 'customer'} — ${money(quote.total)}`;
+  const customerSubject = `Your quote from Oasis Coastal Cleaning — ${cents(quote.total)}`;
+  const adminSubject = `Quote sent to ${quote.customer_name || lead.lead_name || 'customer'} — ${cents(quote.total)}`;
 
   const intro =
     `<tr><td style="padding:20px 32px 0"><p style="margin:0;font-family:${FONT_BODY};font-size:15px;line-height:1.65;color:${C.ink}">` +
@@ -445,7 +450,7 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
       : '');
 
   const customerHtml = shell(env, {
-    preheaderText: `Your Oasis Coastal Cleaning quote totals ${money(quote.total)}.`,
+    preheaderText: `Your Oasis Coastal Cleaning quote totals ${cents(quote.total)}.`,
     title: 'Your cleaning quote',
     subtitle: service,
     contentHtml: intro + quoteBody,
@@ -457,8 +462,8 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
     subtitle: service,
     blocks: [
       `Hi ${who},\n\nHere is your quote for ${service}${city}. Open the link below to review and accept.\n`,
-      items.map((it) => `  ${it.qty || 1} × ${it.label} — ${money(it.total)}`).join('\n'),
-      `\nTotal: ${money(quote.total)}`,
+      items.map((it) => `  ${it.qty || 1} × ${it.label} — ${cents(it.total)}`).join('\n'),
+      `\nTotal: ${cents(quote.total)}`,
       expiry ? `\nValid through: ${expiry}` : '',
       quote.notes ? `\nNote from Kristina:\n  ${String(quote.notes).replace(/\n/g, '\n  ')}` : ''
     ],
@@ -466,7 +471,7 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
   });
 
   const adminHtml = shell(env, {
-    preheaderText: `You sent a ${money(quote.total)} quote to ${who}.`,
+    preheaderText: `You sent a ${cents(quote.total)} quote to ${who}.`,
     title: 'Quote sent',
     subtitle: quote.customer_name || lead.lead_name,
     contentHtml:
@@ -486,7 +491,7 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
     subtitle: quote.customer_name || lead.lead_name,
     blocks: [
       `Quote emailed to ${quote.customer_email || lead.lead_email}.`,
-      `Total: ${money(quote.total)}`,
+      `Total: ${cents(quote.total)}`,
       `Customer link: ${proposalUrl}`
     ],
     cta: { label: 'Open lead in portal', url: `${siteBase(env)}/admin/` }
@@ -497,26 +502,34 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
 
 /**
  * Notify Kristina when a customer accepts a quote online.
+ * requestedAddons: catalog rows the customer opted into (pricing TBD).
  */
-export function buildQuoteAcceptedEmail(env, { quote, lead }) {
+export function buildQuoteAcceptedEmail(env, { quote, lead, requestedAddons = [] }) {
   const who = quote.customer_name || lead.lead_name || 'A customer';
   const items = Array.isArray(quote.line_items) ? quote.line_items : [];
   const adminUrl = `${siteBase(env)}/admin/`;
+  const extras = Array.isArray(requestedAddons) ? requestedAddons : [];
+
+  const extrasRows = extras.map((a) => [a.label, a.note || 'Requested — confirm pricing']);
+  const extrasText = extras.length
+    ? `\nRequested add-ons (pricing to confirm):\n` + extras.map((a) => `  - ${a.label}`).join('\n')
+    : '';
 
   const contentHtml =
     `<tr><td style="padding:22px 32px 0">` +
     `<div style="background:${C.cream};border:1px solid ${C.goldSoft};border-radius:12px;padding:18px 20px">` +
     `<p style="margin:0;font-family:${FONT_BODY};font-size:16px;line-height:1.55;color:${C.ink}">` +
     `<strong style="color:${C.teal}">${escapeHtml(who)}</strong> accepted your quote for ` +
-    `<strong>${escapeHtml(money(quote.total))}</strong>.</p></div></td></tr>` +
+    `<strong>${escapeHtml(cents(quote.total))}</strong>.</p></div></td></tr>` +
     `<tr><td style="padding:22px 32px 0">` +
     eyebrow('Accepted quote') +
     lineItemsTable(items) +
     totalsBlock(quote.subtotal, quote.total) +
-    `</td></tr>`;
+    `</td></tr>` +
+    (extras.length ? section('Requested add-ons', extrasRows) : '');
 
   const html = shell(env, {
-    preheaderText: `${who} accepted your ${money(quote.total)} quote.`,
+    preheaderText: `${who} accepted your ${cents(quote.total)} quote.`,
     title: 'Quote accepted',
     subtitle: who,
     contentHtml,
@@ -527,34 +540,40 @@ export function buildQuoteAcceptedEmail(env, { quote, lead }) {
     title: 'Quote accepted',
     subtitle: who,
     blocks: [
-      `${who} accepted your quote for ${money(quote.total)}.`,
-      items.map((it) => `  ${it.qty || 1} × ${it.label} — ${money(it.total)}`).join('\n')
+      `${who} accepted your quote for ${cents(quote.total)}.`,
+      items.map((it) => `  ${it.qty || 1} × ${it.label} — ${cents(it.total)}`).join('\n'),
+      extrasText
     ],
     cta: { label: 'Open lead in portal', url: adminUrl }
   });
 
-  const subject = `Quote accepted — ${who} · ${money(quote.total)}`;
+  const subject = `Quote accepted — ${who} · ${cents(quote.total)}`;
   return { subject, html, text };
 }
 
 /**
  * Notify Kristina when a customer declines a quote online.
  */
-export function buildQuoteDeclinedEmail(env, { quote, lead }) {
+export function buildQuoteDeclinedEmail(env, { quote, lead, reason = '' }) {
   const who = quote.customer_name || lead.lead_name || 'A customer';
   const adminUrl = `${siteBase(env)}/admin/`;
+  const note = String(reason || '').trim().slice(0, 1000);
 
   const contentHtml =
     `<tr><td style="padding:22px 32px 0">` +
     `<div style="background:${C.cream};border:1px solid ${C.goldSoft};border-radius:12px;padding:18px 20px">` +
     `<p style="margin:0;font-family:${FONT_BODY};font-size:16px;line-height:1.55;color:${C.ink}">` +
     `<strong style="color:${C.teal}">${escapeHtml(who)}</strong> declined your quote for ` +
-    `<strong>${escapeHtml(money(quote.total))}</strong>.</p>` +
+    `<strong>${escapeHtml(cents(quote.total))}</strong>.</p>` +
+    (note
+      ? `<p style="margin:12px 0 0;font-family:${FONT_BODY};font-size:14px;line-height:1.55;color:${C.ink}">` +
+        `<strong>Their note:</strong> ${escapeHtml(note)}</p>`
+      : '') +
     `<p style="margin:10px 0 0;font-family:${FONT_BODY};font-size:13px;color:${C.muted}">` +
     `Follow up if you would like to revise the quote or ask what changed.</p></div></td></tr>`;
 
   const html = shell(env, {
-    preheaderText: `${who} declined your ${money(quote.total)} quote.`,
+    preheaderText: `${who} declined your ${cents(quote.total)} quote.`,
     title: 'Quote Declined',
     subtitle: who,
     contentHtml,
@@ -564,11 +583,14 @@ export function buildQuoteDeclinedEmail(env, { quote, lead }) {
   const text = textShell(env, {
     title: 'Quote Declined',
     subtitle: who,
-    blocks: [`${who} declined your quote for ${money(quote.total)}.`],
+    blocks: [
+      `${who} declined your quote for ${cents(quote.total)}.`,
+      note ? `\nTheir note:\n  ${note.replace(/\n/g, '\n  ')}` : ''
+    ],
     cta: { label: 'Open lead in portal', url: adminUrl }
   });
 
-  const subject = `Quote declined — ${who} · ${money(quote.total)}`;
+  const subject = `Quote declined — ${who} · ${cents(quote.total)}`;
   return { subject, html, text };
 }
 

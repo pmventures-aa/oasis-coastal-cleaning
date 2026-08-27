@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /thank-you.html
+Disallow: /admin
+Disallow: /q/
 
 Sitemap: https://www.oasiscoastalcleaning.com/sitemap.xml

@@ -366,6 +366,10 @@
         var detail = parseEventDetail(ev.detail);
         var meta = fullDate(ev.created_at);
         if (ev.kind === 'sent' && detail && detail.to) meta += ' · ' + detail.to;
+        if (ev.kind === 'declined' && detail && detail.reason) meta += ' · “' + detail.reason + '”';
+        if (ev.kind === 'accepted' && detail && detail.add_ons && detail.add_ons.length) {
+          meta += ' · Add-ons: ' + detail.add_ons.map(function (a) { return a.label || a.id; }).join(', ');
+        }
         return '<div class="quote-timeline__item' + (i === events.length - 1 ? ' is-last' : '') + '">' +
           '<span class="quote-timeline__dot"></span><div class="quote-timeline__body"><strong>' +
           esc(EVENT_LABELS[ev.kind] || ev.kind) + '</strong><span class="muted">' + esc(meta) + '</span></div></div>';

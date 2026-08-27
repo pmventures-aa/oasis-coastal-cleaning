@@ -9,5 +9,14 @@ CREATE TABLE IF NOT EXISTS leads ( id TEXT PRIMARY KEY, created_at TEXT NOT NULL
 -- ---------- statement 2 of 3 ----------
 CREATE INDEX IF NOT EXISTS idx_leads_created ON leads (created_at DESC);
 
--- ---------- statement 3 of 3 ----------
-CREATE INDEX IF NOT EXISTS idx_leads_status ON leads (status);
+-- ---------- statement 4 of 7 ----------
+CREATE TABLE IF NOT EXISTS quotes ( id TEXT PRIMARY KEY, lead_id TEXT, token TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL, updated_at TEXT, sent_at TEXT, accepted_at TEXT, status TEXT NOT NULL DEFAULT 'draft', customer_name TEXT NOT NULL, customer_email TEXT NOT NULL, customer_phone TEXT, service_label TEXT, frequency TEXT, intro TEXT, line_items TEXT NOT NULL, notes TEXT, price_note TEXT, valid_until TEXT, accepted_name TEXT, accepted_ip TEXT, accepted_ua TEXT );
+
+-- ---------- statement 5 of 7 ----------
+CREATE INDEX IF NOT EXISTS idx_quotes_lead ON quotes (lead_id);
+
+-- ---------- statement 6 of 7 ----------
+CREATE INDEX IF NOT EXISTS idx_quotes_token ON quotes (token);
+
+-- ---------- statement 7 of 7 ----------
+CREATE INDEX IF NOT EXISTS idx_quotes_created ON quotes (created_at DESC);

@@ -884,3 +884,42 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
   background: rgba(9, 64, 69, 0.06); font-size: var(--step--1); line-height: 1.5;
 }
 .proposal__done--ok { background: rgba(31, 98, 54, 0.1); color: #1F6236; }
+
+.proposal__addons {
+  margin-top: 1.5rem; padding-top: 1.25rem;
+  border-top: 1px solid var(--oasis-line);
+}
+.proposal__addons-lead { margin: 0.35rem 0 0.85rem; font-size: var(--step--1); line-height: 1.45; }
+.proposal__addon-group { margin-bottom: 0.85rem; }
+.proposal__addon-group-label {
+  margin: 0 0 0.4rem; font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--oasis-gold);
+}
+.proposal__addon {
+  display: flex; gap: 0.65rem; align-items: flex-start;
+  padding: 0.65rem 0.75rem; margin: 0 0 0.4rem;
+  border: 1px solid var(--oasis-line); border-radius: var(--radius);
+  background: var(--oasis-cream); cursor: pointer;
+}
+.proposal__addon input { margin-top: 0.2rem; flex: 0 0 auto; }
+.proposal__addon-text { display: flex; flex-direction: column; gap: 0.15rem; font-size: var(--step--1); line-height: 1.4; }
+.proposal__addon-text strong { color: var(--oasis-ink); font-weight: 600; }
+
+.proposal__decline {
+  margin-top: 1.25rem; padding: 1rem;
+  border: 1px solid var(--oasis-line); border-radius: var(--radius);
+  background: var(--oasis-cream);
+}
+.proposal__decline-label {
+  display: block; font-size: var(--step--1); font-weight: 600;
+  color: var(--oasis-ink); margin-bottom: 0.45rem;
+}
+.proposal__decline-input {
+  width: 100%; box-sizing: border-box; min-height: 4.5rem;
+  padding: 0.65rem 0.75rem; border: 1px solid var(--oasis-line);
+  border-radius: calc(var(--radius) - 2px); font: inherit; resize: vertical;
+  background: var(--oasis-white); color: var(--oasis-ink);
+}
+.proposal__decline-acts {
+  display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;
+}
