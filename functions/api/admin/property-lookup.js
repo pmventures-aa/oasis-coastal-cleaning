@@ -56,11 +56,14 @@ export async function onRequestPost({ request, env }) {
   if (!city && !zip) return json({ error: 'Add a city or ZIP so we can find the property.' }, 400);
 
   try {
-    const result = await lookupRentCast(env.RENTCAST_API_KEY, { address, city, state, zip });
+    const apiKey = String(env.RENTCAST_API_KEY || '').trim();
+    const result = await lookupRentCast(apiKey, { address, city, state, zip });
     if (result.error) {
       return json({
         error: result.error,
         tried: result.tried || null,
+        not_found: !!result.not_found,
+        rentcast_status: result.rentcast_status || null,
         setupUrl: 'https://app.rentcast.io/app/api'
       }, result.status || 502);
     }

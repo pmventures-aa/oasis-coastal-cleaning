@@ -191,8 +191,8 @@
   function detail(l) {
     var addOns = list(l.add_ons), conds = list(l.conditions), days = list(l.preferred_days);
     var tel = digits(l.phone);
-    // Default to Quotes so she can price the job immediately; Intake stays one tap away.
-    var tab = state.leadTab[l.id] || 'quotes';
+    // Profile first — confirm contact & property, then build a branded quote.
+    var tab = state.leadTab[l.id] || 'intake';
 
     var lookupHint = state.propertyLookupConfigured === false
       ? '<p class="profile__lookup-setup muted">Property lookup needs a free RentCast key: ' +
@@ -241,8 +241,6 @@
 
     return '<div class="profile">' +
       '<div class="profile__bar">' +
-        '<button type="button" class="btn btn--primary" data-start-quote>Quote</button>' +
-        '<button type="button" class="btn btn--ghost" data-property-lookup title="Fill beds, baths, and square footage from the street address">Lookup property</button>' +
         '<a class="btn btn--ghost" href="tel:+1' + tel + '">Call</a>' +
         '<a class="btn btn--ghost" href="sms:+1' + tel + '">Text</a>' +
         '<a class="btn btn--ghost" href="mailto:' + esc(l.email) + '">Email</a>' +
@@ -256,26 +254,25 @@
       '<p class="profile__lookup-msg muted" data-lookup-msg hidden style="margin:0 0 .65rem"></p>' +
 
       '<div class="ptabs" role="tablist">' +
+        '<button type="button" class="ptabs__btn' + (tab === 'intake' ? ' is-on' : '') + '" data-ptab="intake" role="tab">Profile</button>' +
         '<button type="button" class="ptabs__btn' + (tab === 'quotes' ? ' is-on' : '') + '" data-ptab="quotes" role="tab">Branded Quotes</button>' +
-        '<button type="button" class="ptabs__btn' + (tab === 'intake' ? ' is-on' : '') + '" data-ptab="intake" role="tab">Intake</button>' +
       '</div>' +
+
+      '<div class="ptab' + (tab === 'intake' ? ' is-on' : '') + '" data-pane="intake">' + intake +
+        '<div class="profile__next">' +
+          '<button type="button" class="btn btn--primary" data-start-quote>Build branded quote →</button>' +
+        '</div></div>' +
 
       '<div class="ptab' + (tab === 'quotes' ? ' is-on' : '') + '" data-pane="quotes" data-quote-panel="' + esc(l.id) + '">' +
         '<div class="quote-property-bar">' +
           '<div class="quote-property-bar__text">' +
             '<strong>Property</strong> ' +
-            '<span class="muted">' + esc(propBits.join(' · ') || 'Add an address on Intake, then fill beds / baths / sq ft') + '</span>' +
+            '<span class="muted">' + esc(propBits.join(' · ') || 'Fill in address on Profile, then use Fill beds / baths / sq ft') + '</span>' +
           '</div>' +
-          '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft</button>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-ptab-jump="intake">Edit on Profile</button>' +
         '</div>' +
-        (state.propertyLookupConfigured === false
-          ? '<p class="profile__lookup-setup muted">Lookup needs a free RentCast key: ' +
-            '<a href="https://app.rentcast.io/app/api" target="_blank" rel="noopener">get API key</a> → ' +
-            'Cloudflare secret <code>RENTCAST_API_KEY</code> → redeploy.</p>'
-          : '') +
-        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Tap add-ons to price the job, then send — or resend a quote already out.</p>' +
+        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Add line items and send — or resend a quote already out.</p>' +
         '<div class="quote-panel__body"><p class="muted" style="font-size:var(--step--1)">Loading quotes…</p></div></div>' +
-      '<div class="ptab' + (tab === 'intake' ? ' is-on' : '') + '" data-pane="intake">' + intake + '</div>' +
 
       leadActions(l) +
       '<p class="profile__stamp">Came in ' + esc(fullDate(l.created_at)) +
@@ -331,7 +328,7 @@
       var cn = root.querySelector('.quote-customer-name');
       if (cn) cn.focus();
     }
-    if (state.open && (state.leadTab[state.open] || 'quotes') === 'quotes') { loadQuotes(state.open); }
+    if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') { loadQuotes(state.open); }
   }
 
   function leadMatches(l, q) {
@@ -712,10 +709,11 @@
     });
   }
 
-  function setLookupMsgs(card, text) {
+  function setLookupMsgs(card, text, soft) {
     Array.prototype.forEach.call(card.querySelectorAll('[data-lookup-msg]'), function (msg) {
       msg.hidden = !text;
       msg.textContent = text || '';
+      msg.classList.toggle('profile__lookup-msg--soft', !!soft);
     });
   }
 
@@ -736,7 +734,7 @@
     var city = val('city');
     var zip = val('zip');
     if (!address) {
-      setLookupMsgs(card, 'Add a street address on the Intake tab first.');
+      setLookupMsgs(card, 'Add a street address on Profile first.');
       state.leadTab[leadId] = 'intake';
       render();
       return;
@@ -755,7 +753,8 @@
         var err = r.body.error || 'Lookup failed.';
         if (r.status === 503) state.propertyLookupConfigured = false;
         if (r.body.setup) err = r.body.error + ' Open rentcast.io to create a free key, then add RENTCAST_API_KEY in Cloudflare and redeploy.';
-        setLookupMsgs(card, err);
+        else if (r.status === 404 || r.body.not_found) err = r.body.error || 'No record for this address — enter beds/baths manually.';
+        setLookupMsgs(card, err, r.status === 404 || r.body.not_found);
         return;
       }
       state.propertyLookupConfigured = true;
@@ -773,9 +772,8 @@
           [p.bedrooms && (p.bedrooms + ' bed'), p.bathrooms && (p.bathrooms + ' bath'),
             p.square_footage && (Number(p.square_footage).toLocaleString('en-US') + ' sq ft')]
             .filter(Boolean).join(' · ');
-        // Re-render so the Quotes property bar updates; keep current tab.
+        state.leadTab[leadId] = 'intake';
         render();
-        if ((state.leadTab[leadId] || 'quotes') === 'quotes') loadQuotes(leadId);
         var fresh = root.querySelector('.lead[data-id="' + leadId + '"]');
         if (fresh) setLookupMsgs(fresh, ok || 'Property filled from records.');
       });
@@ -927,6 +925,14 @@
       lookupProperty(e.target);
       return;
     }
+    if (e.target.matches('[data-ptab-jump]')) {
+      var jumpCard = e.target.closest('.lead');
+      if (jumpCard) {
+        state.leadTab[jumpCard.dataset.id] = e.target.getAttribute('data-ptab-jump') || 'intake';
+        render();
+      }
+      return;
+    }
     if (e.target.matches('[data-ptab]')) {
       var card = e.target.closest('.lead');
       state.leadTab[card.dataset.id] = e.target.dataset.ptab;
@@ -938,7 +944,7 @@
       var c = e.target.closest('.lead');
       state.open = state.open === c.dataset.id ? null : c.dataset.id;
       render();
-      if (state.open && (state.leadTab[state.open] || 'quotes') === 'quotes') loadQuotes(state.open);
+      if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') loadQuotes(state.open);
       return;
     }
     if (e.target.matches('[data-lead-action]')) {

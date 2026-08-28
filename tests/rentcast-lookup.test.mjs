@@ -12,10 +12,26 @@ const libPath = pathToFileURL(join(here, '../functions/_lib/rentcast.js')).href;
 const {
   parseLocation,
   buildFullAddress,
+  buildFullAddressAlt,
   stripUnit,
+  sanitizeApiKey,
+  streetVariants,
+  matchPropertyByStreet,
   normalizeProperty,
   lookupRentCast
 } = await import(libPath);
+
+assert.equal(sanitizeApiKey('  "abc-key"  '), 'abc-key');
+assert.ok(streetVariants('100 E Ocean Ave').length >= 2);
+assert.equal(
+  buildFullAddressAlt(parseLocation({ address: '123 NE 2nd Ave', city: 'Delray Beach', zip: '33444' })),
+  '123 NE 2nd Ave, Delray Beach, FL 33444'
+);
+
+const matched = matchPropertyByStreet([
+  { addressLine1: '100 East Ocean Avenue', bedrooms: 2, bathrooms: 2, squareFootage: 1200 }
+], '100 E Ocean Ave');
+assert.equal(matched.bedrooms, 2);
 
 assert.deepEqual(
   parseLocation({ address: '123 NE 2nd Ave', city: 'Delray Beach', zip: '33444' }),
@@ -109,21 +125,21 @@ const empty = await lookupRentCast(
   mockFetch(() => ({ status: 200, body: [] }))
 );
 assert.equal(empty.status, 404);
-assert.match(empty.error, /1 Nope St, Boca Raton, FL, 33432/);
+assert.match(empty.error, /No property record|manually on Profile/);
+assert.equal(empty.not_found, true);
 
 const unitSeen = [];
 await lookupRentCast(
   'test-key',
   { address: '123 Main St Apt 4', city: 'Boca Raton', zip: '33432' },
   mockFetch((url) => {
-    unitSeen.push(new URL(url).searchParams.get('address'));
+    const u = new URL(url);
+    unitSeen.push(u.searchParams.get('address'));
     return { status: 200, body: [] };
   })
 );
-assert.deepEqual(unitSeen, [
-  '123 Main St Apt 4, Boca Raton, FL, 33432',
-  '123 Main St, Boca Raton, FL, 33432'
-]);
+assert.ok(unitSeen.includes('123 Main St Apt 4, Boca Raton, FL, 33432'));
+assert.ok(unitSeen.includes('123 Main St, Boca Raton, FL, 33432'));
 
 const src = readFileSync(join(here, '../functions/api/admin/property-lookup.js'), 'utf8');
 assert.match(src, /from '\.\.\/\.\.\/_lib\/rentcast\.js'/);
@@ -133,5 +149,7 @@ const admin = readFileSync(join(here, '../public/js/admin.js'), 'utf8');
 assert.match(admin, /applySearchFilter/);
 assert.match(admin, /l\.zip/);
 assert.match(admin, /id === 'search'\) \{ state\.q = e\.target\.value; applySearchFilter/);
+assert.match(admin, /leadTab\[l\.id\] \|\| 'intake'/);
+assert.match(admin, /data-ptab="intake".*Profile/s);
 
 console.log('rentcast-lookup.test.mjs: ok');
