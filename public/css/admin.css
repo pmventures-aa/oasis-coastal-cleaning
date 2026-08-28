@@ -597,6 +597,11 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .addr-suggest__hint {
   display: block; font-size: 0.68rem; color: var(--oasis-muted); margin-top: 0.2rem;
 }
+.addr-suggest input:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  background: rgba(9, 64, 69, 0.04);
+}
 
 /* ------------------------------------------------ new quote composer */
 .btn--new-quote {

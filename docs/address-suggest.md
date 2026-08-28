@@ -1,33 +1,30 @@
 # Florida address typeahead (admin)
 
-The admin **Street address** fields (New Quote, New Lead, Profile) suggest
-Florida addresses as you type. International results are filtered out.
+Admin **ZIP → Street** fields (New Quote, New Lead, Profile) suggest Florida
+addresses in the ZIP you enter. Street is locked until ZIP is 5 digits.
 
-## How it works
+## How Kristina should enter an address
 
-`GET /api/admin/address-suggest?q=…` (signed-in only) returns:
+1. **ZIP first** (e.g. `33063`) — fills City when known (Margate for 33063,
+   not the USPS postal city “Pompano Beach”). Street field unlocks.
+2. **Street next** (e.g. `2156 NW 62nd Ave`) — suggestions stay in that ZIP.
+   Abbreviations expand (`NW` → Northwest, `Ave` → Avenue).
+3. Tap a suggestion — street, city, and ZIP are filled. If the map only has
+   the street (no house number), we still keep the number she typed.
 
-```json
-{ "ok": true, "suggestions": [
-  { "address": "100 N Ocean Blvd", "city": "Boca Raton", "state": "FL", "zip": "33432", "label": "…" }
-]}
-```
+## API
 
-Picking a suggestion fills street, city, and ZIP.
+`GET /api/admin/address-suggest` (signed-in only)
+
+| Query | Result |
+|---|---|
+| `?zip=33063` | `{ place: { zip, city, lat, lon } }` |
+| `?q=2156%20NW%2062nd%20Ave&zip=33063` | `{ suggestions: [ … ] }` |
 
 ## Providers
 
-1. **Mapbox** (optional) — if Cloudflare secret `MAPBOX_ACCESS_TOKEN` is set,
-   suggestions use Mapbox Geocoding, still limited to a Florida bounding box and
-   `country=US`.
-2. **Photon / OpenStreetMap** (default) — free, no key. Same Florida bbox filter
-   plus a US/Florida check on each result.
-
-## Optional Mapbox setup
-
-1. Create a token at [mapbox.com](https://account.mapbox.com/access-tokens/).
-2. Cloudflare → Workers & Pages → `oasis-coastal-cleaning` → Variables and secrets.
-3. Add Production secret `MAPBOX_ACCESS_TOKEN`.
-4. Redeploy the latest deployment.
-
-Without Mapbox, Florida suggestions still work via Photon.
+1. **Nominatim** (when ZIP + house number) — house-level match, correct city
+2. **Mapbox** (optional) — Cloudflare secret `MAPBOX_ACCESS_TOKEN`
+3. **Photon / OpenStreetMap** — street autocomplete; OSM often stores the road
+   on `name` (not `street`), which we now treat as a street
+4. **Typed fallback** — if nothing matches, offer the typed street + ZIP city

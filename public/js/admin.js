@@ -290,15 +290,18 @@
           '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft</button>' +
           '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
         '</div>' + lookupHint +
+        '<label class="pf"><span class="pf__k">ZIP</span>' +
+          '<input class="pf__v" type="text" data-col="zip" data-zip-lookup inputmode="numeric" autocomplete="postal-code" ' +
+            'placeholder="33063" maxlength="10" value="' + esc(l.zip || '') + '"></label>' +
         '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
           '<div class="addr-suggest__wrap">' +
             '<input class="pf__v" type="text" data-col="address" data-address-suggest autocomplete="off" ' +
-              'placeholder="Start typing a Florida address" value="' + esc(l.address || '') + '">' +
+            (String(l.zip || '').replace(/\D/g, '').length === 5 ? '' : ' disabled') +
+              ' placeholder="' + (String(l.zip || '').replace(/\D/g, '').length === 5 ? 'e.g. 2156 NW 62nd Ave' : 'Enter ZIP first') + '" value="' + esc(l.address || '') + '">' +
             '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
           '</div>' +
-          '<span class="addr-suggest__hint">Florida addresses only</span></label>' +
+          '<span class="addr-suggest__hint">ZIP first, then street — suggestions stay in that ZIP</span></label>' +
         field('City', 'city', l.city, { options: oasisCities() }) +
-        field('ZIP', 'zip', l.zip) +
         field('Type', 'property_type', l.property_type, { options: oasisPropertyTypes() }) +
         field('Size', 'size_label', l.size_label) +
         field('Bedrooms', 'bedrooms', l.bedrooms) + field('Bathrooms', 'bathrooms', l.bathrooms) +
@@ -604,19 +607,19 @@
           '<label class="pf"><span class="pf__k">Email</span><input class="pf__v quote-email" type="email" placeholder="name@email.com" value="' +
             esc(quote.customer_email || '') + '"></label>' +
           '<label class="pf"><span class="pf__k">Phone</span><input class="pf__v quote-phone" type="tel" placeholder="Optional" value=""></label>' +
+          '<label class="pf"><span class="pf__k">ZIP</span>' +
+            '<input class="pf__v quote-zip" type="text" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="33063" maxlength="10"></label>' +
           '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
             '<div class="addr-suggest__wrap">' +
-              '<input class="pf__v quote-address" type="text" data-address-suggest autocomplete="off" ' +
-                'placeholder="Start typing a Florida address">' +
+              '<input class="pf__v quote-address" type="text" data-address-suggest autocomplete="off" disabled ' +
+                'placeholder="Enter ZIP first">' +
               '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
             '</div>' +
-            '<span class="addr-suggest__hint">Florida addresses only</span></label>' +
+            '<span class="addr-suggest__hint">ZIP first, then street — suggestions stay in that ZIP</span></label>' +
           '<label class="pf"><span class="pf__k">City</span><select class="pf__v quote-city">' +
             oasisCities().map(function (c) {
               return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
             }).join('') + '</select></label>' +
-          '<label class="pf"><span class="pf__k">ZIP</span>' +
-            '<input class="pf__v quote-zip" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="33444" maxlength="10"></label>' +
           '<label class="pf"><span class="pf__k">Service</span><input class="pf__v quote-service" type="text" placeholder="e.g. Airbnb turnover" value=""></label>' +
         '</div>'
       : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
@@ -708,7 +711,7 @@
       '<div class="compose__head">' +
         '<div class="compose__titles">' +
           '<h2 id="compose-title" class="compose__title">New Quote</h2>' +
-          '<p class="compose__sub muted">Start fresh — no intake form needed.</p>' +
+          '<p class="compose__sub muted">Price and send now — also saves a customer card.</p>' +
         '</div>' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-close-compose>Cancel</button>' +
       '</div>' +
@@ -721,7 +724,7 @@
       '<div class="compose__head">' +
         '<div class="compose__titles">' +
           '<h2 id="compose-lead-title" class="compose__title">New Lead</h2>' +
-          '<p class="compose__sub muted">Log a phone call or walk-in — name and phone required.</p>' +
+          '<p class="compose__sub muted">Log a call or walk-in. Quote them later from their profile.</p>' +
         '</div>' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-close-compose-lead>Cancel</button>' +
       '</div>' +
@@ -730,19 +733,19 @@
         '<label class="pf"><span class="pf__k">Last name</span><input class="pf__v" type="text" data-lead-field="last_name" autocomplete="family-name"></label>' +
         '<label class="pf"><span class="pf__k">Phone *</span><input class="pf__v" type="tel" data-lead-field="phone" autocomplete="tel"></label>' +
         '<label class="pf"><span class="pf__k">Email</span><input class="pf__v" type="email" data-lead-field="email" autocomplete="email"></label>' +
+        '<label class="pf"><span class="pf__k">ZIP</span>' +
+          '<input class="pf__v" type="text" data-lead-field="zip" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="33063" maxlength="10"></label>' +
         '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
           '<div class="addr-suggest__wrap">' +
-            '<input class="pf__v" type="text" data-lead-field="address" data-address-suggest autocomplete="off" ' +
-              'placeholder="Start typing a Florida address">' +
+            '<input class="pf__v" type="text" data-lead-field="address" data-address-suggest autocomplete="off" disabled ' +
+              'placeholder="Enter ZIP first">' +
             '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
           '</div>' +
-          '<span class="addr-suggest__hint">Florida addresses only</span></label>' +
+          '<span class="addr-suggest__hint">ZIP first, then street — suggestions stay in that ZIP</span></label>' +
         '<label class="pf"><span class="pf__k">City</span><select class="pf__v" data-lead-field="city">' +
           oasisCities().map(function (c) {
             return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
           }).join('') + '</select></label>' +
-        '<label class="pf"><span class="pf__k">ZIP</span>' +
-          '<input class="pf__v" type="text" data-lead-field="zip" inputmode="numeric" autocomplete="postal-code" placeholder="33444" maxlength="10"></label>' +
         '<label class="pf pf--wide"><span class="pf__k">Service</span><input class="pf__v" type="text" data-lead-field="service" placeholder="e.g. Home cleaning, Airbnb turnover"></label>' +
         '<label class="pf pf--wide"><span class="pf__k">Notes</span><textarea class="pf__v" data-lead-field="notes" rows="2" placeholder="What they asked for on the call"></textarea></label>' +
       '</div>' +
@@ -1312,20 +1315,82 @@
     list._suggestions = suggestions;
   }
 
+  function currentZipFor(input) {
+    var scope = addressSuggestScope(input);
+    var zipEl = scope.querySelector('[data-col="zip"], .quote-zip, [data-lead-field="zip"]');
+    return zipEl ? String(zipEl.value || '').replace(/\D/g, '').slice(0, 5) : '';
+  }
+
+  function currentCityFor(input) {
+    var scope = addressSuggestScope(input);
+    var cityEl = scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
+    return cityEl ? String(cityEl.value || '').trim() : '';
+  }
+
+  function setStreetEnabled(scope, on) {
+    var street = scope && scope.querySelector('[data-address-suggest]');
+    if (!street) return;
+    street.disabled = !on;
+    street.placeholder = on ? 'e.g. 2156 NW 62nd Ave' : 'Enter ZIP first';
+    if (!on) hideAddressSuggestions(street);
+  }
+
   function runAddressSuggest(input) {
     var q = String(input.value || '').trim();
+    var zip = currentZipFor(input);
+    if (zip.length !== 5) {
+      setStreetEnabled(addressSuggestScope(input), false);
+      hideAddressSuggestions(input);
+      return;
+    }
+    setStreetEnabled(addressSuggestScope(input), true);
     if (q.length < 3) {
       hideAddressSuggestions(input);
       return;
     }
     var seq = ++addressSuggestSeq;
-    api('/api/admin/address-suggest?q=' + encodeURIComponent(q)).then(function (r) {
+    var path = '/api/admin/address-suggest?q=' + encodeURIComponent(q) +
+      '&zip=' + encodeURIComponent(zip);
+    var city = currentCityFor(input);
+    if (city) path += '&city=' + encodeURIComponent(city);
+    api(path).then(function (r) {
       if (seq !== addressSuggestSeq) return;
       if (!r.ok) {
         hideAddressSuggestions(input);
         return;
       }
+      if (r.body.place && r.body.place.city) {
+        var scope = addressSuggestScope(input);
+        var cityEl = scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
+        if (cityEl) {
+          if (cityEl.tagName === 'SELECT') setSelectValue(cityEl, r.body.place.city);
+          else cityEl.value = r.body.place.city;
+          if (cityEl.hasAttribute('data-col')) saveField(cityEl);
+        }
+      }
       renderAddressSuggestions(input, r.body.suggestions || []);
+    });
+  }
+
+  function runZipLookup(zipInput) {
+    var zip = String(zipInput.value || '').replace(/\D/g, '').slice(0, 5);
+    var scope = addressSuggestScope(zipInput);
+    if (zip.length !== 5) {
+      setStreetEnabled(scope, false);
+      return;
+    }
+    setStreetEnabled(scope, true);
+    api('/api/admin/address-suggest?zip=' + encodeURIComponent(zip)).then(function (r) {
+      if (!r.ok || !r.body.place) return;
+      var cityEl = scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
+      if (cityEl && r.body.place.city) {
+        if (cityEl.tagName === 'SELECT') setSelectValue(cityEl, r.body.place.city);
+        else cityEl.value = r.body.place.city;
+        if (cityEl.hasAttribute('data-col')) saveField(cityEl);
+      }
+      var street = scope.querySelector('[data-address-suggest]');
+      if (street && !String(street.value || '').trim()) street.focus();
+      else if (street && String(street.value || '').trim().length >= 3) runAddressSuggest(street);
     });
   }
 
@@ -1369,6 +1434,11 @@
       clearTimeout(addressSuggestTimer);
       var suggestInput = e.target;
       addressSuggestTimer = setTimeout(function () { runAddressSuggest(suggestInput); }, 280);
+    }
+    if (e.target.matches('[data-zip-lookup]')) {
+      clearTimeout(addressSuggestTimer);
+      var zipInput = e.target;
+      addressSuggestTimer = setTimeout(function () { runZipLookup(zipInput); }, 220);
     }
   });
 
