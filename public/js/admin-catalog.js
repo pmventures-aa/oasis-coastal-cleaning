@@ -6,9 +6,9 @@
 window.OASIS_ADMIN_CATALOG = {
   /* Quick base services — floors from docs/rates.md */
   bases: [
-    { id: 'base-home', label: 'Home Cleaning', dollars: 120 },
-    { id: 'base-office', label: 'Office Cleaning', dollars: 100 },
-    { id: 'base-turnover', label: 'Airbnb / short-term turnover', dollars: 150 },
+    { id: 'base-home', label: 'Home Cleaning', dollars: 120, recurring: true },
+    { id: 'base-office', label: 'Office Cleaning', dollars: 100, recurring: true },
+    { id: 'base-turnover', label: 'Airbnb / short-term turnover', dollars: 150, recurring: true },
     { id: 'base-organizing', label: 'Organizing (per hour)', dollars: 40 },
     { id: 'base-laundry', label: 'Laundry (per hamper)', dollars: 15 }
   ],

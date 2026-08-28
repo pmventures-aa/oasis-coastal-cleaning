@@ -1,12 +1,13 @@
 /**
  * GET   /api/admin/quotes?lead_id=…  — quotes for one lead
  * POST  /api/admin/quotes            — create a draft quote
- * PATCH /api/admin/quotes            — update a draft quote
+ * PATCH /api/admin/quotes            — update a draft, or accept / pay / schedule
  */
 import { json, clean, newId } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import {
-  newToken, normalizeLineItems, quoteFromRow, defaultExpiry, logQuoteEvent, attachQuoteEvents
+  newToken, normalizeLineItems, quoteFromRow, defaultExpiry, logQuoteEvent, attachQuoteEvents,
+  normalizePaymentMethod, PAYMENT_METHOD_LABELS, applyScheduleToLineItems, parseStoredLineItems
 } from '../../_lib/quotes.js';
 
 const guard = async (request, env) => {
@@ -132,23 +133,118 @@ export async function onRequestPatch({ request, env }) {
   const existing = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
   if (!existing) return json({ error: 'Quote not found.' }, 404);
 
-  const action = clean(body.action, 20);
+  const action = clean(body.action, 30);
+  const now = new Date().toISOString();
+
   if (action === 'archive') {
     await env.DB.prepare(
       'UPDATE quotes SET archived_at = ?, updated_at = ? WHERE id = ?'
-    ).bind(new Date().toISOString(), new Date().toISOString(), id).run();
+    ).bind(now, now, id).run();
     return json({ ok: true, action: 'archived' });
   }
   if (action === 'restore') {
     await env.DB.prepare(
       'UPDATE quotes SET archived_at = NULL, updated_at = ? WHERE id = ?'
-    ).bind(new Date().toISOString(), id).run();
+    ).bind(now, id).run();
     return json({ ok: true, action: 'restored' });
   }
   if (action === 'delete') {
     await env.DB.prepare('DELETE FROM quote_events WHERE quote_id = ?').bind(id).run();
     await env.DB.prepare('DELETE FROM quotes WHERE id = ?').bind(id).run();
     return json({ ok: true, action: 'deleted' });
+  }
+
+  if (action === 'accept') {
+    if (existing.status === 'paid') {
+      return json({ error: 'This quote is already paid.' }, 400);
+    }
+    await env.DB.prepare(
+      `UPDATE quotes SET status = 'accepted', accepted_at = COALESCE(accepted_at, ?),
+        declined_at = NULL, updated_at = ? WHERE id = ?`
+    ).bind(now, now, id).run();
+    await logQuoteEvent(env.DB, id, 'accepted', { by: 'admin' });
+    if (existing.lead_id) {
+      await env.DB.prepare(
+        `UPDATE leads SET status = 'booked', updated_at = ? WHERE id = ?`
+      ).bind(now, existing.lead_id).run();
+    }
+    const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
+    return json({ ok: true, action: 'accepted', quote: quoteFromRow(row) });
+  }
+
+  if (action === 'pay' || action === 'update_payment') {
+    const method = normalizePaymentMethod(body.payment_method);
+    if (!method) {
+      return json({ error: 'Choose how they paid: Cash, Zelle, PayPal, or Other.' }, 400);
+    }
+    const note = method === 'other' ? clean(body.payment_note, 200) : '';
+    if (method === 'other' && !note) {
+      return json({ error: 'Add a short note for “Other” (e.g. Venmo, check).' }, 400);
+    }
+    const wasPaid = existing.status === 'paid' && existing.paid_at;
+    await env.DB.prepare(
+      `UPDATE quotes SET status = 'paid',
+        accepted_at = COALESCE(accepted_at, ?),
+        paid_at = COALESCE(paid_at, ?),
+        payment_method = ?, payment_note = ?,
+        declined_at = NULL, updated_at = ?
+       WHERE id = ?`
+    ).bind(now, now, method, note || null, now, id).run();
+    await logQuoteEvent(
+      env.DB,
+      id,
+      wasPaid || action === 'update_payment' ? 'payment_updated' : 'paid',
+      { method, note: note || null, label: PAYMENT_METHOD_LABELS[method], by: 'admin' }
+    );
+    if (existing.lead_id) {
+      await env.DB.prepare(
+        `UPDATE leads SET status = 'booked', updated_at = ? WHERE id = ?`
+      ).bind(now, existing.lead_id).run();
+    }
+    const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
+    return json({ ok: true, action: wasPaid ? 'payment_updated' : 'paid', quote: quoteFromRow(row) });
+  }
+
+  if (action === 'unpay') {
+    if (existing.status !== 'paid') {
+      return json({ error: 'This quote is not marked paid.' }, 400);
+    }
+    await env.DB.prepare(
+      `UPDATE quotes SET status = 'accepted', paid_at = NULL,
+        payment_method = NULL, payment_note = NULL, updated_at = ?
+       WHERE id = ?`
+    ).bind(now, id).run();
+    await logQuoteEvent(env.DB, id, 'payment_updated', { cleared: true, by: 'admin' });
+    const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
+    return json({ ok: true, action: 'unpaid', quote: quoteFromRow(row) });
+  }
+
+  if (action === 'update_schedule') {
+    let items;
+    try {
+      items = applyScheduleToLineItems(parseStoredLineItems(existing.line_items), body.line_items);
+    } catch (err) {
+      return json({ error: String(err.message || err) }, 400);
+    }
+    const before = parseStoredLineItems(existing.line_items);
+    const changed = JSON.stringify(before.map((it) => ({ r: !!it.recurring, f: it.frequency || null }))) !==
+      JSON.stringify(items.map((it) => ({ r: !!it.recurring, f: it.frequency || null })));
+    if (!changed) {
+      return json({ ok: true, action: 'schedule_unchanged', quote: quoteFromRow(existing) });
+    }
+    await env.DB.prepare(
+      'UPDATE quotes SET line_items = ?, updated_at = ? WHERE id = ?'
+    ).bind(JSON.stringify(items), now, id).run();
+    await logQuoteEvent(env.DB, id, 'schedule_updated', {
+      by: 'admin',
+      items: items.map((it) => ({
+        label: it.label,
+        recurring: !!it.recurring,
+        frequency: it.frequency || null
+      }))
+    });
+    const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
+    return json({ ok: true, action: 'schedule_updated', quote: quoteFromRow(row) });
   }
 
   if (existing.status !== 'draft') return json({ error: 'Only draft quotes can be edited.' }, 400);

@@ -2,8 +2,24 @@
 
 import { newId } from './util.js';
 
-export const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'declined', 'expired'];
+export const QUOTE_STATUSES = ['draft', 'sent', 'accepted', 'declined', 'expired', 'paid'];
 export const EMAIL_STATUSES = ['pending', 'sending', 'sent', 'delivered', 'opened', 'failed', 'bounced'];
+
+export const PAYMENT_METHODS = ['cash', 'zelle', 'paypal', 'other'];
+export const PAYMENT_METHOD_LABELS = {
+  cash: 'Cash',
+  zelle: 'Zelle',
+  paypal: 'PayPal',
+  other: 'Other'
+};
+
+/** Recurring visit cadence on a line item (null / omitted = one-time). */
+export const LINE_FREQUENCIES = ['weekly', 'biweekly', 'monthly'];
+export const LINE_FREQUENCY_LABELS = {
+  weekly: 'Weekly',
+  biweekly: 'Every two weeks',
+  monthly: 'Monthly'
+};
 
 export const QUOTE_EVENT_LABELS = {
   created: 'Quote Created',
@@ -15,8 +31,32 @@ export const QUOTE_EVENT_LABELS = {
   viewed: 'Quote Viewed',
   accepted: 'Quote Accepted',
   declined: 'Quote Declined',
-  expired: 'Quote Expired'
+  expired: 'Quote Expired',
+  paid: 'Marked Paid',
+  payment_updated: 'Payment Updated',
+  schedule_updated: 'Schedule Updated'
 };
+
+export function isRecurringFlag(value) {
+  return value === true || value === 1 || value === '1' ||
+    String(value || '').toLowerCase() === 'true';
+}
+
+export function normalizePaymentMethod(value) {
+  const m = String(value || '').trim().toLowerCase();
+  return PAYMENT_METHODS.includes(m) ? m : null;
+}
+
+export function normalizeLineFrequency(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return null;
+  if (LINE_FREQUENCIES.includes(raw)) return raw;
+  if (raw === 'every two weeks' || raw === 'bi-weekly' || raw === 'bi weekly') return 'biweekly';
+  if (raw === 'one time' || raw === 'onetime' || raw === 'one-time') return null;
+  if (raw === 'weekly') return 'weekly';
+  if (raw === 'monthly') return 'monthly';
+  return null;
+}
 
 /** Human-readable Title Case for status slugs shown in the admin UI. */
 export function titleCase(value) {
@@ -59,12 +99,41 @@ export function normalizeLineItems(raw) {
       ? Math.max(0, Math.round(+row.unit_price))
       : parseDollars(row.unit_dollars);
     const total = qty * unitPrice;
+    const recurring = isRecurringFlag(row.recurring);
+    const frequency = recurring ? (normalizeLineFrequency(row.frequency) || 'biweekly') : null;
 
-    return { label, description, qty, unit_price: unitPrice, total };
+    return {
+      label,
+      description,
+      qty,
+      unit_price: unitPrice,
+      total,
+      recurring: !!recurring,
+      frequency
+    };
   });
 
   const subtotal = items.reduce((sum, it) => sum + it.total, 0);
   return { items, subtotal, tax: 0, total: subtotal };
+}
+
+/** Overlay recurring / frequency onto existing line items without changing prices. */
+export function applyScheduleToLineItems(existingItems, incoming) {
+  if (!Array.isArray(existingItems) || !existingItems.length) {
+    throw new Error('This quote has no line items.');
+  }
+  if (!Array.isArray(incoming) || incoming.length !== existingItems.length) {
+    throw new Error('Line count does not match this quote.');
+  }
+  return existingItems.map((it, i) => {
+    const row = incoming[i] || {};
+    const recurring = isRecurringFlag(row.recurring);
+    return {
+      ...it,
+      recurring: !!recurring,
+      frequency: recurring ? (normalizeLineFrequency(row.frequency) || 'biweekly') : null
+    };
+  });
 }
 
 export function parseStoredLineItems(json) {

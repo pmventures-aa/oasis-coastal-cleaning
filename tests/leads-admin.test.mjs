@@ -26,5 +26,7 @@ assert.match(admin, /catalogQuoteLinesFromLead/);
 assert.match(admin, /data-copy-link/);
 assert.match(admin, /admin-banner/);
 assert.match(admin, /visibilitychange/);
+assert.match(admin, /Mark paid/);
+assert.match(admin, /quote-recurring/);
 
 console.log('leads-admin.test.mjs: ok');

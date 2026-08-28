@@ -856,6 +856,10 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
   color: var(--oasis-gold); padding: 0 0 0.6rem; border-bottom: 1px solid var(--oasis-line);
 }
 .proposal__table td { padding: 0.75rem 0.5rem 0.75rem 0; border-bottom: 1px solid var(--oasis-line); vertical-align: top; }
+.proposal__recur {
+  display: inline-block; margin-top: 0.2rem;
+  font-size: 0.72rem; font-weight: 700; color: var(--oasis-teal);
+}
 .proposal__qty { text-align: center; width: 3rem; color: var(--oasis-muted); }
 .proposal__amt { text-align: right; white-space: nowrap; font-weight: 700; width: 6rem; }
 .proposal__totals { margin-top: 0.5rem; }

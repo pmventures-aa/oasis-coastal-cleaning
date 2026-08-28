@@ -10,13 +10,30 @@
   if (!root) { return; }
 
   var STATUSES = ['new', 'contacted', 'quoted', 'booked', 'closed'];
-  var QUOTE_STATUS_LABELS = { draft: 'Draft', sent: 'Sent', accepted: 'Accepted', declined: 'Declined', expired: 'Expired' };
+  var QUOTE_STATUS_LABELS = {
+    draft: 'Draft', sent: 'Sent', accepted: 'Accepted', declined: 'Declined',
+    expired: 'Expired', paid: 'Paid'
+  };
   var EMAIL_STATUS_LABELS = { pending: 'Pending', sending: 'Sending', sent: 'Sent', delivered: 'Delivered', opened: 'Opened', failed: 'Failed', bounced: 'Bounced' };
   var EVENT_LABELS = {
     created: 'Quote Created', sent: 'Email Sent', email_delivered: 'Email Delivered',
     email_opened: 'Email Opened', email_bounced: 'Email Bounced', email_failed: 'Email Failed',
-    viewed: 'Quote Viewed', accepted: 'Quote Accepted', declined: 'Quote Declined', expired: 'Quote Expired'
+    viewed: 'Quote Viewed', accepted: 'Quote Accepted', declined: 'Quote Declined', expired: 'Quote Expired',
+    paid: 'Marked Paid', payment_updated: 'Payment Updated',
+    schedule_updated: 'Schedule Updated'
   };
+  var PAYMENT_METHODS = [
+    { id: 'cash', label: 'Cash' },
+    { id: 'zelle', label: 'Zelle' },
+    { id: 'paypal', label: 'PayPal' },
+    { id: 'other', label: 'Other' }
+  ];
+  var LINE_FREQS = [
+    { id: 'weekly', label: 'Weekly' },
+    { id: 'biweekly', label: 'Every two weeks' },
+    { id: 'monthly', label: 'Monthly' }
+  ];
+  var LINE_FREQ_LABELS = { weekly: 'Weekly', biweekly: 'Every two weeks', monthly: 'Monthly' };
 
   var state = {
     view: 'active', filter: '', followup: false, open: null, leadTab: {},
@@ -237,9 +254,39 @@
   }
 
   function quotePill(status) {
-    var mapped = status === 'sent' ? 'quoted' : status === 'accepted' ? 'booked'
+    var mapped = status === 'sent' ? 'quoted'
+      : (status === 'accepted' || status === 'paid') ? 'booked'
       : (status === 'declined' || status === 'expired') ? 'closed' : 'new';
     return pill(mapped, QUOTE_STATUS_LABELS[status] || status);
+  }
+
+  function paymentMethodLabel(method) {
+    for (var i = 0; i < PAYMENT_METHODS.length; i++) {
+      if (PAYMENT_METHODS[i].id === method) return PAYMENT_METHODS[i].label;
+    }
+    return method || '';
+  }
+
+  function leadQuoteBadge(l) {
+    if (!l || !l.latest_quote_status || l.latest_quote_status === 'draft') return '';
+    var paid = l.latest_quote_status === 'paid';
+    var accepted = l.latest_quote_status === 'accepted';
+    var cls = paid || accepted ? 'pill--booked' : 'pill--quoted';
+    var label = QUOTE_STATUS_LABELS[l.latest_quote_status] || l.latest_quote_status;
+    if (paid && l.latest_payment_method) {
+      label = 'Paid · ' + paymentMethodLabel(l.latest_payment_method);
+    }
+    return '<span class="pill ' + cls + '">' + esc(label) + '</span>';
+  }
+
+  function freqFromLead(l) {
+    var raw = String((l && l.frequency) || '').toLowerCase();
+    if (!raw || raw.indexOf('one') !== -1) return null;
+    if (raw.indexOf('week') !== -1 && raw.indexOf('two') !== -1) return 'biweekly';
+    if (raw.indexOf('bi') !== -1) return 'biweekly';
+    if (raw.indexOf('week') !== -1) return 'weekly';
+    if (raw.indexOf('month') !== -1) return 'monthly';
+    return null;
   }
 
   function field(l, col, value, opts) {
@@ -291,11 +338,7 @@
 
     var followFlag = l.followup && l.followup !== 'none'
       ? '<span class="pill pill--flag">' + (l.followup === 'visit' ? 'Wants a visit' : 'Wants a call') + '</span>' : '';
-    var quoteBadge = '';
-    if (l.latest_quote_status && l.latest_quote_status !== 'draft') {
-      var ql = QUOTE_STATUS_LABELS[l.latest_quote_status] || l.latest_quote_status;
-      quoteBadge = '<span class="pill pill--quoted">' + esc(ql) + '</span>';
-    }
+    var quoteBadge = leadQuoteBadge(l);
 
     var lookupHint = state.propertyLookupConfigured === false
       ? '<p class="profile__lookup-setup muted">Property lookup needs a free RentCast key: ' +
@@ -395,7 +438,7 @@
           '</div>' +
           '<button type="button" class="btn btn--ghost btn--tiny" data-ptab-jump="intake">Edit on Profile</button>' +
         '</div>' +
-        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Add line items and send — or resend a quote already out.</p>' +
+        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Add line items and send. On a sent quote you can mark accepted, record payment (cash / Zelle / PayPal), and tick Recurring on any line.</p>' +
         '<div class="quote-panel__body"><p class="muted" style="font-size:var(--step--1)">Loading quotes…</p></div></div>' +
 
       leadActions(l) +
@@ -406,10 +449,7 @@
   function row(l) {
     var flag = l.followup && l.followup !== 'none'
       ? '<span class="pill pill--flag">' + (l.followup === 'visit' ? 'Wants a visit' : 'Wants a call') + '</span>' : '';
-    var qBadge = '';
-    if (l.latest_quote_status && l.latest_quote_status !== 'draft') {
-      qBadge = '<span class="pill pill--quoted">' + esc(QUOTE_STATUS_LABELS[l.latest_quote_status] || l.latest_quote_status) + '</span>';
-    }
+    var qBadge = leadQuoteBadge(l);
     var open = state.open === l.id;
     return '<article class="lead' + (open ? ' is-open' : '') + '" data-id="' + esc(l.id) + '">' +
       '<button type="button" class="lead__head" data-toggle aria-expanded="' + open + '">' +
@@ -523,7 +563,14 @@
   function catalogQuoteLinesFromLead(l) {
     if (!l) return [];
     var seed = quoteSeedFromLead(l);
-    var lines = [{ label: seed.label, qty: 1, unit_dollars: '' }];
+    var leadFreq = freqFromLead(l);
+    var lines = [{
+      label: seed.label,
+      qty: 1,
+      unit_dollars: '',
+      recurring: !!leadFreq,
+      frequency: leadFreq || 'biweekly'
+    }];
     list(l.add_ons).forEach(function (name) {
       var item = findCatalogByLabel(name);
       if (item) {
@@ -531,10 +578,12 @@
           catalog_id: item.id,
           label: item.label,
           qty: 1,
-          unit_dollars: String(catalogPrice(item))
+          unit_dollars: String(catalogPrice(item)),
+          recurring: false,
+          frequency: 'biweekly'
         });
       } else {
-        lines.push({ label: name, qty: 1, unit_dollars: '' });
+        lines.push({ label: name, qty: 1, unit_dollars: '', recurring: false, frequency: 'biweekly' });
       }
     });
     return lines;
@@ -542,12 +591,25 @@
 
   function quoteLineHtml(line) {
     line = line || {};
-    return '<div class="quote-line"' + (line.catalog_id ? ' data-catalog-id="' + esc(line.catalog_id) + '"' : '') + '>' +
+    var recurring = !!line.recurring;
+    var freq = line.frequency || 'biweekly';
+    var freqOpts = LINE_FREQS.map(function (f) {
+      return '<option value="' + esc(f.id) + '"' + (f.id === freq ? ' selected' : '') + '>' + esc(f.label) + '</option>';
+    }).join('');
+    return '<div class="quote-line' + (recurring ? ' is-recurring' : '') + '"' +
+      (line.catalog_id ? ' data-catalog-id="' + esc(line.catalog_id) + '"' : '') + '>' +
       '<input type="text" class="quote-label" placeholder="Description" value="' + esc(line.label || '') + '">' +
       '<input type="number" class="quote-qty" min="1" value="' + esc(line.qty || 1) + '">' +
       '<input type="text" class="quote-price" inputmode="decimal" placeholder="$0.00" value="' +
-        esc(line.unit_dollars != null ? line.unit_dollars : (line.unit_price ? (line.unit_price / 100).toFixed(2) : '')) + '">' +
-      '<button type="button" class="quote-line__remove" data-remove-line>&times;</button></div>';
+        esc(line.unit_dollars != null ? line.unit_dollars : (line.unit_price != null ? (line.unit_price / 100).toFixed(2) : '')) + '">' +
+      '<button type="button" class="quote-line__remove" data-remove-line aria-label="Remove line">&times;</button>' +
+      '<label class="quote-line__recur">' +
+        '<input type="checkbox" class="quote-recurring" ' + (recurring ? 'checked' : '') + '> Recurring' +
+      '</label>' +
+      '<label class="quote-line__freq"' + (recurring ? '' : ' hidden') + '>' +
+        '<span class="sr-only">Frequency</span>' +
+        '<select class="quote-frequency"' + (recurring ? '' : ' disabled') + '>' + freqOpts + '</select>' +
+      '</label></div>';
   }
 
   function catalogSections() {
@@ -576,7 +638,9 @@
 
   function catalogRowHtml(item) {
     var price = catalogPrice(item);
-    return '<div class="quote-catalog__row" data-catalog-row data-catalog-id="' + esc(item.id) + '" data-catalog-label="' + esc(item.label) + '">' +
+    return '<div class="quote-catalog__row" data-catalog-row data-catalog-id="' + esc(item.id) +
+      '" data-catalog-label="' + esc(item.label) +
+      '" data-catalog-recurring="' + (item.recurring ? '1' : '0') + '">' +
       '<span class="quote-catalog__name">' + esc(item.label) + '</span>' +
       '<label class="quote-catalog__price">' +
         '<span class="sr-only">Price for ' + esc(item.label) + '</span>' +
@@ -687,6 +751,9 @@
       return;
     }
     var price = String(Math.round(priceNum * 100) / 100);
+    var catalogRecurring = row.getAttribute('data-catalog-recurring') === '1';
+    var lead = state.leads.find(function (l) { return l.id === editor.dataset.leadId; });
+    var leadFreq = freqFromLead(lead);
 
     var lines = editor.querySelector('.quote-lines');
     var existing = null;
@@ -715,7 +782,9 @@
         catalog_id: id,
         label: label,
         qty: 1,
-        unit_dollars: price
+        unit_dollars: price,
+        recurring: catalogRecurring,
+        frequency: leadFreq || 'biweekly'
       }));
     }
     updateQuoteTotal(editor);
@@ -836,9 +905,18 @@
     var bits = [];
     if (q.email_status && q.email_status !== 'pending') bits.push(EMAIL_STATUS_LABELS[q.email_status] || q.email_status);
     if (q.first_viewed_at) bits.push('Viewed' + (q.view_count > 1 ? ' (' + q.view_count + '×)' : ''));
-    if (q.accepted_at) bits.push('Accepted');
-    else if (q.declined_at) bits.push('Declined');
+    if (q.status === 'paid' || q.paid_at) {
+      bits.push('Paid' + (q.payment_method ? ' · ' + paymentMethodLabel(q.payment_method) : ''));
+    } else if (q.status === 'accepted' || q.accepted_at) {
+      bits.push('Accepted · awaiting payment');
+    } else if (q.declined_at) bits.push('Declined');
     else if (q.status === 'sent' && !q.first_viewed_at) bits.push('Awaiting response');
+    var recur = (q.line_items || []).filter(function (it) { return it.recurring; });
+    if (recur.length) {
+      bits.push(recur.map(function (it) {
+        return LINE_FREQ_LABELS[it.frequency] || 'Recurring';
+      }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(', '));
+    }
     return bits.join(' · ');
   }
 
@@ -858,6 +936,19 @@
         if (ev.kind === 'accepted' && detail && detail.add_ons && detail.add_ons.length) {
           meta += ' · Add-ons: ' + detail.add_ons.map(function (a) { return a.label || a.id; }).join(', ');
         }
+        if (ev.kind === 'accepted' && detail && detail.by === 'admin') meta += ' · by Kristina';
+        if ((ev.kind === 'paid' || ev.kind === 'payment_updated') && detail) {
+          if (detail.cleared) meta += ' · payment cleared';
+          else if (detail.label || detail.method) {
+            meta += ' · ' + (detail.label || paymentMethodLabel(detail.method));
+            if (detail.note) meta += ' (“' + detail.note + '”)';
+          }
+        }
+        if (ev.kind === 'schedule_updated' && detail && detail.items) {
+          var cadences = detail.items.filter(function (it) { return it.recurring; })
+            .map(function (it) { return (it.label || '') + ': ' + (LINE_FREQ_LABELS[it.frequency] || 'Recurring'); });
+          meta += cadences.length ? ' · ' + cadences.join(', ') : ' · all one-time';
+        }
         var kindLabel = (ev.kind === 'sent' && detail && detail.resend)
           ? 'Email Resent'
           : (EVENT_LABELS[ev.kind] || ev.kind);
@@ -867,15 +958,85 @@
       }).join('') + '</div></div></details>';
   }
 
+  function payPickerHtml(q) {
+    var current = q.payment_method || 'zelle';
+    var radios = PAYMENT_METHODS.map(function (m) {
+      var checked = current === m.id ? ' checked' : '';
+      return '<label class="quote-pay__opt">' +
+        '<input type="radio" name="pay-' + esc(q.id) + '" value="' + esc(m.id) + '" data-pay-method' + checked + '>' +
+        '<span>' + esc(m.label) + '</span></label>';
+    }).join('');
+    var showNote = current === 'other';
+    return '<div class="quote-pay" data-pay-picker hidden>' +
+      '<p class="quote-pay__hint muted">For your records — nothing is charged online.</p>' +
+      '<span class="quote-pay__k">Paid by</span>' +
+      '<div class="quote-pay__methods">' + radios + '</div>' +
+      '<label class="quote-pay__field quote-pay__note-wrap"' + (showNote ? '' : ' hidden') + '>' +
+        '<span class="quote-pay__k">Note for Other</span>' +
+        '<input type="text" class="quote-pay__note" data-pay-note maxlength="200" placeholder="e.g. Venmo, check #" value="' +
+          esc(q.payment_note || '') + '"></label>' +
+      '<div class="quote-pay__acts">' +
+        '<button type="button" class="btn btn--primary btn--tiny" data-confirm-pay data-quote-id="' + esc(q.id) + '">Save payment</button>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-cancel-pay>Cancel</button>' +
+      '</div></div>';
+  }
+
+  function quoteScheduleHtml(q) {
+    var items = q.line_items || [];
+    if (!items.length) return '';
+    var canEdit = !q.archived_at;
+    return '<div class="quote-card-lines" data-quote-schedule="' + esc(q.id) + '">' +
+      items.map(function (it, i) {
+        var recurring = !!it.recurring;
+        var freq = it.frequency || 'biweekly';
+        var freqOpts = LINE_FREQS.map(function (f) {
+          return '<option value="' + esc(f.id) + '"' + (f.id === freq ? ' selected' : '') + '>' + esc(f.label) + '</option>';
+        }).join('');
+        var cadence = canEdit
+          ? '<label class="quote-line__recur">' +
+              '<input type="checkbox" class="quote-recurring" ' + (recurring ? 'checked' : '') + '> Recurring</label>' +
+            '<label class="quote-line__freq"' + (recurring ? '' : ' hidden') + '>' +
+              '<span class="sr-only">Frequency</span>' +
+              '<select class="quote-frequency"' + (recurring ? '' : ' disabled') + '>' + freqOpts + '</select></label>'
+          : (recurring
+            ? '<span class="quote-card-line__cadence">' + esc(LINE_FREQ_LABELS[it.frequency] || 'Recurring') + '</span>'
+            : '<span class="quote-card-line__cadence muted">One time</span>');
+        return '<div class="quote-card-line' + (recurring ? ' is-recurring' : '') + '" data-line-idx="' + i + '">' +
+          '<div class="quote-card-line__main">' +
+            '<span>' + esc(it.label) + '</span>' +
+            '<strong>' + esc(money(it.total)) + '</strong>' +
+          '</div>' + cadence + '</div>';
+      }).join('') +
+      (canEdit ? '<p class="quote-card-lines__hint muted">Tick Recurring and pick how often — saves as you change it.</p>' : '') +
+    '</div>';
+  }
+
   function quoteCard(q) {
     var summary = trackingSummary(q);
     var isArchived = !!q.archived_at;
     var canResend = !isArchived && (q.status === 'sent' || q.status === 'declined');
+    var canAccept = !isArchived && q.status !== 'accepted' && q.status !== 'paid';
+    var canPay = !isArchived && q.status !== 'paid';
+    var isPaid = q.status === 'paid' || !!q.paid_at;
     var to = q.customer_email || '';
     var proposalUrl = (typeof location !== 'undefined' ? location.origin : '') + '/proposal?t=' + q.token;
     var acts = '';
+    if (canAccept) {
+      acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="accept" data-quote-id="' +
+        esc(q.id) + '">Mark accepted</button>';
+    }
+    if (canPay) {
+      acts += '<button type="button" class="btn btn--primary btn--tiny" data-quote-action="pay" data-quote-id="' +
+        esc(q.id) + '">Mark paid</button>';
+    }
+    if (isPaid && !isArchived) {
+      acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="pay" data-quote-id="' +
+        esc(q.id) + '">Change payment</button>';
+      acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="unpay" data-quote-id="' +
+        esc(q.id) + '">Clear paid</button>';
+    }
     if (canResend) {
-      acts += '<button type="button" class="btn btn--primary btn--tiny" data-quote-action="resend" data-quote-id="' +
+      acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="resend" data-quote-id="' +
         esc(q.id) + '" data-quote-email="' + esc(to) + '">Resend</button>';
     }
     if (isArchived) {
@@ -887,7 +1048,17 @@
         '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="archive" data-quote-id="' + esc(q.id) + '">Archive</button>' +
         '<button type="button" class="btn btn--danger btn--tiny" data-quote-action="delete" data-quote-id="' + esc(q.id) + '">Delete</button>';
     }
-    return '<details class="acc acc--quote" data-quote-id="' + esc(q.id) + '"' + (q.status === 'sent' && !isArchived ? ' open' : '') + '>' +
+    var payLine = '';
+    if (isPaid) {
+      payLine = '<p class="quote-card-mini__pay">' +
+        '<strong>Paid</strong> via ' + esc(paymentMethodLabel(q.payment_method) || '—') +
+        (q.payment_note ? ' — ' + esc(q.payment_note) : '') +
+        (q.paid_at ? ' · ' + esc(fullDate(q.paid_at)) : '') +
+        '</p>';
+    }
+    var paidRecent = isPaid && q.paid_at && (Date.now() - Date.parse(q.paid_at) < 14 * 86400000);
+    var openByDefault = !isArchived && (q.status === 'sent' || q.status === 'accepted' || paidRecent);
+    return '<details class="acc acc--quote" data-quote-id="' + esc(q.id) + '" data-quote-status="' + esc(q.status || '') + '"' + (openByDefault ? ' open' : '') + '>' +
       '<summary class="acc__sum acc__sum--quote">' +
         '<span class="acc__icon" aria-hidden="true"></span>' + esc(money(q.total)) + ' · ' + esc(QUOTE_STATUS_LABELS[q.status] || q.status) +
         (isArchived ? ' · Archived' : '') +
@@ -901,6 +1072,9 @@
           : '') +
         (to ? '<p class="quote-card-mini__track muted">To ' + esc(to) + '</p>' : '') +
         (summary ? '<p class="quote-card-mini__track muted">' + esc(summary) + '</p>' : '') +
+        payLine +
+        quoteScheduleHtml(q) +
+        payPickerHtml(q) +
         quoteTimeline(q) +
         '<div class="quote-card-mini__acts">' + acts + '</div></div></details>';
   }
@@ -1045,10 +1219,14 @@
       id: editor.dataset.quoteId || undefined,
       lead_id: editor.dataset.leadId || undefined,
       line_items: Array.prototype.map.call(editor.querySelectorAll('.quote-line'), function (row) {
+        var recurEl = row.querySelector('.quote-recurring');
+        var freqEl = row.querySelector('.quote-frequency');
         return {
           label: row.querySelector('.quote-label').value,
           qty: row.querySelector('.quote-qty').value,
-          unit_dollars: row.querySelector('.quote-price').value
+          unit_dollars: row.querySelector('.quote-price').value,
+          recurring: !!(recurEl && recurEl.checked),
+          frequency: freqEl ? freqEl.value : 'biweekly'
         };
       }),
       notes: editor.querySelector('.quote-notes').value,
@@ -1165,16 +1343,90 @@
       (btn.closest('[data-quote-id]') && btn.closest('[data-quote-id]').getAttribute('data-quote-id'));
     var card = btn.closest('.lead');
     var leadId = card && card.dataset.id;
+    var quoteAcc = btn.closest('.acc--quote');
     if (!qid) return;
+
+    if (action === 'pay') {
+      var picker = quoteAcc && quoteAcc.querySelector('[data-pay-picker]');
+      if (picker) {
+        picker.hidden = false;
+        var methodSel = picker.querySelector('[data-pay-method]:checked') || picker.querySelector('[data-pay-method]');
+        if (methodSel) methodSel.focus();
+      }
+      return;
+    }
+
+    if (action === 'accept') {
+      var st = quoteAcc && quoteAcc.getAttribute('data-quote-status');
+      var acceptMsg = st === 'declined'
+        ? 'This quote was declined. Mark it accepted anyway?'
+        : 'Mark this quote as accepted? You can record payment after.';
+      if (!window.confirm(acceptMsg)) return;
+    }
+
     if (action === 'delete' && !window.confirm('Delete this quote permanently?')) return;
+    if (action === 'unpay' && !window.confirm('Clear the paid mark? The quote goes back to Accepted.')) return;
+
     api('/api/admin/quotes', { method: 'PATCH', body: JSON.stringify({ id: qid, action: action }) })
       .then(function (r) {
         if (!r.ok) {
           window.alert(r.body.error || 'That action failed.');
           return;
         }
-        if (leadId) loadQuotes(leadId);
+        if (leadId) {
+          loadQuotes(leadId);
+          if (action === 'accept' || action === 'pay' || action === 'unpay') load();
+        }
       });
+  }
+
+  function saveQuoteSchedule(wrap) {
+    var qid = wrap.getAttribute('data-quote-schedule');
+    if (!qid) return;
+    var items = Array.prototype.map.call(wrap.querySelectorAll('.quote-card-line'), function (row) {
+      var recurEl = row.querySelector('.quote-recurring');
+      var freqEl = row.querySelector('.quote-frequency');
+      return {
+        recurring: !!(recurEl && recurEl.checked),
+        frequency: freqEl ? freqEl.value : 'biweekly'
+      };
+    });
+    api('/api/admin/quotes', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: qid, action: 'update_schedule', line_items: items })
+    }).then(function (r) {
+        if (!r.ok) {
+          window.alert(r.body.error || 'Could not save schedule.');
+        }
+      });
+  }
+
+  function confirmPay(btn) {
+    var qid = btn.getAttribute('data-quote-id');
+    var picker = btn.closest('[data-pay-picker]');
+    var card = btn.closest('.lead');
+    var leadId = card && card.dataset.id;
+    if (!qid || !picker) return;
+    var methodEl = picker.querySelector('[data-pay-method]:checked');
+    var method = methodEl ? methodEl.value : '';
+    var note = ((picker.querySelector('[data-pay-note]') || {}).value || '').trim();
+    btn.disabled = true;
+    api('/api/admin/quotes', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        id: qid,
+        action: 'pay',
+        payment_method: method,
+        payment_note: note
+      })
+    }).then(function (r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        window.alert(r.body.error || 'Could not mark paid.');
+        return;
+      }
+      if (leadId) { loadQuotes(leadId); load(); }
+    });
   }
 
   root.addEventListener('click', function (e) {
@@ -1259,6 +1511,15 @@
       quoteAction(e.target, e.target.dataset.quoteAction);
       return;
     }
+    if (e.target.matches('[data-confirm-pay]')) {
+      confirmPay(e.target);
+      return;
+    }
+    if (e.target.matches('[data-cancel-pay]')) {
+      var payBox = e.target.closest('[data-pay-picker]');
+      if (payBox) payBox.hidden = true;
+      return;
+    }
     if (e.target.matches('[data-add-line]')) {
       var ed = e.target.closest('.quote-editor');
       ed.querySelector('.quote-lines').insertAdjacentHTML('beforeend', quoteLineHtml({}));
@@ -1292,6 +1553,25 @@
     if (e.target.matches('[data-zip-lookup]')) {
       clearTimeout(zipLookupTimer);
       runZipLookup(e.target);
+    }
+    if (e.target.matches('.quote-recurring') || e.target.matches('.quote-frequency')) {
+      var line = e.target.closest('.quote-line, .quote-card-line');
+      if (line) {
+        var recurBox = line.querySelector('.quote-recurring');
+        var on = !!(recurBox && recurBox.checked);
+        line.classList.toggle('is-recurring', on);
+        var freqWrap = line.querySelector('.quote-line__freq');
+        var freqSel = line.querySelector('.quote-frequency');
+        if (freqWrap) freqWrap.hidden = !on;
+        if (freqSel) freqSel.disabled = !on;
+      }
+      var sched = e.target.closest('[data-quote-schedule]');
+      if (sched) saveQuoteSchedule(sched);
+    }
+    if (e.target.matches('[data-pay-method]')) {
+      var picker = e.target.closest('[data-pay-picker]');
+      var noteWrap = picker && picker.querySelector('.quote-pay__note-wrap');
+      if (noteWrap) noteWrap.hidden = e.target.value !== 'other';
     }
   });
 

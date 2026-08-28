@@ -49,7 +49,9 @@ export async function onRequestGet({ request, env }) {
     binds.push(limit);
     const sql = `SELECT l.*,
       (SELECT q.status FROM quotes q WHERE q.lead_id = l.id AND q.archived_at IS NULL
-       ORDER BY q.created_at DESC LIMIT 1) AS latest_quote_status
+       ORDER BY q.created_at DESC LIMIT 1) AS latest_quote_status,
+      (SELECT q.payment_method FROM quotes q WHERE q.lead_id = l.id AND q.archived_at IS NULL
+       ORDER BY q.created_at DESC LIMIT 1) AS latest_payment_method
       FROM leads l WHERE ${where.join(' AND ')} ORDER BY l.created_at DESC LIMIT ?`;
     const { results } = await env.DB.prepare(sql).bind(...binds).all();
 

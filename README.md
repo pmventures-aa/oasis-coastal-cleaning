@@ -216,7 +216,19 @@ functions/                  the API — must stay OUTSIDE public/
   _lib/                     shared helpers, session signing, quote math, emails
 migrations/0001_leads.sql   the leads table
 migrations/0002_quotes.sql  branded quotes customers can accept
+migrations/0003_quote_tracking.sql  email / view timeline
+migrations/0004_archive.sql archive leads and quotes
+migrations/0005_quote_payment.sql  paid status + cash / Zelle / PayPal
 ```
+
+On a branded quote Kristina can **Mark accepted**, then **Mark paid** (Cash, Zelle, PayPal, or Other with a note). Line items can be marked **Recurring** with weekly / every two weeks / monthly — on the draft and on a quote already sent.
+
+After this change, apply the payment columns:
+
+```sh
+npx wrangler d1 migrations apply oasis --remote
+```
+
 
 ## 6. Notes on the build
 

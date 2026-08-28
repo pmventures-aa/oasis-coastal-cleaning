@@ -368,6 +368,12 @@ export function buildFollowupEmail(env, { name, kindLabel, id }) {
 }
 
 /** Line-item table for customer-facing quote emails (amounts in cents). */
+const FREQ_LABELS = {
+  weekly: 'Weekly',
+  biweekly: 'Every two weeks',
+  monthly: 'Monthly'
+};
+
 function lineItemsTable(items, { moneyFn = cents } = {}) {
   if (!items || !items.length) return '';
   const rows = items.map((it, i) => {
@@ -375,10 +381,13 @@ function lineItemsTable(items, { moneyFn = cents } = {}) {
     const desc = it.description
       ? `<br><span style="font-weight:400;color:${C.muted};font-size:12px">${escapeHtml(it.description)}</span>`
       : '';
+    const recur = it.recurring
+      ? `<br><span style="font-weight:600;color:${C.teal};font-size:12px">${escapeHtml(FREQ_LABELS[it.frequency] || 'Recurring')}</span>`
+      : '';
     return (
       `<tr>` +
       `<td style="${border}padding:10px 14px 10px 0;font-family:${FONT_BODY};font-size:14px;line-height:1.5;color:${C.ink};vertical-align:top">` +
-      `${escapeHtml(it.label)}${desc}</td>` +
+      `${escapeHtml(it.label)}${desc}${recur}</td>` +
       `<td style="${border}padding:10px 8px;font-family:${FONT_BODY};font-size:13px;color:${C.muted};text-align:center;vertical-align:top">${escapeHtml(String(it.qty || 1))}</td>` +
       `<td style="${border}padding:10px 0;font-family:${FONT_BODY};font-size:14px;font-weight:700;color:${C.ink};text-align:right;vertical-align:top;white-space:nowrap">` +
       `${escapeHtml(moneyFn(it.total))}</td>` +
@@ -462,7 +471,10 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
     subtitle: service,
     blocks: [
       `Hi ${who},\n\nHere is your quote for ${service}${city}. Open the link below to review and accept.\n`,
-      items.map((it) => `  ${it.qty || 1} × ${it.label} — ${cents(it.total)}`).join('\n'),
+      items.map((it) => {
+        const cadence = it.recurring ? ` (${FREQ_LABELS[it.frequency] || 'Recurring'})` : '';
+        return `  ${it.qty || 1} × ${it.label}${cadence} — ${cents(it.total)}`;
+      }).join('\n'),
       `\nTotal: ${cents(quote.total)}`,
       expiry ? `\nValid through: ${expiry}` : '',
       quote.notes ? `\nNote from Kristina:\n  ${String(quote.notes).replace(/\n/g, '\n  ')}` : ''

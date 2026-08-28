@@ -102,10 +102,15 @@
     var status = q.status;
     var addons = data.available_addons || [];
 
+    var freqLabels = { weekly: 'Weekly', biweekly: 'Every two weeks', monthly: 'Monthly' };
     var rows = items.map(function (it) {
+      var recur = it.recurring
+        ? '<br><span class="proposal__recur">' + esc(freqLabels[it.frequency] || 'Recurring') + '</span>'
+        : '';
       return '<tr>' +
         '<td><strong>' + esc(it.label) + '</strong>' +
           (it.description ? '<br><span class="muted">' + esc(it.description) + '</span>' : '') +
+          recur +
         '</td>' +
         '<td class="proposal__qty">' + esc(String(it.qty || 1)) + '</td>' +
         '<td class="proposal__amt">' + esc(money(it.total)) + '</td>' +
@@ -126,6 +131,9 @@
     } else if (status === 'accepted') {
       actions = '<div class="proposal__done proposal__done--ok">' +
         '<strong>Accepted</strong> — thank you. Kristina will be in touch shortly to confirm your visit.</div>';
+    } else if (status === 'paid') {
+      actions = '<div class="proposal__done proposal__done--ok">' +
+        '<strong>Booked &amp; paid</strong> — thank you. Kristina will confirm your visit details.</div>';
     } else if (status === 'declined') {
       actions = '<div class="proposal__done">You declined this quote. Reply to Kristina if you would like a revised one.</div>';
     } else if (status === 'expired') {

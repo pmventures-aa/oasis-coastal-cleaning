@@ -104,6 +104,7 @@ export async function onRequestPost({ request, env, params }) {
 
   const quote = quoteFromRow(row);
   if (quote.status === 'accepted') return json({ ok: true, status: 'accepted', message: 'Already accepted.' });
+  if (quote.status === 'paid') return json({ ok: true, status: 'paid', message: 'Already paid.' });
   if (quote.status === 'declined') return json({ ok: true, status: 'declined', message: 'Already declined.' });
   if (quote.status !== 'sent') return json({ error: 'This quote cannot be answered yet.' }, 403);
   if (isExpired(quote)) {

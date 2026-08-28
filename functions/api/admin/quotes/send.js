@@ -28,7 +28,9 @@ export async function onRequestPost({ request, env }) {
   ).bind(id).first();
 
   if (!row) return json({ error: 'Quote not found.' }, 404);
-  if (row.status === 'accepted') return json({ error: 'This quote was already accepted.' }, 400);
+  if (row.status === 'accepted' || row.status === 'paid') {
+    return json({ error: 'This quote was already accepted. Create a new quote to send again.' }, 400);
+  }
   if (row.archived_at) return json({ error: 'Restore this quote before sending again.' }, 400);
 
   const quote = quoteFromRow(row);
