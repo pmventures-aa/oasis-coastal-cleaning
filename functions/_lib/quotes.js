@@ -43,6 +43,23 @@ export const parseDollars = (v) => {
   return Math.round(n * 100);
 };
 
+/* How often a line happens. A quote is rarely all one thing — the clean is
+   every two weeks, the oven is once — so this sits on the line rather than on
+   the quote. Anything unrecognised becomes a one-off, which is the safe
+   reading of "she did not say". */
+export const CADENCES = [
+  { id: 'onetime',  label: 'One time',       short: 'once' },
+  { id: 'weekly',   label: 'Weekly',         short: 'weekly' },
+  { id: 'biweekly', label: 'Every two weeks', short: 'every 2 weeks' },
+  { id: 'monthly',  label: 'Monthly',        short: 'monthly' },
+  { id: 'quarterly', label: 'Quarterly',     short: 'quarterly' }
+];
+
+export const cadenceById = (id) =>
+  CADENCES.find((c) => c.id === id) || CADENCES[0];
+
+export const isRecurring = (id) => Boolean(id) && id !== 'onetime' && CADENCES.some((c) => c.id === id);
+
 /** Normalize line items and compute subtotal/total in cents. */
 export function normalizeLineItems(raw) {
   if (!Array.isArray(raw) || !raw.length) {
@@ -63,7 +80,9 @@ export function normalizeLineItems(raw) {
       : parseDollars(row.unit_dollars));
     const total = qty * unitPrice;
 
-    return { label, description, qty, unit_price: unitPrice, total };
+    const cadence = cadenceById(String(row.cadence || '').trim()).id;
+
+    return { label, description, qty, unit_price: unitPrice, total, cadence };
   });
 
   const subtotal = items.reduce((sum, it) => sum + it.total, 0);

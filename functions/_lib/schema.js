@@ -69,6 +69,9 @@ const COLUMNS = [
   ['quotes', 'accepted_user_agent', 'TEXT'],
   ['quotes', 'reopened_at', 'TEXT'],
   ['quotes', 'reopen_reason', 'TEXT'],
+  ['quotes', 'completed_at', 'TEXT'],
+  ['quotes', 'paid_at', 'TEXT'],
+  ['quotes', 'paid_note', 'TEXT'],
   ['leads', 'archived_at', 'TEXT'],
   ['leads', 'customer_id', 'TEXT'],
   ['leads', 'property_id', 'TEXT']

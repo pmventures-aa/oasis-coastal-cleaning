@@ -19,10 +19,28 @@
     revised: 'Quote Revised', reopened: 'Reopened by Kristina'
   };
 
+  var VIEWS = [
+    { id: 'active',   label: 'Requests' },
+    { id: 'quotes',   label: 'Quotes' },
+    { id: 'pending',  label: 'Awaiting reply' },
+    { id: 'accepted', label: 'Accepted' },
+    { id: 'paid',     label: 'Done & paid' },
+    { id: 'clients',  label: 'Clients' },
+    { id: 'settings', label: 'Settings' }
+  ];
+
+  function viewCount(id, counts, activeTotal) {
+    if (id === 'active') return activeTotal;
+    if (id === 'settings' || id === 'clients') return null;
+    var p = state.pipelineCounts || {};
+    return { quotes: p.drafts, pending: p.pending, accepted: p.accepted, paid: p.paid }[id] || 0;
+  }
+
   var state = {
     view: 'active', filter: '', followup: false, open: null, leadTab: {},
     leads: [], counts: {}, q: '', quotes: {}, composing: false, composingLead: false,
     focusQuoteEditor: null, editingQuote: {}, settings: null, settingsFields: [], health: {},
+    pipeline: null, pipelineCounts: {}, clients: null,
     propertyLookupConfigured: null, emailConfigured: true
   };
 
@@ -202,7 +220,7 @@
   function showSignIn(msg) {
     signout.hidden = true;
     root.innerHTML =
-      '<div class="card signin"><h2>Sign in</h2><p>This is where your quote requests land.</p>' +
+      '<div class="card signin"><h2>Sign in</h2><p>Your requests, quotes and clients.</p>' +
       '<div class="field" style="margin-top:1.2rem"><label for="pw">Password</label>' +
       '<input type="password" id="pw" autocomplete="current-password"></div>' +
       '<div id="signin-err" class="form-status form-status--err" role="alert"' +
@@ -399,7 +417,7 @@
           '</div>' +
           '<button type="button" class="btn btn--ghost btn--tiny" data-ptab-jump="intake">Edit on Profile</button>' +
         '</div>' +
-        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Add line items and send — or resend a quote already out.</p>' +
+        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Add what the job includes, set how often each part happens, then send it.</p>' +
         '<div class="quote-panel__body"><p class="muted" style="font-size:var(--step--1)">Loading quotes…</p></div></div>' +
 
       leadActions(l) +
@@ -435,13 +453,17 @@
         ? '<div class="admin-banner" role="status">Email is not configured yet — save drafts and use <strong>Copy link</strong> to text quotes. Add <code>RESEND_API_KEY</code> in Cloudflare to send from here.</div>'
         : '') +
       '<div class="toolbar">' +
-        '<div class="vtabs">' +
-          '<button type="button" data-view="active"' + (state.view === 'active' ? ' class="is-on"' : '') +
-            '>Active<b>' + activeTotal + '</b></button>' +
-          '<button type="button" data-view="archived"' + (state.view === 'archived' ? ' class="is-on"' : '') +
-            '>Archived<b>' + (counts.archived || 0) + '</b></button>' +
-          '<button type="button" data-view="settings"' + (state.view === 'settings' ? ' class="is-on"' : '') +
-            '>Settings</button>' +
+        /* Arranged the way the work moves rather than by what the database
+           calls things: requests come in, quotes get written, they go out and
+           wait, someone says yes, the job happens, the money arrives. Each is
+           a question she asks at a different moment. */
+        '<div class="vtabs vtabs--pipeline">' +
+          VIEWS.map(function (v) {
+            var n = viewCount(v.id, counts, activeTotal);
+            return '<button type="button" data-view="' + v.id + '"' +
+              (state.view === v.id ? ' class="is-on"' : '') + '>' + esc(v.label) +
+              (n === null ? '' : '<b>' + n + '</b>') + '</button>';
+          }).join('') +
         '</div>' +
         (state.view === 'active'
           ? '<label class="toolbar__select"><span class="sr-only">Status</span><select id="status-filter">' +
@@ -453,21 +475,30 @@
             '<button type="button" class="toolbar__filter' + (state.followup ? ' is-on' : '') +
               '" data-followup-filter>Follow-ups</button>' +
             '<div class="toolbar__actions">' +
-              '<button type="button" class="btn btn--ghost btn--new-lead" data-new-lead>+ New Lead</button>' +
-              '<button type="button" class="btn btn--primary btn--new-quote" data-new-quote>+ New Quote</button>' +
+              '<button type="button" class="btn btn--ghost btn--new-lead" data-new-lead>+ New request</button>' +
+              '<button type="button" class="btn btn--primary btn--new-quote" data-new-quote>+ New quote</button>' +
             '</div>'
           : '') +
-        (state.view === 'settings' ? ''
+        (state.view !== 'active' ? ''
           : '<input type="search" id="search" class="toolbar__search" placeholder="Search name, city, ZIP, phone…" value="' + esc(state.q) + '" autocomplete="off">') +
       '</div>' +
+      (state.view === 'active' && (counts.archived || 0)
+        ? '<p class="toolbar__aside"><button type="button" class="linkish" data-view="archived">' +
+          'View ' + (counts.archived || 0) + ' archived</button></p>'
+        : '') +
+      (state.view === 'archived'
+        ? '<p class="toolbar__aside"><button type="button" class="linkish" data-view="active">' +
+          '&larr; Back to requests</button></p>'
+        : '') +
       (state.composingLead ? newLeadPanelHtml() : '') +
       (state.composing ? newQuotePanelHtml() : '') +
-      (state.view === 'settings'
-        ? settingsHtml()
+      (state.view === 'settings' ? settingsHtml()
+        : state.view === 'clients' ? clientsHtml()
+        : STAGE_FOR_VIEW[state.view] ? pipelineHtml(state.view)
         : state.leads.length
           ? '<div class="leads">' + state.leads.map(row).join('') + '</div>' +
             '<p id="search-empty" class="empty" hidden>Nothing matches.</p>'
-          : '<p class="empty">' + (state.view === 'archived' ? 'No archived leads.' : 'No quote requests yet.') + '</p>');
+          : '<p class="empty">' + (state.view === 'archived' ? 'Nothing archived.' : 'No requests yet. They will appear here the moment someone sends one.') + '</p>');
 
     applySearchFilter();
     if (state.composingLead) {
@@ -549,14 +580,52 @@
     return lines;
   }
 
+  var CADENCES = [
+    { id: 'onetime', label: 'One time' },
+    { id: 'weekly', label: 'Weekly' },
+    { id: 'biweekly', label: 'Every 2 weeks' },
+    { id: 'monthly', label: 'Monthly' },
+    { id: 'quarterly', label: 'Quarterly' }
+  ];
+
+  /* One line of a quote is a small record, not four boxes crammed on a row.
+     Each field is labelled, the price sits where the eye expects it, and every
+     line says whether it repeats — the clean can be fortnightly while the oven
+     is a one-off, and that is normal rather than an edge case. */
   function quoteLineHtml(line) {
     line = line || {};
-    return '<div class="quote-line"' + (line.catalog_id ? ' data-catalog-id="' + esc(line.catalog_id) + '"' : '') + '>' +
-      '<input type="text" class="quote-label" placeholder="Description" value="' + esc(line.label || '') + '">' +
-      '<input type="number" class="quote-qty" min="1" value="' + esc(line.qty || 1) + '">' +
-      '<input type="text" class="quote-price" inputmode="decimal" placeholder="$0.00" value="' +
-        esc(line.unit_dollars != null ? line.unit_dollars : (line.unit_price ? (line.unit_price / 100).toFixed(2) : '')) + '">' +
-      '<button type="button" class="quote-line__remove" data-remove-line>&times;</button></div>';
+    var price = line.unit_dollars != null
+      ? line.unit_dollars
+      : (line.unit_price ? (line.unit_price / 100).toFixed(2) : '');
+    var cadence = line.cadence || 'onetime';
+    var recurring = cadence !== 'onetime';
+
+    return '<div class="qline' + (recurring ? ' is-recurring' : '') + '"' +
+        (line.catalog_id ? ' data-catalog-id="' + esc(line.catalog_id) + '"' : '') + '>' +
+      '<div class="qline__main">' +
+        '<label class="qline__f qline__f--label"><span>What it is</span>' +
+          '<input type="text" class="quote-label" placeholder="e.g. Home cleaning" value="' +
+          esc(line.label || '') + '"></label>' +
+        '<label class="qline__f qline__f--qty"><span>Qty</span>' +
+          '<input type="number" class="quote-qty" min="1" value="' + esc(line.qty || 1) + '"></label>' +
+        '<label class="qline__f qline__f--price"><span>Amount</span>' +
+          '<span class="qline__money">' +
+            '<i aria-hidden="true">$</i>' +
+            '<input type="text" class="quote-price" inputmode="decimal" placeholder="0.00" value="' +
+            esc(price) + '">' +
+          '</span></label>' +
+      '</div>' +
+      '<div class="qline__meta">' +
+        '<label class="qline__f qline__f--cadence"><span>How often</span>' +
+          '<select class="quote-cadence">' +
+            CADENCES.map(function (c) {
+              return '<option value="' + c.id + '"' + (cadence === c.id ? ' selected' : '') + '>' +
+                esc(c.label) + '</option>';
+            }).join('') +
+          '</select></label>' +
+        '<button type="button" class="qline__remove" data-remove-line ' +
+          'aria-label="Remove this line">Remove</button>' +
+      '</div></div>';
   }
 
   function catalogSections() {
@@ -674,11 +743,16 @@
         ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '">' +
       customerFields +
       '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
+      /* Adding a line is the main way a quote gets built — the saved list is
+         the shortcut, not the other way round — so it is a full-width button
+         under the lines rather than a tiny link beside them. */
       '<div class="quote-lines-actions">' +
-        '<button type="button" class="btn btn--ghost btn--tiny" data-add-line>+ Custom line</button>' +
+        '<button type="button" class="btn btn--primary btn--block" data-add-line>' +
+          '+ Add a line</button>' +
       '</div>' +
       '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
-      quoteCatalogHtml() +
+      '<details class="quote-catalog-wrap"><summary>Or pick from your saved services</summary>' +
+        quoteCatalogHtml() + '</details>' +
       '<label class="pf pf--wide"><span class="pf__k">Note</span><textarea class="pf__v quote-notes" rows="2">' +
         esc(notesVal || '') + '</textarea></label>' +
       (alreadyOut
@@ -712,7 +786,7 @@
 
     var lines = editor.querySelector('.quote-lines');
     var existing = null;
-    Array.prototype.forEach.call(lines.querySelectorAll('.quote-line'), function (line) {
+    Array.prototype.forEach.call(lines.querySelectorAll('.qline'), function (line) {
       var rowId = line.getAttribute('data-catalog-id');
       var rowLabel = (line.querySelector('.quote-label') || {}).value || '';
       if (!existing && ((id && rowId === id) || rowLabel === label)) existing = line;
@@ -724,7 +798,7 @@
       qtyEl.value = String(Math.min(999, (parseInt(qtyEl.value, 10) || 1) + 1));
       if (priceEl) priceEl.value = price;
     } else {
-      var rows = lines.querySelectorAll('.quote-line');
+      var rows = lines.querySelectorAll('.qline');
       if (rows.length === 1) {
         var only = rows[0];
         var onlyPrice = (only.querySelector('.quote-price') || {}).value;
@@ -831,7 +905,7 @@
           if (msg) {
             msg.hidden = false;
             msg.className = 'compose-lead__msg form-status form-status--err';
-            msg.textContent = r.body.error || 'Could not save lead.';
+            msg.textContent = r.body.error || 'Could not save.';
           }
           return;
         }
@@ -1123,6 +1197,185 @@
       });
   }
 
+  /* ---------------------------------------------------------------- clients
+     A person or a company, and every address of theirs. This is the screen
+     that answers "who is this and what else do we clean for them", which the
+     flat list of requests never could. */
+  function clientCard(c) {
+    var props = c.properties || [];
+    var name = c.company ? c.company : c.name;
+    var second = c.company && c.name && c.company !== c.name ? c.name : '';
+
+    return '<article class="ccard" data-customer-id="' + esc(c.id) + '">' +
+      '<div class="ccard__head">' +
+        '<div><h3 class="ccard__name">' + esc(name) + '</h3>' +
+          (second ? '<p class="muted ccard__second">' + esc(second) + '</p>' : '') + '</div>' +
+        '<span class="ccard__count">' + props.length +
+          (props.length === 1 ? ' address' : ' addresses') + '</span>' +
+      '</div>' +
+      '<p class="ccard__reach">' +
+        (c.phone ? '<a href="' + esc(FMT.telHref(c.phone)) + '">' + esc(FMT.formatPhone(c.phone)) + '</a>' : '') +
+        (c.phone && c.email ? '<span class="muted"> · </span>' : '') +
+        (c.email ? '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' : '') +
+      '</p>' +
+      (props.length
+        ? '<ul class="ccard__props">' + props.map(function (p) {
+            var line = [p.label, p.address, p.city].filter(Boolean).join(' · ');
+            var size = [p.bedrooms && p.bedrooms + ' bed', p.bathrooms && p.bathrooms + ' bath', p.size_label]
+              .filter(Boolean).join(' · ');
+            return '<li><strong>' + esc(line || 'Address not filled in yet') + '</strong>' +
+              (size ? '<span class="muted"> — ' + esc(size) + '</span>' : '') + '</li>';
+          }).join('') + '</ul>'
+        : '<p class="muted ccard__props-empty">No addresses recorded yet.</p>') +
+      '<div class="ccard__acts">' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-add-property="' + esc(c.id) + '">' +
+          '+ Add an address</button>' +
+      '</div>' +
+    '</article>';
+  }
+
+  function clientsHtml() {
+    if (!state.clients) return '<p class="empty">Loading…</p>';
+    if (state.clients.error) {
+      return '<div class="empty-state"><h3>Clients are not switched on yet</h3>' +
+        '<p class="muted">' + esc(state.clients.error) + ' Open Settings and press Set them up.</p></div>';
+    }
+    var list = state.clients.customers || [];
+    if (!list.length) {
+      return '<div class="empty-state"><h3>No clients yet</h3>' +
+        '<p class="muted">Everyone who sends a request appears here, with every address you clean for them.</p></div>';
+    }
+    var many = list.filter(function (c) { return (c.properties || []).length > 1; }).length;
+    return (many ? '<p class="pipeline__sum">' + many + ' of these have more than one address.</p>' : '') +
+      '<div class="ccards">' + list.map(clientCard).join('') + '</div>';
+  }
+
+  function loadClients() {
+    state.clients = null;
+    render();
+    api('/api/admin/customers').then(function (r) {
+      state.clients = r.ok ? r.body : { error: r.body.error || 'Could not load clients.' };
+      render();
+    });
+  }
+
+  /* ------------------------------------------------------ pipeline screens
+     One card per quote, showing the thing she needs at that point: who it is
+     for, what it is worth, and the single next action. */
+  var STAGE_FOR_VIEW = { quotes: 'drafts', pending: 'pending', accepted: 'accepted', paid: 'paid' };
+
+  var STAGE_EMPTY = {
+    drafts: ['No quotes in progress', 'Start one from a request, or with + New Quote.'],
+    pending: ['Nothing waiting on a customer', 'Quotes you send will sit here until they answer.'],
+    accepted: ['Nothing accepted yet', 'When someone says yes, the job appears here to be done and paid.'],
+    paid: ['Nothing finished yet', 'Jobs you mark paid are kept here.']
+  };
+
+  function pipelineCard(q, view) {
+    var who = q.customer_name || q.lead_name || 'Someone';
+    var where = [q.lead_service, q.lead_city].filter(Boolean).join(' · ');
+    var when = q.paid_at ? 'Paid ' + when_(q.paid_at)
+      : q.completed_at ? 'Finished ' + when_(q.completed_at)
+      : q.accepted_at ? 'Accepted ' + when_(q.accepted_at)
+      : q.sent_at ? 'Sent ' + when_(q.sent_at)
+      : 'Started ' + when_(q.created_at);
+
+    var flags = '';
+    if (q.status === 'expired') flags += '<span class="pill pill--flag">Expired</span>';
+    if (view === 'accepted' && !q.completed_at) flags += '<span class="pill pill--flag">To do</span>';
+    if (view === 'accepted' && q.completed_at) flags += '<span class="pill pill--quoted">Finished — awaiting payment</span>';
+    if (q.view_count > 0 && view === 'pending') {
+      flags += '<span class="pill pill--quoted">Opened ' + q.view_count + '&times;</span>';
+    }
+
+    var acts = '';
+    if (view === 'pending') {
+      acts = btn('resend', q, 'Send again', 'primary') + copyLinkBtn(q);
+    } else if (view === 'accepted') {
+      acts = (q.completed_at
+        ? btn('uncomplete', q, 'Not finished after all', 'ghost')
+        : btn('complete', q, 'Mark the job done', 'primary')) +
+        btn('paid', q, 'Mark paid', q.completed_at ? 'primary' : 'ghost');
+    } else if (view === 'paid') {
+      acts = btn('unpaid', q, 'Not paid after all', 'ghost');
+    } else if (view === 'quotes') {
+      acts = btn('open-lead', q, 'Open and finish it', 'primary');
+    }
+    acts += '<a class="btn btn--ghost btn--tiny" href="/api/admin/quotes/pdf?id=' + esc(q.id) +
+      '" target="_blank" rel="noopener">PDF</a>';
+
+    return '<article class="pcard">' +
+      '<div class="pcard__head">' +
+        '<div><h3 class="pcard__who">' + esc(who) + '</h3>' +
+          (where ? '<p class="pcard__where muted">' + esc(where) + '</p>' : '') + '</div>' +
+        '<span class="pcard__amt">' + esc(money(q.total)) + '</span>' +
+      '</div>' +
+      (flags ? '<div class="pcard__flags">' + flags + '</div>' : '') +
+      '<p class="pcard__when muted">' + esc(when) + '</p>' +
+      '<div class="pcard__acts">' + acts + '</div>' +
+    '</article>';
+  }
+
+  function btn(action, q, label, kind) {
+    return '<button type="button" class="btn btn--' + kind + ' btn--tiny" ' +
+      'data-quote-action="' + action + '" data-quote-id="' + esc(q.id) + '"' +
+      (q.customer_email ? ' data-quote-email="' + esc(q.customer_email) + '"' : '') +
+      (q.lead_id ? ' data-lead-id="' + esc(q.lead_id) + '"' : '') +
+      '>' + esc(label) + '</button>';
+  }
+
+  function copyLinkBtn(q) {
+    if (!q.token) return '';
+    var url = (typeof location !== 'undefined' ? location.origin : '') + '/proposal?t=' + q.token;
+    return '<button type="button" class="btn btn--ghost btn--tiny" data-copy-link ' +
+      'data-link="' + esc(url) + '">Copy link</button>';
+  }
+
+  var when_ = function (iso) { return when(iso); };
+
+  function pipelineHtml(view) {
+    if (!state.pipeline) return '<p class="empty">Loading…</p>';
+    if (state.pipeline.error) {
+      return '<p class="empty">' + esc(state.pipeline.error) +
+        (state.pipeline.needsSetup ? ' Open Settings and press Set them up.' : '') + '</p>';
+    }
+    var list = state.pipeline.quotes || [];
+    var stage = STAGE_FOR_VIEW[view];
+    if (!list.length) {
+      var e = STAGE_EMPTY[stage] || ['Nothing here', ''];
+      return '<div class="empty-state"><h3>' + esc(e[0]) + '</h3><p class="muted">' + esc(e[1]) + '</p></div>';
+    }
+    var head = '';
+    if (view === 'accepted') {
+      var owed = state.pipelineCounts.outstanding_cents || 0;
+      head = '<p class="pipeline__sum">' + esc(money(owed)) + ' still to collect across ' +
+        list.length + ' job' + (list.length === 1 ? '' : 's') + '.</p>';
+    }
+    return head + '<div class="pcards">' + list.map(function (q) { return pipelineCard(q, view); }).join('') + '</div>';
+  }
+
+  /* The tab counts come from the same query as the lists, so they are fetched
+     once on load — otherwise every tab reads zero until she visits it, which
+     is worse than no number at all. */
+  function loadPipelineCounts() {
+    api('/api/admin/pipeline?stage=pending&limit=1').then(function (r) {
+      if (!r.ok) return;
+      state.pipelineCounts = r.body.counts || {};
+      render();
+    });
+  }
+
+  function loadPipeline(view) {
+    var stage = STAGE_FOR_VIEW[view];
+    state.pipeline = null;
+    render();
+    api('/api/admin/pipeline?stage=' + stage).then(function (r) {
+      state.pipeline = r.ok ? r.body : { error: r.body.error || 'Could not load.', needsSetup: r.body.needsSetup };
+      if (r.ok) state.pipelineCounts = r.body.counts || {};
+      render();
+    });
+  }
+
   function renderQuotePanel(l, quotes) {
     var editingId = state.editingQuote && state.editingQuote[l.id];
     var editing = editingId && (quotes || []).find(function (q) { return q.id === editingId; });
@@ -1266,11 +1519,12 @@
     var payload = {
       id: editor.dataset.quoteId || undefined,
       lead_id: editor.dataset.leadId || undefined,
-      line_items: Array.prototype.map.call(editor.querySelectorAll('.quote-line'), function (row) {
+      line_items: Array.prototype.map.call(editor.querySelectorAll('.qline'), function (row) {
         return {
           label: row.querySelector('.quote-label').value,
           qty: row.querySelector('.quote-qty').value,
-          unit_dollars: row.querySelector('.quote-price').value
+          unit_dollars: row.querySelector('.quote-price').value,
+          cadence: (row.querySelector('.quote-cadence') || {}).value || 'onetime'
         };
       }),
       notes: editor.querySelector('.quote-notes').value,
@@ -1380,7 +1634,7 @@
   function leadAction(card, action) {
     var id = card.dataset.id;
     var msg = action === 'delete' ? 'Delete this lead permanently? This cannot be undone.'
-      : action === 'archive' ? 'Archive this lead? You can restore it from the Archived tab.' : '';
+      : action === 'archive' ? 'Archive this request? You can bring it back from the archived list.' : '';
     if (msg && !window.confirm(msg)) return;
     api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify({ id: id, action: action }) })
       .then(function (r) {
@@ -1412,7 +1666,13 @@
       }
       return;
     }
+    if (action === 'open-lead') {
+      var lid = btn.getAttribute('data-lead-id');
+      if (lid) { state.view = 'active'; state.open = lid; state.leadTab[lid] = 'quotes'; load(); }
+      return;
+    }
     if (action === 'delete' && !window.confirm('Delete this quote permanently?')) return;
+    if (action === 'unpaid' && !window.confirm('Mark this as not paid after all?')) return;
 
     var extra = {};
     if (action === 'reopen') {
@@ -1430,6 +1690,7 @@
           window.alert(r.body.error || 'That action failed.');
           return;
         }
+        if (STAGE_FOR_VIEW[state.view]) { loadPipeline(state.view); return; }
         if (leadId) loadQuotes(leadId);
       });
   }
@@ -1440,6 +1701,8 @@
       state.filter = ''; state.followup = false; state.open = null;
       state.composing = false; state.composingLead = false;
       if (state.view === 'settings') { render(); loadSettings(); return; }
+      if (state.view === 'clients') { loadClients(); return; }
+      if (STAGE_FOR_VIEW[state.view]) { loadPipeline(state.view); return; }
       load(); return;
     }
     if (e.target.matches('[data-new-lead]')) {
@@ -1533,9 +1796,9 @@
       return;
     }
     if (e.target.matches('[data-remove-line]')) {
-      var row = e.target.closest('.quote-line');
+      var row = e.target.closest('.qline');
       var editor = e.target.closest('.quote-editor');
-      if (editor.querySelectorAll('.quote-line').length > 1) { row.remove(); updateQuoteTotal(editor); }
+      if (editor.querySelectorAll('.qline').length > 1) { row.remove(); updateQuoteTotal(editor); }
       return;
     }
     if (e.target.matches('[data-run-setup]')) { runSetup(e.target); return; }
@@ -1554,6 +1817,12 @@
   });
 
   root.addEventListener('change', function (e) {
+    // The teal edge that says "this one repeats" has to follow the dropdown,
+    // not just the state the line was drawn in.
+    if (e.target.matches('.quote-cadence')) {
+      var qline = e.target.closest('.qline');
+      if (qline) qline.classList.toggle('is-recurring', e.target.value !== 'onetime');
+    }
     if (e.target.id === 'status-filter') { state.filter = e.target.value; state.open = null; load(); }
     if (e.target.matches('select[data-col]')) saveField(e.target);
     if (e.target.matches('[data-zip-lookup]')) {
@@ -1877,6 +2146,7 @@
       if (!status.databaseConfigured) { showSetup(status); return; }
       state.propertyLookupConfigured = !!status.propertyLookupConfigured;
       state.emailConfigured = status.emailConfigured !== false;
+      loadPipelineCounts();
 
       var qs = '?archived=' + (state.view === 'archived' ? '1' : '0');
       if (state.filter && state.view === 'active') qs += '&status=' + encodeURIComponent(state.filter);

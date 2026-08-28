@@ -7,7 +7,7 @@
  * how long it stands.
  */
 import { Pdf, COLORS, PAGE, MARGIN, CONTENT_W, textWidth, wrapText } from './pdf.js';
-import { formatMoney } from './quotes.js';
+import { formatMoney, cadenceById, isRecurring } from './quotes.js';
 import { formatDate, formatPhone } from './format.js';
 
 const COL = {
@@ -65,7 +65,8 @@ function lineItems(doc, items) {
   for (const item of items) {
     const nameLines = wrapText(item.label || '', 10.5, W.item, true);
     const noteLines = item.description ? wrapText(item.description, 9, W.item) : [];
-    const needed = nameLines.length * 14 + noteLines.length * 12 + 14;
+    const cadence = isRecurring(item.cadence) ? cadenceById(item.cadence).label : '';
+    const needed = nameLines.length * 14 + noteLines.length * 12 + (cadence ? 12 : 0) + 14;
 
     if (doc.ensure(needed)) { doc.y -= 6; headings(); }
 
@@ -78,6 +79,10 @@ function lineItems(doc, items) {
     doc.text(String(item.qty || 1), COL.qty, rowTop, { size: 10, color: COLORS.muted, align: 'right', width: W.qty });
     doc.text(formatMoney(item.total), COL.amount, rowTop, { size: 10.5, bold: true, color: COLORS.navy, align: 'right', width: W.amount });
 
+    if (cadence) {
+      doc.y -= 12;
+      doc.text(cadence, COL.item, doc.y, { size: 8.5, bold: true, color: COLORS.teal });
+    }
     for (const ln of noteLines) {
       doc.y -= 12;
       doc.text(ln, COL.item, doc.y, { size: 9, color: COLORS.muted });

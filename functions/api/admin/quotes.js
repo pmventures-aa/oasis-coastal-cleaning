@@ -168,6 +168,32 @@ export async function onRequestPatch({ request, env }) {
     return json({ ok: true, action: 'reopened' });
   }
 
+  /* The two things that happen after a yes: the work, and the money. Each is
+     a date rather than a flag, so "when did she finish it" and "when did they
+     pay" are answerable later. Both can be undone — she will mis-tap. */
+  if (action === 'complete' || action === 'uncomplete') {
+    const at = action === 'complete' ? new Date().toISOString() : null;
+    await env.DB.prepare('UPDATE quotes SET completed_at = ?, updated_at = ? WHERE id = ?')
+      .bind(at, new Date().toISOString(), id).run();
+    await logQuoteEvent(env.DB, id, action === 'complete' ? 'completed' : 'uncompleted');
+    return json({ ok: true, action });
+  }
+
+  if (action === 'paid' || action === 'unpaid') {
+    const at = action === 'paid' ? new Date().toISOString() : null;
+    const note = clean(body.note, 200);
+    await env.DB.prepare('UPDATE quotes SET paid_at = ?, paid_note = ?, updated_at = ? WHERE id = ?')
+      .bind(at, at ? (note || null) : null, new Date().toISOString(), id).run();
+    // Paid work is finished work, whether or not she remembered to say so.
+    if (at) {
+      await env.DB.prepare(
+        'UPDATE quotes SET completed_at = COALESCE(completed_at, ?) WHERE id = ?'
+      ).bind(at, id).run();
+    }
+    await logQuoteEvent(env.DB, id, action === 'paid' ? 'paid' : 'unpaid', note ? { note } : null);
+    return json({ ok: true, action });
+  }
+
   if (action === 'delete') {
     await env.DB.prepare('DELETE FROM quote_events WHERE quote_id = ?').bind(id).run();
     await env.DB.prepare('DELETE FROM quotes WHERE id = ?').bind(id).run();

@@ -110,3 +110,37 @@ test('no digits-as-money survive anywhere in the catalog file', () => {
 });
 
 console.log('\n' + n + ' assertions passed (catalog)');
+
+/* ---- every line of a quote says how often it happens ---------------------- */
+import { CADENCES, cadenceById, isRecurring } from '../functions/_lib/quotes.js';
+
+test('a line keeps the cadence it was given', () => {
+  const r = normalizeLineItems([
+    { label: 'Home cleaning', unit_dollars: '175', cadence: 'biweekly' },
+    { label: 'Oven', unit_dollars: '45', cadence: 'onetime' },
+    { label: 'Windows', unit_dollars: '60' }
+  ]);
+  assert.deepEqual(r.items.map((i) => i.cadence), ['biweekly', 'onetime', 'onetime']);
+});
+
+test('an unknown cadence becomes a one-off rather than being kept', () => {
+  const r = normalizeLineItems([{ label: 'A', unit_dollars: '10', cadence: 'fortnightly-ish' }]);
+  assert.equal(r.items[0].cadence, 'onetime');
+});
+
+test('recurring and one-off are told apart', () => {
+  assert.equal(isRecurring('biweekly'), true);
+  assert.equal(isRecurring('onetime'), false);
+  assert.equal(isRecurring(''), false);
+  assert.equal(isRecurring('nonsense'), false);
+});
+
+test('every cadence has a label and a short form', () => {
+  CADENCES.forEach((c) => {
+    assert.ok(c.id && c.label && c.short, JSON.stringify(c));
+    assert.equal(cadenceById(c.id).id, c.id);
+  });
+  assert.equal(cadenceById('nope').id, 'onetime', 'the fallback is a one-off');
+});
+
+console.log('\n' + n + ' assertions passed (cadence)');

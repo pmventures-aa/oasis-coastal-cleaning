@@ -1042,3 +1042,10 @@ h2 { line-height: 1.18; }
 .btn { min-height: 44px; }
 button.btn, a.btn { display: inline-flex; align-items: center; justify-content: center; }
 .btn--block { width: 100%; }
+
+/* Which lines repeat and which are one-offs, on the quote a customer reads. */
+.proposal__cadence {
+  display: inline-block; margin-top: 0.15rem;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--oasis-teal);
+}

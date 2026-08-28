@@ -100,9 +100,15 @@
     var status = q.status;
     var addons = data.available_addons || [];
 
+    // A quote is rarely all one thing — the clean is fortnightly, the oven is
+    // once — so each line says which it is.
+    var CADENCE = { weekly: 'Weekly', biweekly: 'Every two weeks',
+                    monthly: 'Monthly', quarterly: 'Quarterly' };
     var rows = items.map(function (it) {
+      var cad = CADENCE[it.cadence];
       return '<tr>' +
         '<td><strong>' + esc(it.label) + '</strong>' +
+          (cad ? '<br><span class="proposal__cadence">' + esc(cad) + '</span>' : '') +
           (it.description ? '<br><span class="muted">' + esc(it.description) + '</span>' : '') +
         '</td>' +
         '<td class="proposal__qty">' + esc(String(it.qty || 1)) + '</td>' +
