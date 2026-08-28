@@ -968,3 +968,11 @@ h2 { line-height: 1.18; }
 /* A quote page is not a place to go browsing the services menu. The footer
    keeps who this is and how to reach her, and drops the site navigation. */
 [data-page="proposal"] .footer__links { display: none; }
+
+/* A note above the quote buttons when the quote being edited is already out. */
+.quote-revise-note {
+  margin: 0.6rem 0 0; font-size: var(--step--1); line-height: 1.45;
+  padding: 0.55rem 0.75rem; border-radius: 10px;
+  background: rgba(39, 189, 206, 0.10);
+  border: 1px solid rgba(39, 189, 206, 0.28);
+}

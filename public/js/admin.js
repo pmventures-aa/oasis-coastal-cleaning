@@ -21,7 +21,7 @@
   var state = {
     view: 'active', filter: '', followup: false, open: null, leadTab: {},
     leads: [], counts: {}, q: '', quotes: {}, composing: false, composingLead: false,
-    focusQuoteEditor: null,
+    focusQuoteEditor: null, editingQuote: {},
     propertyLookupConfigured: null, emailConfigured: true
   };
 
@@ -665,9 +665,15 @@
         '</div>'
       : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
           esc(quote.customer_email || l.email) + '"></label>';
-    var summary = standalone ? 'Build a brand-new quote' : (quote.id ? 'Edit Draft' : 'Start Quote');
+    // A quote she has already sent is revised and re-sent in one press: the
+    // editor saves the new lines and mails them without a second trip.
+    var alreadyOut = !standalone && !!quote.id && quote.status && quote.status !== 'draft';
+    var summary = standalone ? 'Build a brand-new quote'
+      : alreadyOut ? 'Revise the quote you sent'
+      : (quote.id ? 'Edit Draft' : 'Start Quote');
     return (standalone ? '' : '<details class="acc" open id="quote-composer"><summary class="acc__sum"><span class="acc__icon"></span>' + summary + '</summary><div class="acc__in">') +
       '<div class="quote-editor"' + (standalone ? ' data-standalone="1"' : '') +
+        (alreadyOut ? ' data-already-out="1"' : '') +
         ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '">' +
       customerFields +
       '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
@@ -678,9 +684,16 @@
       quoteCatalogHtml() +
       '<label class="pf pf--wide"><span class="pf__k">Note</span><textarea class="pf__v quote-notes" rows="2">' +
         esc(notesVal || '') + '</textarea></label>' +
+      (alreadyOut
+        ? '<p class="quote-revise-note muted">' +
+            'This one is already with ' + esc((quote.customer_name || l && l.name || 'the customer').split(' ')[0]) +
+            '. Updating it sends the new version to the same link.</p>'
+        : '') +
       '<div class="quote-actions quote-actions--sticky">' +
-        '<button type="button" class="btn btn--ghost" data-save-quote>Save Draft</button>' +
-        '<button type="button" class="btn btn--primary" data-send-quote>Send to Customer</button></div>' +
+        '<button type="button" class="btn btn--ghost" data-save-quote>' +
+          (alreadyOut ? 'Save without sending' : 'Save Draft') + '</button>' +
+        '<button type="button" class="btn btn--primary" data-send-quote>' +
+          (alreadyOut ? 'Update &amp; resend' : 'Send to Customer') + '</button></div>' +
       '<div class="quote-msg form-status" role="alert" hidden></div></div>' +
       (standalone ? '' : '</div></details>');
   }
@@ -890,6 +903,11 @@
       acts += '<button type="button" class="btn btn--primary btn--tiny" data-quote-action="resend" data-quote-id="' +
         esc(q.id) + '" data-quote-email="' + esc(to) + '">Resend</button>';
     }
+    // Accepted is a deal and stays as it is; anything else she can still change.
+    if (!isArchived && q.status !== 'accepted' && q.status !== 'draft') {
+      acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="edit" data-quote-id="' +
+        esc(q.id) + '">Edit</button>';
+    }
     if (isArchived) {
       acts +=
         '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="restore" data-quote-id="' + esc(q.id) + '">Restore</button>' +
@@ -918,10 +936,14 @@
   }
 
   function renderQuotePanel(l, quotes) {
-    var list = (quotes || []).filter(function (q) { return q.status !== 'draft'; }).map(quoteCard).join('');
+    var editingId = state.editingQuote && state.editingQuote[l.id];
+    var editing = editingId && (quotes || []).find(function (q) { return q.id === editingId; });
+    var list = (quotes || [])
+      .filter(function (q) { return q.status !== 'draft' && !(editing && q.id === editing.id); })
+      .map(quoteCard).join('');
     var draft = (quotes || []).find(function (q) { return q.status === 'draft' && !q.archived_at; });
     return (list ? '<div class="quote-list">' + list + '</div>' : '') +
-      (state.view === 'archived' ? '' : quoteEditorHtml(l, draft));
+      (state.view === 'archived' ? '' : quoteEditorHtml(l, editing || draft));
   }
 
   function loadQuotes(leadId) {
@@ -1117,7 +1139,13 @@
       .then(function (r) {
         if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Could not save.', false); return; }
         if (afterQuoteSaved(editor, r)) return;
-        showQuoteMsg(editor, 'Draft saved.', true);
+        // Saving a quote that was already out pulls it back to a draft, so her
+        // customer's link stops working until she sends again. Say so plainly.
+        var wasOut = editor.dataset.alreadyOut === '1';
+        if (payload.lead_id) delete state.editingQuote[payload.lead_id];
+        showQuoteMsg(editor, wasOut
+          ? 'Saved. The customer link is paused until you send the update.'
+          : 'Draft saved.', true);
         loadQuotes(payload.lead_id);
       });
   }
@@ -1139,13 +1167,19 @@
             load();
             return;
           }
+          if (payload.lead_id) delete state.editingQuote[payload.lead_id];
           showQuoteMsg(editor, 'Sent — track delivery in timeline.', true);
           loadQuotes(payload.lead_id); load();
         });
     }
     if (payload.id) {
       api('/api/admin/quotes', { method: 'PATCH', body: JSON.stringify(payload) })
-        .then(function (r) { if (r.ok) doSend(r.body.quote.id, r.body.quote.lead_id); });
+        .then(function (r) {
+          // This used to drop a failed save on the floor: no send, no message,
+          // a button that simply did nothing.
+          if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Could not save the changes.', false); return; }
+          doSend(r.body.quote.id, r.body.quote.lead_id);
+        });
       return;
     }
     api('/api/admin/quotes', { method: 'POST', body: JSON.stringify(payload) })
@@ -1178,6 +1212,18 @@
     var card = btn.closest('.lead');
     var leadId = card && card.dataset.id;
     if (!qid) return;
+
+    // Opening a sent quote for editing changes nothing until she presses a
+    // button, so it never touches the server.
+    if (action === 'edit') {
+      if (leadId) {
+        state.editingQuote[leadId] = qid;
+        state.leadTab[leadId] = 'quotes';
+        state.focusQuoteEditor = leadId;
+        render();
+      }
+      return;
+    }
     if (action === 'delete' && !window.confirm('Delete this quote permanently?')) return;
     api('/api/admin/quotes', { method: 'PATCH', body: JSON.stringify({ id: qid, action: action }) })
       .then(function (r) {
@@ -1293,8 +1339,15 @@
       return;
     }
     if (e.target.matches('[data-save-quote]')) saveQuote(e.target.closest('.quote-editor'));
-    if (e.target.matches('[data-send-quote]') && window.confirm('Send this quote by email?')) {
-      sendQuote(e.target.closest('.quote-editor'));
+    if (e.target.matches('[data-send-quote]')) {
+      var ed = e.target.closest('.quote-editor');
+      // Say which of the two things is about to happen. Resending a revision
+      // is a different promise from sending a quote for the first time.
+      var revising = ed && ed.dataset.alreadyOut === '1';
+      var ask = revising
+        ? 'Send the updated quote? The customer gets the new amount at the same link.'
+        : 'Send this quote by email?';
+      if (window.confirm(ask)) sendQuote(ed);
     }
   });
 
