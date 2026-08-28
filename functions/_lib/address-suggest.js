@@ -19,6 +19,27 @@ const FL_BBOX = {
 /** Palm Beach / Broward fallback when ZIP is unknown */
 const DEFAULT_BIAS = { lat: 26.3683, lon: -80.1289 };
 
+/**
+ * Municipality for Oasis-area ZIPs where USPS lists a different “postal city”
+ * (33063 is Margate, not Pompano Beach).
+ */
+const FL_ZIP_HINTS = {
+  33063: { city: 'Margate', lat: 26.25023, lon: -80.20569 },
+  33066: { city: 'Coconut Creek', lat: 26.2767, lon: -80.1848 },
+  33065: { city: 'Coral Springs', lat: 26.2712, lon: -80.2706 },
+  33071: { city: 'Coral Springs', lat: 26.243, lon: -80.269 },
+  33067: { city: 'Coral Springs', lat: 26.315, lon: -80.269 },
+  33073: { city: 'Coconut Creek', lat: 26.301, lon: -80.177 },
+  33068: { city: 'North Lauderdale', lat: 26.217, lon: -80.226 },
+  33060: { city: 'Pompano Beach', lat: 26.233, lon: -80.125 },
+  33062: { city: 'Pompano Beach', lat: 26.234, lon: -80.09 },
+  33064: { city: 'Pompano Beach', lat: 26.267, lon: -80.116 },
+  33069: { city: 'Pompano Beach', lat: 26.218, lon: -80.162 },
+  33076: { city: 'Parkland', lat: 26.322, lon: -80.237 },
+  33441: { city: 'Deerfield Beach', lat: 26.315, lon: -80.1 },
+  33442: { city: 'Deerfield Beach', lat: 26.307, lon: -80.143 }
+};
+
 export function isFloridaState(value) {
   const s = String(value || '').trim().toLowerCase();
   return s === 'fl' || s === 'florida';
@@ -110,6 +131,16 @@ function scoreStreetMatch(item, typedQuery) {
   return score;
 }
 
+/** OSM often puts the road on `name` with no `street` (Margate NW 62nd Ave). */
+function photonStreet(p) {
+  if (p.street) return String(p.street).trim();
+  if (p.osm_key === 'highway' && p.name) return String(p.name).trim();
+  if (p.osm_value === 'house' || p.osm_value === 'house_number') {
+    return String(p.street || p.name || '').trim();
+  }
+  return '';
+}
+
 function mapPhotonFeatures(features, typedQuery, preferredZip) {
   const suggestions = [];
   const wantZip = String(preferredZip || '').replace(/\D/g, '').slice(0, 5);
@@ -118,10 +149,12 @@ function mapPhotonFeatures(features, typedQuery, preferredZip) {
     const p = (f && f.properties) || {};
     if (!isUsa(p.country, p.countrycode)) continue;
     if (!isFloridaState(p.state)) continue;
-    if (!p.street && !p.housenumber) continue;
+    if (p.osm_value === 'bus_stop' || p.osm_key === 'amenity') continue;
+    const street = photonStreet(p);
+    if (!street && !p.housenumber) continue;
 
     let item = normalizeSuggestion({
-      address: streetLine(p.housenumber, p.street, p.name),
+      address: streetLine(p.housenumber, street, p.name),
       city: p.city || p.town || p.village || p.municipality || '',
       zip: p.postcode || wantZip || ''
     });
@@ -166,12 +199,97 @@ async function photonSearch(query, bias, fetchImpl) {
   return { features: Array.isArray(data.features) ? data.features : [] };
 }
 
+/** Nominatim address.city / town / village */
+function nominatimCity(addr) {
+  return String(
+    addr.city || addr.town || addr.village || addr.municipality || addr.suburb || ''
+  ).trim();
+}
+
+function mapNominatimResults(results, typedQuery, preferredZip) {
+  const suggestions = [];
+  const wantZip = String(preferredZip || '').replace(/\D/g, '').slice(0, 5);
+
+  for (const r of results || []) {
+    const addr = r.address || {};
+    if (!isUsa(addr.country, addr.country_code)) continue;
+    if (!isFloridaState(addr.state)) continue;
+    const road = String(addr.road || addr.pedestrian || '').trim();
+    const house = String(addr.house_number || '').trim();
+    if (!road && !house) continue;
+    if (wantZip && addr.postcode) {
+      const got = String(addr.postcode).replace(/\D/g, '').slice(0, 5);
+      if (got && got !== wantZip) continue;
+    }
+
+    let item = normalizeSuggestion({
+      address: streetLine(house, road, r.name),
+      city: nominatimCity(addr),
+      zip: String(addr.postcode || wantZip || '').replace(/\D/g, '').slice(0, 5)
+    });
+    item = applyTypedHouseNumber(item, typedQuery);
+    if (!item) continue;
+    if (wantZip && !item.zip) {
+      item = normalizeSuggestion({ address: item.address, city: item.city, zip: wantZip });
+    }
+    if (suggestions.some((s) => s.label === item.label)) continue;
+    suggestions.push(item);
+  }
+  return suggestions.slice(0, 6);
+}
+
+async function nominatimSearch(params, fetchImpl) {
+  const url = new URL('https://nominatim.openstreetmap.org/search');
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) url.searchParams.set(key, String(value));
+  });
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('addressdetails', '1');
+  url.searchParams.set('limit', '6');
+  url.searchParams.set('countrycodes', 'us');
+
+  const res = await fetchImpl(url.toString(), {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'OasisCoastalCleaningAdmin/1.0 (property quotes)'
+    }
+  });
+  if (!res.ok) return [];
+  const data = await res.json().catch(() => []);
+  return Array.isArray(data) ? data : [];
+}
+
 /**
- * Resolve a 5-digit ZIP to a Florida city + map bias.
+ * House-level US search. Finds 2156 NW 62nd Ave in Margate; Photon often only
+ * has the street centerline under `name`.
  */
+async function suggestNominatim(query, zip, city, fetchImpl) {
+  const wantZip = String(zip || '').replace(/\D/g, '').slice(0, 5);
+  const expanded = expandStreetAbbreviations(query);
+  const tries = [
+    { street: query, postalcode: wantZip, state: 'Florida', country: 'US', city },
+    { street: expanded, postalcode: wantZip, state: 'Florida', country: 'US', city },
+    { q: `${expanded} ${wantZip} Florida` }
+  ];
+  const seen = new Set();
+
+  for (const params of tries) {
+    const key = JSON.stringify(params);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const results = await nominatimSearch(params, fetchImpl);
+    const suggestions = mapNominatimResults(results, query, wantZip);
+    if (suggestions.length) return { suggestions, provider: 'nominatim' };
+  }
+  return { suggestions: [], provider: 'nominatim' };
+}
+
 export async function resolveFloridaZip(zip, fetchImpl = globalThis.fetch) {
   const z = String(zip || '').replace(/\D/g, '').slice(0, 5);
   if (z.length !== 5) return null;
+
+  const hint = FL_ZIP_HINTS[z];
+  if (hint) return { zip: z, city: hint.city, lat: hint.lat, lon: hint.lon };
 
   const url = new URL('https://photon.komoot.io/api/');
   url.searchParams.set('q', `${z} Florida`);
@@ -308,36 +426,80 @@ async function suggestMapbox(query, token, zip, fetchImpl) {
   return { suggestions, provider: 'mapbox' };
 }
 
+function fillCityFromZip(suggestions, zipPlace, wantZip) {
+  if (!zipPlace || !zipPlace.city) return suggestions;
+  return suggestions.map((s) => {
+    if (s.city) return s;
+    return normalizeSuggestion({ address: s.address, city: zipPlace.city, zip: s.zip || wantZip });
+  });
+}
+
 /**
  * @param {string} query
  * @param {{ MAPBOX_ACCESS_TOKEN?: string }} env
  * @param {typeof fetch} [fetchImpl]
- * @param {{ zip?: string }} [opts]
+ * @param {{ zip?: string, city?: string }} [opts]
  */
 export async function suggestFloridaAddresses(query, env = {}, fetchImpl = globalThis.fetch, opts = {}) {
   const q = String(query || '').trim();
   const zip = String(opts.zip || '').replace(/\D/g, '').slice(0, 5);
+  const cityHint = String(opts.city || '').trim();
   if (q.length < 3) return { suggestions: [], provider: null };
   if (q.length > 120) return { error: 'Search is too long.', status: 400, suggestions: [] };
+
+  let zipPlace = null;
+  if (zip.length === 5) {
+    zipPlace = await resolveFloridaZip(zip, fetchImpl);
+  }
+  const city = cityHint || (zipPlace && zipPlace.city) || '';
+
+  const finish = (result) => {
+    const suggestions = fillCityFromZip(result.suggestions || [], zipPlace, zip);
+    return { ...result, suggestions, place: result.place || zipPlace || null };
+  };
+
+  // House + ZIP: Nominatim interpolates the number and returns the city
+  // (Margate), which Photon/USPS often miss.
+  if (zip.length === 5 && extractHouseNumber(q)) {
+    try {
+      const nom = await suggestNominatim(q, zip, city, fetchImpl);
+      if (nom.suggestions.length) return finish(nom);
+    } catch {
+      /* Photon next */
+    }
+  }
 
   const token = String(env.MAPBOX_ACCESS_TOKEN || '').trim();
   if (token) {
     try {
       const mapped = await suggestMapbox(q, token, zip, fetchImpl);
-      if (mapped.suggestions.length || mapped.error) return mapped;
+      if (mapped.suggestions.length || mapped.error) return finish(mapped);
     } catch {
       /* fall through to Photon */
     }
   }
 
   try {
-    return await suggestPhoton(q, zip, fetchImpl);
+    const photon = await suggestPhoton(q, zip, fetchImpl);
+    if (photon.suggestions.length || photon.error) return finish(photon);
   } catch (err) {
     return {
       error: 'Address search unreachable.',
       detail: String(err && err.message || err),
       status: 502,
-      suggestions: []
+      suggestions: [],
+      place: zipPlace
     };
   }
+
+  if (zipPlace) {
+    const typed = normalizeSuggestion({
+      address: q,
+      city: zipPlace.city,
+      zip
+    });
+    if (typed) return { suggestions: [typed], provider: 'typed', place: zipPlace };
+  }
+
+  return { suggestions: [], provider: null, place: zipPlace };
 }

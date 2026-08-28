@@ -15,6 +15,7 @@ export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const q = clean(url.searchParams.get('q'), 120);
   const zip = clean(url.searchParams.get('zip'), 12).replace(/\D/g, '').slice(0, 5);
+  const city = clean(url.searchParams.get('city'), 80);
 
   if (!q && zip.length === 5) {
     const place = await resolveFloridaZip(zip, fetch);
@@ -26,7 +27,7 @@ export async function onRequestGet({ request, env }) {
 
   if (q.length < 3) return json({ ok: true, suggestions: [], place: null });
 
-  const result = await suggestFloridaAddresses(q, env, fetch, { zip });
+  const result = await suggestFloridaAddresses(q, env, fetch, { zip, city });
   if (result.error && !result.suggestions.length) {
     return json({
       error: result.error,
