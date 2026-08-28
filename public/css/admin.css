@@ -170,37 +170,78 @@ body.admin-theme {
 .quote-property-bar__text { flex: 1 1 12rem; font-size: var(--step--1); line-height: 1.4; }
 .quote-property-bar__text strong { margin-right: 0.35rem; }
 
-.quote-addons {
-  margin: 0.35rem 0 0.9rem; padding: 0.75rem 0.85rem;
-  border: 1px solid var(--oasis-line); border-radius: var(--radius);
+/* Compact tabbed catalog — one group at a time, custom $ per row */
+.quote-catalog {
+  margin: 0.85rem 0 0.75rem;
+  border: 1px solid var(--oasis-line);
+  border-radius: var(--radius);
   background: var(--oasis-cream);
+  overflow: hidden;
 }
-.quote-addons__title {
-  margin: 0; font-size: 0.72rem; font-weight: 700;
-  letter-spacing: 0.08em; text-transform: uppercase; color: var(--oasis-gold);
+.quote-catalog__sum {
+  list-style: none; cursor: pointer; display: flex; flex-wrap: wrap;
+  align-items: baseline; justify-content: space-between; gap: 0.35rem 0.75rem;
+  padding: 0.7rem 0.85rem; font-size: var(--step--1);
 }
-.quote-addons__hint { margin: 0.3rem 0 0.65rem; font-size: 0.7rem; line-height: 1.35; }
-.quote-addons__group { margin-bottom: 0.65rem; }
-.quote-addons__group:last-child { margin-bottom: 0; }
-.quote-addons__group-label {
-  margin: 0 0 0.35rem; font-size: 0.66rem; font-weight: 700;
-  letter-spacing: 0.08em; text-transform: uppercase; color: var(--oasis-muted);
+.quote-catalog__sum::-webkit-details-marker { display: none; }
+.quote-catalog__sum-title {
+  font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: 0.72rem; color: var(--oasis-gold);
 }
-.quote-addons__chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.quote-addon-chip {
-  display: inline-flex; align-items: center; gap: 0.45rem;
-  padding: 0.4rem 0.65rem; border-radius: 999px; cursor: pointer;
-  border: 1.5px solid var(--oasis-line); background: var(--oasis-white);
-  color: var(--oasis-navy); font: inherit; font-size: 0.72rem; font-weight: 600;
-  transition: border-color .15s, background .15s, transform .15s;
+.quote-catalog__sum-meta { font-size: 0.68rem; }
+.quote-catalog[open] .quote-catalog__sum {
+  border-bottom: 1px solid var(--oasis-line);
 }
-.quote-addon-chip:hover { border-color: var(--oasis-teal); }
-.quote-addon-chip.is-added {
-  border-color: var(--oasis-teal); background: rgba(2, 89, 95, 0.1);
-  transform: scale(1.03);
+.quote-catalog__body { padding: 0.65rem 0.75rem 0.75rem; }
+.quote-catalog__tabs {
+  display: flex; gap: 0.35rem; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.55rem; margin-bottom: 0.35rem;
+  scrollbar-width: thin;
 }
-.quote-addon-chip__price {
-  color: var(--oasis-teal); font-variant-numeric: tabular-nums;
+.quote-catalog__tab {
+  flex: 0 0 auto; border: 1.5px solid var(--oasis-line); background: var(--oasis-white);
+  color: var(--oasis-navy); border-radius: 999px; padding: 0.35em 0.8em;
+  font: inherit; font-size: 0.7rem; font-weight: 700; cursor: pointer;
+}
+.quote-catalog__tab.is-on {
+  background: var(--oasis-teal); border-color: var(--oasis-teal); color: #fff;
+}
+.quote-catalog__panel { display: none; }
+.quote-catalog__panel.is-on { display: grid; gap: 0.4rem; }
+.quote-catalog__row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 0.45rem;
+  align-items: center; padding: 0.45rem 0.5rem;
+  background: var(--oasis-white); border: 1px solid var(--oasis-line);
+  border-radius: 8px;
+}
+.quote-catalog__row.is-added {
+  border-color: var(--oasis-teal); background: rgba(2, 89, 95, 0.08);
+}
+.quote-catalog__name {
+  font-size: 0.78rem; font-weight: 600; color: var(--oasis-navy);
+  line-height: 1.25; min-width: 0;
+}
+.quote-catalog__price {
+  display: inline-flex; align-items: center; gap: 0.15rem;
+  background: var(--oasis-cream); border: 1.5px solid var(--oasis-line);
+  border-radius: 8px; padding: 0.2rem 0.4rem 0.2rem 0.5rem;
+}
+.quote-catalog__dollar {
+  font-size: 0.72rem; font-weight: 700; color: var(--oasis-muted);
+}
+.quote-catalog__price-input {
+  width: 3.6rem; border: 0; background: transparent; padding: 0.25rem 0.15rem;
+  font: inherit; font-size: 0.78rem; font-weight: 700; color: var(--oasis-teal);
+  font-variant-numeric: tabular-nums;
+}
+.quote-catalog__price-input:focus { outline: none; }
+.quote-catalog__price:focus-within { border-color: var(--oasis-teal); }
+
+.quote-lines-actions { margin: 0.35rem 0 0.5rem; }
+.quote-actions--sticky {
+  position: sticky; bottom: 0; z-index: 2;
+  margin-top: 0.75rem; padding: 0.65rem 0 0.15rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0), var(--oasis-white) 28%);
 }
 
 .profile__block { padding: 0.9rem 0; border-bottom: 1px solid var(--oasis-line); }
