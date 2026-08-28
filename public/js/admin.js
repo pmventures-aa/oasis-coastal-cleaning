@@ -1273,7 +1273,10 @@
   root.addEventListener('change', function (e) {
     if (e.target.id === 'status-filter') { state.filter = e.target.value; state.open = null; load(); }
     if (e.target.matches('select[data-col]')) saveField(e.target);
-    if (e.target.matches('[data-zip-lookup]')) runZipLookup(e.target, { focusStreet: false });
+    if (e.target.matches('[data-zip-lookup]')) {
+      clearTimeout(zipLookupTimer);
+      runZipLookup(e.target);
+    }
   });
 
   var addressSuggestTimer = null;
@@ -1394,32 +1397,34 @@
     });
   }
 
-  function runZipLookup(zipInput, opts) {
-    opts = opts || {};
+  function runZipLookup(zipInput) {
     var zip = String(zipInput.value || '').replace(/\D/g, '').slice(0, 5);
     var scope = addressSuggestScope(zipInput);
     var seq = ++zipLookupSeq;
-    var wasComplete = !!zipInput._zipComplete;
 
     if (zip.length !== 5) {
       zipInput._zipComplete = false;
+      zipInput._zipCityFor = '';
       setStreetEnabled(scope, false);
       applyCity(scope, '');
       return;
     }
 
     setStreetEnabled(scope, true);
+    // Same ZIP already filled this city — still re-apply so a wiped city comes back.
     api('/api/admin/address-suggest?zip=' + encodeURIComponent(zip) + '&t=' + Date.now()).then(function (r) {
       if (seq !== zipLookupSeq) return;
+      var still = String(zipInput.value || '').replace(/\D/g, '').slice(0, 5);
+      if (still !== zip) return;
       if (!r.ok) return;
-      var city = r.body.place && r.body.place.city ? r.body.place.city : '';
+      var city = r.body.place && r.body.place.city ? String(r.body.place.city) : '';
+      // Never blank City from a 5-digit ZIP response — only incomplete ZIP clears it.
+      if (!city) return;
       applyCity(scope, city);
       zipInput._zipComplete = true;
+      zipInput._zipCityFor = zip;
       var street = scope.querySelector('[data-address-suggest]');
-      var justCompleted = !wasComplete && document.activeElement === zipInput;
-      if (opts.focusStreet === false) justCompleted = false;
-      if (justCompleted && street && !String(street.value || '').trim()) street.focus();
-      else if (street && String(street.value || '').trim().length >= 3) runAddressSuggest(street);
+      if (street && String(street.value || '').trim().length >= 3) runAddressSuggest(street);
     });
   }
 
@@ -1523,7 +1528,10 @@
       var input = e.target;
       setTimeout(function () { hideAddressSuggestions(input); }, 150);
     }
-    if (e.target.matches('[data-zip-lookup]')) runZipLookup(e.target, { focusStreet: false });
+    if (e.target.matches('[data-zip-lookup]')) {
+      clearTimeout(zipLookupTimer);
+      runZipLookup(e.target);
+    }
   }, true);
 
   function saveField(el) {
