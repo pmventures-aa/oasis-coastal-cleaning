@@ -91,6 +91,7 @@ window.OASIS = {
       href: '/corporate-cleaning',
       icon: 'office',
       title: 'Corporate & office cleaning',
+      short: 'Offices',
       blurb: 'Suites, shared offices and after-hours cleans that leave the desk ready for Monday.',
       cta: 'See corporate cleaning'
     },
@@ -98,6 +99,7 @@ window.OASIS = {
       href: '/airbnb-cleaning',
       icon: 'laundry',
       title: 'Airbnb & short-term turnover',
+      short: 'Vacation rentals',
       blurb: 'Same-day resets between guests — linens, restock and a listing-ready finish.',
       cta: 'See vacation rental cleaning'
     }

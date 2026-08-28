@@ -1198,3 +1198,66 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
   font-size: var(--step-1); letter-spacing: 0.05em; color: var(--oasis-navy);
 }
 .proposal__done p:last-child { margin: 0; font-size: var(--step--1); line-height: 1.55; }
+
+/* ================================================== the one she is known for
+   Seven equal cards told a visitor nothing about what this business mostly
+   is. House cleaning gets the room to say so, and everything else sits under
+   it as a list of things you can add.
+   ========================================================================= */
+.feature {
+  display: grid; gap: clamp(1.25rem, 3vw, 2.5rem);
+  align-items: center;
+}
+@media (min-width: 820px) {
+  .feature { grid-template-columns: 1.35fr 1fr; }
+}
+.feature__h {
+  margin: 0.4rem 0 0.6rem;
+  font-size: clamp(1.9rem, 1.4rem + 2.2vw, 2.9rem);
+}
+.feature__lead {
+  margin: 0 0 1.1rem; max-width: 52ch;
+  font-size: var(--step-0); line-height: 1.55; color: var(--oasis-muted);
+}
+.feature__list {
+  list-style: none; margin: 0 0 1.4rem; padding: 0; display: grid; gap: 0.45rem;
+}
+.feature__list li {
+  position: relative; padding-left: 1.65rem;
+  font-size: var(--step--1); line-height: 1.45;
+}
+.feature__list li::before {
+  content: ''; position: absolute; left: 0.2rem; top: 0.36em;
+  width: 9px; height: 5px;
+  border-left: 2.5px solid var(--oasis-gold); border-bottom: 2.5px solid var(--oasis-gold);
+  transform: rotate(-45deg);
+}
+.feature__ctas { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0; }
+
+.feature__aside { text-align: center; }
+.feature__img { display: none; }
+@media (min-width: 820px) {
+  .feature__img { display: block; }
+  .feature__note { margin-top: 0.9rem; }
+}
+.feature__img {
+  width: clamp(180px, 22vw, 260px); height: auto; margin: 0 auto;
+  border-radius: 50%; box-shadow: var(--oasis-shadow);
+}
+.feature__note {
+  margin: 0.2rem auto 0; max-width: 34ch;
+  font-size: 0.82rem; line-height: 1.5; color: var(--oasis-muted);
+}
+
+/* Offices and rentals are a line, not a section — they were already in the
+   list above, and giving them a block of their own said them twice. */
+.landing-links {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+  gap: 0.4rem 0.75rem; margin: 0; font-size: var(--step--1);
+}
+.landing-links__k { font-weight: 700; color: var(--oasis-navy); }
+.landing-links a {
+  font-weight: 600; color: var(--oasis-teal);
+  display: inline-flex; align-items: center; min-height: 44px;
+}
+.landing-links__sep { color: var(--oasis-muted); }

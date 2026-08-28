@@ -165,9 +165,52 @@
   }
 
   /* ------------------------------------------------------------ sections */
+  /* The one she is actually known for, given the room to say so. Seven equal
+     cards told a visitor nothing about what this business mostly is. */
+  function renderFeaturedService(el) {
+    var all = activeServices();
+    var s = null;
+    all.forEach(function (x) { if (x.id === 'home') { s = x; } });
+    if (!s) { s = all[0]; }
+    if (!s) { el.hidden = true; return; }
+    el.className = 'feature';
+    el.innerHTML =
+      '<div class="feature__body">' +
+        '<p class="eyebrow">What she mostly does</p>' +
+        '<h2 class="feature__h">' + esc(s.name) + '</h2>' +
+        '<p class="feature__lead">' + esc(s.blurb || s.short) + '</p>' +
+        '<ul class="feature__list">' +
+          (s.includes || []).slice(0, 5).map(function (x) {
+            return '<li>' + esc(x) + '</li>';
+          }).join('') +
+        '</ul>' +
+        '<p class="feature__ctas">' +
+          '<a class="btn btn--primary" href="/quote?service=home">Get my quote</a>' +
+          '<a class="btn btn--ghost" href="/services#home">See what a visit includes</a>' +
+        '</p>' +
+      '</div>' +
+      '<div class="feature__aside">' +
+        '<img class="feature__img" src="/logo/logo-480.webp" width="480" height="481" ' +
+          'alt="" loading="lazy" aria-hidden="true">' +
+        '<p class="feature__note">' + esc(D.business.city || 'Palm Beach & Broward') +
+          ' — weekly, every two weeks, monthly, or a one-off when you need it.</p>' +
+      '</div>';
+  }
+
+  function renderLandingLinks(el) {
+    var list = D.landings || [];
+    if (!list.length) { el.hidden = true; return; }
+    el.className = 'landing-links';
+    el.innerHTML = '<span class="landing-links__k">Not a house?</span> ' +
+      list.map(function (c) {
+        return '<a href="' + esc(c.href) + '">' + esc(c.short || c.title) + ' &rarr;</a>';
+      }).join('<span class="landing-links__sep">·</span>');
+  }
+
   function renderServiceCards(el) {
     var limit = parseInt(el.getAttribute('data-limit'), 10);
-    var list = activeServices();
+    var skip = (el.getAttribute('data-skip') || '').split(',').filter(Boolean);
+    var list = activeServices().filter(function (s) { return skip.indexOf(s.id) === -1; });
     if (limit > 0) { list = list.slice(0, limit); }
     el.className = 'grid grid--' + (list.length === 4 ? '4' : (list.length === 2 ? '2' : '3'));
     el.innerHTML = list.map(function (s) {
@@ -466,6 +509,8 @@
     stickybar: renderStickyBar,
     serviceCards: renderServiceCards,
     landingCards: renderLandingCards,
+    featuredService: renderFeaturedService,
+    landingLinks: renderLandingLinks,
     serviceDetails: renderServiceDetails,
     serviceNav: renderServiceNav,
     promises: renderPromises,
