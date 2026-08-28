@@ -22,31 +22,60 @@ function label(doc, text, y, color = COLORS.teal) {
   doc.text(String(text).toUpperCase(), MARGIN.left, y, { size: 7.5, bold: true, color });
 }
 
-function header(doc, { logo, business, status }) {
-  let top = PAGE.h - MARGIN.top;
+/* A band of brand colour across the top of the page, the way the on-screen
+   quote opens. A quote that arrives looking like a receipt gets read like one. */
+function header(doc, { logo, business, status, greeting, forWhat }) {
+  const BAND = 92;
+  const top = PAGE.h;
+
+  doc.rect(0, top - BAND, PAGE.w, BAND, COLORS.teal);
 
   if (logo && logo.bytes) {
-    const size = 62;
-    doc.image(logo.bytes, MARGIN.left, top - size, size, size, logo.dims);
+    const size = 50;
+    doc.image(logo.bytes, MARGIN.left, top - 24 - size, size, size, logo.dims);
   }
 
-  const rightEdge = MARGIN.left + CONTENT_W;
-  doc.text(business.name, rightEdge - 220, top - 12,
-    { size: 13, bold: true, color: COLORS.navy, align: 'right', width: 220 });
-  doc.text(business.tagline, rightEdge - 220, top - 26,
-    { size: 8, color: COLORS.gold, align: 'right', width: 220 });
-  doc.text(formatPhone(business.phone) + '   ' + business.email, rightEdge - 260, top - 42,
-    { size: 8.5, color: COLORS.muted, align: 'right', width: 260 });
+  const textLeft = MARGIN.left + (logo && logo.bytes ? 66 : 0);
+  const w = PAGE.w - textLeft - MARGIN.right;
 
-  doc.y = top - 78;
-  doc.line(MARGIN.left, doc.y, rightEdge, doc.y, COLORS.gold, 1);
-  doc.y -= 26;
+  doc.text(business.name, textLeft, top - 42, { size: 14, bold: true, color: COLORS.cream });
+  doc.text(business.tagline, textLeft, top - 56, { size: 8.5, color: COLORS.sand });
+  doc.text(formatPhone(business.phone) + '    ' + business.email, textLeft, top - 72,
+    { size: 8.5, color: COLORS.sand });
+
+  doc.y = top - BAND - 24;
+
+  if (greeting) {
+    doc.text(greeting, MARGIN.left, doc.y, { size: 19, bold: true, color: COLORS.navy });
+    doc.y -= 18;
+  }
+  if (forWhat) {
+    doc.text(forWhat, MARGIN.left, doc.y, { size: 10, color: COLORS.muted });
+    doc.y -= 18;
+  }
 
   if (status && status !== 'sent') {
     doc.text(status.toUpperCase(), MARGIN.left, doc.y,
       { size: 8, bold: true, color: status === 'accepted' ? COLORS.teal : COLORS.muted });
-    doc.y -= 14;
+    doc.y -= 16;
   }
+}
+
+/* The number they opened the document for, in a band of its own. */
+function heroTotal(doc, { total, rhythm }) {
+  const H = 68;
+  doc.ensure(H + 16);
+  const top = doc.y;
+  doc.rect(MARGIN.left, top - H, CONTENT_W, H, COLORS.sand);
+
+  doc.text(rhythm ? 'YOUR ' + rhythm.toUpperCase() + ' VISIT' : 'YOUR VISIT',
+    MARGIN.left, top - 22, { size: 8, bold: true, color: COLORS.teal, align: 'center', width: CONTENT_W });
+  doc.text(formatMoney(total), MARGIN.left, top - 48,
+    { size: 25, bold: true, color: COLORS.navy, align: 'center', width: CONTENT_W });
+  doc.text(rhythm ? 'Every visit. Pause or stop whenever you like.' : 'One visit, everything below included.',
+    MARGIN.left, top - 60, { size: 9, color: COLORS.navy, align: 'center', width: CONTENT_W });
+
+  doc.y = top - H - 20;
 }
 
 function lineItems(doc, items) {
@@ -113,7 +142,7 @@ function totals(doc, quote) {
 
   doc.text('Total', COL.qty - 120, doc.y, { size: 13, bold: true, color: COLORS.navy, align: 'right', width: 160 });
   doc.text(formatMoney(quote.total), COL.amount, doc.y, { size: 14, bold: true, color: COLORS.teal, align: 'right', width: W.amount });
-  doc.y -= 30;
+  doc.y -= 22;
 }
 
 function noteBox(doc, title, body) {
@@ -132,7 +161,7 @@ function noteBox(doc, title, body) {
     doc.text(ln, MARGIN.left + 14, doc.y, { size: 9.5, color: COLORS.navy });
     doc.y -= 13;
   }
-  doc.y = top - height - 18;
+  doc.y = top - height - 13;
 }
 
 /**
@@ -148,25 +177,26 @@ export function buildQuotePdf({ quote, lead = {}, business, logo, settings = {},
     author: business.name
   });
 
-  header(doc, { logo, business, status: quote.status });
-
-  doc.text('Quote for ' + (quote.customer_name || lead.name || 'you'), MARGIN.left, doc.y,
-    { size: 20, bold: true, color: COLORS.navy });
-  doc.y -= 20;
+  const first = String(quote.customer_name || lead.name || '').split(' ')[0];
+  const items = quote.line_items || [];
+  const repeating = items.find((it) => isRecurring(it.cadence));
+  const rhythm = repeating ? cadenceById(repeating.cadence).short : '';
 
   const where = [lead.service_label || quote.service_label, lead.city || quote.city]
-    .filter(Boolean).join('  ·  ');
-  if (where) {
-    doc.text(where, MARGIN.left, doc.y, { size: 10, color: COLORS.muted });
-    doc.y -= 16;
-  }
-  if (lead.address) {
-    doc.text(lead.address, MARGIN.left, doc.y, { size: 9.5, color: COLORS.muted });
-    doc.y -= 16;
-  }
-  doc.y -= 10;
+    .filter(Boolean).join(' in ');
 
-  lineItems(doc, quote.line_items || []);
+  header(doc, {
+    logo, business, status: quote.status,
+    greeting: first ? 'Hi ' + first + ' — here is your quote' : 'Here is your quote',
+    forWhat: [where, lead.address].filter(Boolean).join('  ·  ')
+  });
+
+  heroTotal(doc, { total: quote.total, rhythm });
+
+  label(doc, 'What that covers', doc.y);
+  doc.y -= 18;
+
+  lineItems(doc, items);
   totals(doc, quote);
 
   if (quote.expires_at) {
@@ -177,25 +207,40 @@ export function buildQuotePdf({ quote, lead = {}, business, logo, settings = {},
 
   noteBox(doc, 'A note from ' + (settings.quote_from_name || 'Kristina').split(' ')[0], quote.notes);
   if (quote.terms) {
-    doc.paragraph(quote.terms, { size: 9, color: COLORS.muted, gap: 14 });
+    doc.paragraph(quote.terms, { size: 9, color: COLORS.muted, gap: 9 });
   }
 
-  if (proposalUrl && quote.status === 'sent') {
-    doc.ensure(40);
-    doc.paragraph('Accept this quote online: ' + proposalUrl,
-      { size: 9, color: COLORS.teal, gap: 8 });
-  }
+  /* One closing block rather than two. The panel and the sign-off were saying
+     the same thing — here is how to say yes, here is how to reach me — and
+     between them they pushed a four-line quote onto a second page. */
+  const sending = quote.status === 'sent';
+  const H = sending && proposalUrl ? 92 : 62;
+  doc.ensure(H + 10);
+  const top = doc.y;
+  doc.rect(MARGIN.left, top - H, CONTENT_W, H, COLORS.cream);
 
-  // Sign-off and contact, on whatever page the document ended on.
-  doc.ensure(50);
-  doc.y -= 6;
-  doc.line(MARGIN.left, doc.y, MARGIN.left + CONTENT_W, doc.y, COLORS.line);
-  doc.y -= 18;
-  doc.text(settings.quote_signoff || 'Thank you — Kristina', MARGIN.left, doc.y,
+  const x = MARGIN.left + 16;
+  doc.y = top - 19;
+  if (sending) {
+    doc.text('READY WHEN YOU ARE', x, doc.y, { size: 8, bold: true, color: COLORS.teal });
+    doc.y -= 15;
+    doc.text('No contract, nothing to pay today, and the same person every visit.',
+      x, doc.y, { size: 9.5, color: COLORS.navy });
+    doc.y -= 14;
+    if (proposalUrl) {
+      doc.text('Say yes, or add an extra, here:', x, doc.y, { size: 9.5, color: COLORS.navy });
+      doc.y -= 13;
+      doc.text(proposalUrl, x, doc.y, { size: 8.5, bold: true, color: COLORS.teal });
+      doc.y -= 16;
+    }
+  }
+  doc.text(settings.quote_signoff || 'Thank you — Kristina', x, doc.y,
     { size: 10, bold: true, color: COLORS.navy });
-  doc.y -= 14;
-  doc.text(formatPhone(business.phone) + '   ' + business.email, MARGIN.left, doc.y,
-    { size: 9, color: COLORS.muted });
+  doc.y -= 13;
+  doc.text(formatPhone(business.phone) + '    ' + business.email, x, doc.y,
+    { size: 8.5, color: COLORS.muted });
+
+  doc.y = top - H - 10;
 
   return doc.build();
 }

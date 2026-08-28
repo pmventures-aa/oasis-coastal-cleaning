@@ -1049,3 +1049,152 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
   font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--oasis-teal);
 }
+
+
+/* ==================================================== the quote they receive
+   This is the one page where a stranger decides whether to spend money with
+   Kristina, so it is allowed to be the brightest thing on the site. The sea
+   blue and the sand finally do some work — as grounds, never as text, because
+   neither has the contrast to carry words.
+   ========================================================================= */
+.proposal { padding: 0; overflow: hidden; }
+
+.proposal__banner {
+  background: linear-gradient(160deg, #02474C 0%, var(--oasis-teal) 45%, #036A72 100%);
+  color: var(--oasis-cream);
+  padding: clamp(1.6rem, 5vw, 2.4rem) clamp(1.25rem, 4vw, 2.25rem) clamp(1.4rem, 4vw, 2rem);
+  text-align: center;
+}
+.proposal__logo {
+  width: clamp(76px, 18vw, 104px); height: auto; border-radius: 50%;
+  margin: 0 auto 0.9rem; display: block;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
+}
+.proposal__hello {
+  margin: 0 0 0.3rem; font-family: var(--font-display);
+  font-size: clamp(1.35rem, 1.05rem + 1.4vw, 1.9rem); letter-spacing: 0.045em;
+  line-height: 1.2; color: var(--oasis-cream); text-wrap: balance;
+}
+.proposal__for {
+  margin: 0; font-size: var(--step--1); font-weight: 600;
+  letter-spacing: 0.06em; color: var(--oasis-sand);
+}
+
+/* The number they opened the email for. */
+.proposal__hero {
+  background: var(--oasis-sand); text-align: center;
+  padding: clamp(1.25rem, 4vw, 1.75rem) clamp(1.25rem, 4vw, 2.25rem);
+}
+.proposal__hero-k {
+  margin: 0 0 0.15rem; font-size: 0.72rem; font-weight: 700;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--oasis-teal);
+}
+.proposal__hero-n {
+  margin: 0; font-family: var(--font-display); line-height: 1;
+  font-size: clamp(2.6rem, 2rem + 3vw, 3.6rem); letter-spacing: 0.02em;
+  color: var(--oasis-navy);
+}
+.proposal__hero-s {
+  margin: 0.5rem auto 0; max-width: 36ch;
+  font-size: var(--step--1); line-height: 1.5; color: var(--oasis-navy);
+}
+
+.proposal__h2 {
+  margin: clamp(1.4rem, 4vw, 2rem) clamp(1.25rem, 4vw, 2.25rem) 0.6rem;
+  font-size: 0.78rem; letter-spacing: var(--tracking-caps); color: var(--oasis-teal);
+}
+.proposal__table-wrap, .proposal__totals, .proposal__valid,
+.proposal__note, .proposal__terms, .proposal__done, .proposal__download {
+  margin-left: clamp(1.25rem, 4vw, 2.25rem);
+  margin-right: clamp(1.25rem, 4vw, 2.25rem);
+}
+
+/* --------------------------------------------------------------- the extras
+   The one place someone might spend more than they planned to, so it is made
+   pleasant rather than apologetic. */
+.xtras {
+  margin: clamp(1.4rem, 4vw, 2rem) 0 0;
+  padding: clamp(1.25rem, 4vw, 1.9rem) clamp(1.25rem, 4vw, 2.25rem);
+  background: linear-gradient(180deg, rgba(39, 189, 206, 0.10), rgba(39, 189, 206, 0.03));
+  border-top: 1px solid rgba(39, 189, 206, 0.3);
+}
+.xtras__title {
+  margin: 0 0 0.4rem; font-size: var(--step-1); letter-spacing: 0.06em;
+  color: var(--oasis-navy);
+}
+.xtras__lead { margin: 0 0 1.1rem; font-size: var(--step--1); line-height: 1.55; max-width: 52ch; }
+.xtras__group + .xtras__group { margin-top: 1.1rem; }
+.xtras__group-name {
+  margin: 0 0 0.5rem; font-size: 0.7rem; font-weight: 700;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--oasis-teal);
+}
+.xtras__grid { display: grid; gap: 0.5rem; }
+@media (min-width: 620px) { .xtras__grid { grid-template-columns: 1fr 1fr; } }
+
+.xtra {
+  display: flex; gap: 0.7rem; align-items: flex-start;
+  padding: 0.8rem 0.9rem; min-height: 44px; cursor: pointer;
+  background: var(--oasis-white); border: 1.5px solid var(--oasis-line);
+  border-radius: 12px; transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.xtra:hover { border-color: var(--oasis-sea); }
+.xtra input { position: absolute; opacity: 0; width: 0; height: 0; }
+.xtra__box {
+  flex: none; width: 22px; height: 22px; margin-top: 0.1rem;
+  border: 2px solid var(--oasis-line); border-radius: 6px; background: var(--oasis-white);
+  position: relative; transition: background 0.15s ease, border-color 0.15s ease;
+}
+.xtra.is-on { border-color: var(--oasis-teal); box-shadow: 0 0 0 3px rgba(39, 189, 206, 0.16); }
+.xtra.is-on .xtra__box { background: var(--oasis-teal); border-color: var(--oasis-teal); }
+.xtra.is-on .xtra__box::after {
+  content: ''; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px;
+  border-right: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: rotate(45deg);
+}
+.xtra input:focus-visible + .xtra__box { outline: 3px solid var(--oasis-sea); outline-offset: 2px; }
+.xtra__text { display: grid; gap: 0.15rem; }
+.xtra__text strong { font-size: 0.92rem; line-height: 1.3; color: var(--oasis-navy); }
+.xtra__note { font-size: 0.78rem; line-height: 1.4; color: var(--oasis-muted); }
+.xtras__count {
+  margin: 1rem 0 0; padding: 0.6rem 0.8rem; border-radius: 10px;
+  background: var(--oasis-white); border: 1px solid rgba(39, 189, 206, 0.4);
+  font-size: 0.84rem; font-weight: 600; color: var(--oasis-navy);
+}
+
+/* ------------------------------------------------------------------- saying yes */
+.yes { padding: clamp(1.4rem, 4vw, 2rem) clamp(1.25rem, 4vw, 2.25rem) clamp(1.6rem, 4vw, 2.25rem); }
+.yes__points { list-style: none; margin: 0 0 1.2rem; padding: 0; display: grid; gap: 0.5rem; }
+.yes__points li {
+  position: relative; padding-left: 1.6rem;
+  font-size: var(--step--1); line-height: 1.45; color: var(--oasis-navy);
+}
+.yes__points li::before {
+  content: ''; position: absolute; left: 0.15rem; top: 0.34em;
+  width: 9px; height: 5px; border-left: 2.5px solid var(--oasis-teal);
+  border-bottom: 2.5px solid var(--oasis-teal); transform: rotate(-45deg);
+}
+.yes__go {
+  width: 100%; font-size: 0.92rem; padding: 1.05em 1.5em; min-height: 56px;
+  box-shadow: 0 10px 26px rgba(2, 89, 95, 0.28);
+}
+.yes__fine {
+  margin: 0.8rem 0 0; text-align: center;
+  font-size: 0.82rem; line-height: 1.5; color: var(--oasis-muted);
+}
+.yes__no { margin: 1rem 0 0; text-align: center; }
+.yes .linkish {
+  background: none; border: 0; padding: 0.5rem 0.75rem; min-height: 44px;
+  font-family: var(--font-body); font-size: 0.84rem; font-weight: 600;
+  color: var(--oasis-muted); cursor: pointer; text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.yes .linkish:hover { color: var(--oasis-navy); }
+
+.proposal__done--ok {
+  background: rgba(39, 189, 206, 0.12); border: 1px solid rgba(39, 189, 206, 0.4);
+  border-radius: 14px; padding: 1.1rem 1.2rem; margin-top: 1.4rem;
+}
+.proposal__done-k {
+  margin: 0 0 0.35rem; font-family: var(--font-display);
+  font-size: var(--step-1); letter-spacing: 0.05em; color: var(--oasis-navy);
+}
+.proposal__done p:last-child { margin: 0; font-size: var(--step--1); line-height: 1.55; }

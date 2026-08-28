@@ -52,28 +52,39 @@
     return { groups: groups, order: order };
   }
 
+  /* The extras are the one place on this page where somebody might spend more
+     than they planned to, so they are worth making pleasant rather than
+     apologetic. Each is a card you tap, the whole thing is a target, and the
+     count updates as they go so the choice feels like it landed. */
   function addonsHtml(addons) {
     if (!addons || !addons.length) { return ''; }
     var g = groupAddons(addons);
     var blocks = g.order.map(function (name) {
-      return '<div class="proposal__addon-group">' +
-        '<p class="proposal__addon-group-label">' + esc(name) + '</p>' +
-        g.groups[name].map(function (a) {
-          return '<label class="proposal__addon">' +
-            '<input type="checkbox" name="addon" value="' + esc(a.id) + '">' +
-            '<span class="proposal__addon-text">' +
-              '<strong>' + esc(a.label) + '</strong>' +
-              (a.note ? '<span class="muted">' + esc(a.note) + '</span>' : '') +
-            '</span></label>';
-        }).join('') +
+      return '<div class="xtras__group">' +
+        '<p class="xtras__group-name">' + esc(name) + '</p>' +
+        '<div class="xtras__grid">' +
+          g.groups[name].map(function (a) {
+            return '<label class="xtra">' +
+              '<input type="checkbox" name="addon" value="' + esc(a.id) + '">' +
+              '<span class="xtra__box" aria-hidden="true"></span>' +
+              '<span class="xtra__text">' +
+                '<strong>' + esc(a.label) + '</strong>' +
+                (a.note ? '<span class="xtra__note">' + esc(a.note) + '</span>' : '') +
+              '</span></label>';
+          }).join('') +
+        '</div>' +
       '</div>';
     }).join('');
 
-    return '<div class="proposal__addons" id="proposal-addons">' +
-      '<p class="eyebrow">Optional add-ons</p>' +
-      '<p class="proposal__addons-lead muted">Not already on this quote. Check any you would like — Kristina will confirm pricing.</p>' +
+    return '<section class="xtras" id="proposal-addons">' +
+      '<div class="xtras__head">' +
+        '<h2 class="xtras__title">While she is there</h2>' +
+        '<p class="xtras__lead">Tick anything you would like added to your first visit. ' +
+          'Kristina will confirm the price for these before she starts — nothing is charged today.</p>' +
+      '</div>' +
       blocks +
-    '</div>';
+      '<p class="xtras__count" id="xtras-count" hidden></p>' +
+    '</section>';
   }
 
   function declinePanelHtml() {
@@ -126,18 +137,32 @@
 
     var actions = '';
     if (status === 'sent') {
+      /* Saying yes is one big button with the reasons not to worry sitting
+         right beside it, because that is where the hesitation is. Declining
+         stays entirely available and stops shouting. */
       actions =
         addonsHtml(addons) +
         declinePanelHtml() +
-        '<div class="proposal__actions" id="proposal-actions">' +
-          '<button type="button" class="btn btn--primary" id="accept">Accept This Quote</button>' +
-          '<button type="button" class="btn btn--ghost" id="decline">Decline</button>' +
-        '</div>' +
-        '<p class="proposal__fine muted">Accepting confirms you would like to book at the quoted price. ' +
-          'Kristina will reach out to schedule your first visit.</p>';
+        '<section class="yes">' +
+          '<ul class="yes__points">' +
+            '<li>No contract — pause or stop with a week&rsquo;s notice</li>' +
+            '<li>Nothing to pay today, and nothing until the work is done</li>' +
+            '<li>The same person each visit, licensed and insured</li>' +
+          '</ul>' +
+          '<div class="proposal__actions" id="proposal-actions">' +
+            '<button type="button" class="btn btn--primary yes__go" id="accept">' +
+              'Yes — let&rsquo;s book it</button>' +
+          '</div>' +
+          '<p class="yes__fine">Kristina will text you to agree a first date. ' +
+            'Nothing is charged when you accept.</p>' +
+          '<p class="yes__no"><button type="button" class="linkish" id="decline">' +
+            'Not right now</button></p>' +
+        '</section>';
     } else if (status === 'accepted') {
       actions = '<div class="proposal__done proposal__done--ok">' +
-        '<strong>Accepted</strong> — thank you. Kristina will be in touch shortly to confirm your visit.</div>';
+        '<p class="proposal__done-k">You are booked in</p>' +
+        '<p>Thank you, ' + esc(first) + '. Kristina has this and will text you shortly to agree a first date. ' +
+        'Anything you need before then, her number is below.</p></div>';
     } else if (status === 'declined') {
       actions = '<div class="proposal__done">You declined this quote. Reply to Kristina if you would like a revised one.</div>';
     } else if (status === 'expired') {
@@ -145,17 +170,30 @@
     }
     actions += download;
 
+    var first = (q.customer_name || '').split(' ')[0] || 'there';
+    var recurring = items.filter(function (it) { return CADENCE[it.cadence]; });
+    var rhythm = recurring.length ? CADENCE[recurring[0].cadence].toLowerCase() : '';
+
     root.innerHTML =
       '<article class="card proposal">' +
-        '<div class="proposal__head">' +
-          '<img src="/logo/logo-260.webp" width="130" alt="Oasis Coastal Cleaning" class="proposal__logo">' +
-          '<p class="eyebrow">Your quote</p>' +
-          '<h1 style="font-size:var(--step-2);margin:0 0 .35rem">Hi ' + esc((q.customer_name || '').split(' ')[0] || 'there') + '</h1>' +
-          '<p class="muted" style="margin:0">' +
-            esc(q.service_label || 'Cleaning') +
-            (q.city ? ' · ' + esc(q.city) : '') +
+        /* A band of colour across the top, the greeting in it, and the number
+           they came for immediately underneath. Nobody opens a quote to read
+           a table header first. */
+        '<div class="proposal__banner">' +
+          '<img src="/logo/logo-260.webp" width="120" height="120" alt="Oasis Coastal Cleaning" class="proposal__logo">' +
+          '<p class="proposal__hello">Hi ' + esc(first) + ' — here is your quote</p>' +
+          '<p class="proposal__for">' +
+            esc(q.service_label || 'Cleaning') + (q.city ? ' in ' + esc(q.city) : '') +
           '</p>' +
         '</div>' +
+        '<div class="proposal__hero">' +
+          '<p class="proposal__hero-k">' + (rhythm ? 'Your ' + esc(rhythm) + ' visit' : 'Your visit') + '</p>' +
+          '<p class="proposal__hero-n">' + esc(money(q.total)) + '</p>' +
+          (rhythm
+            ? '<p class="proposal__hero-s">Every visit, ' + esc(rhythm) + '. Pause or stop whenever you like.</p>'
+            : '<p class="proposal__hero-s">One visit, everything below included.</p>') +
+        '</div>' +
+        '<h2 class="proposal__h2">What that covers</h2>' +
         '<div class="proposal__table-wrap">' +
           '<table class="proposal__table">' +
             '<thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead>' +
@@ -163,7 +201,10 @@
           '</table>' +
         '</div>' +
         '<div class="proposal__totals">' +
-          '<div><span>Subtotal</span><strong>' + esc(money(q.subtotal)) + '</strong></div>' +
+          (Number(q.tax) > 0
+            ? '<div><span>Subtotal</span><strong>' + esc(money(q.subtotal)) + '</strong></div>' +
+              '<div><span>Tax</span><strong>' + esc(money(q.tax)) + '</strong></div>'
+            : '') +
           '<div class="proposal__total"><span>Total</span><strong>' + esc(money(q.total)) + '</strong></div>' +
         '</div>' +
         (q.expires_at && status === 'sent'
@@ -184,6 +225,31 @@
     var declineCancel = document.getElementById('decline-cancel');
     var declineConfirm = document.getElementById('decline-confirm');
     var actionsEl = document.getElementById('proposal-actions');
+
+    /* Ticking an extra should feel like it did something, and the button
+       should say what it is about to do. */
+    var countEl = document.getElementById('xtras-count');
+    var refreshXtras = function () {
+      var n = selectedAddons().length;
+      if (countEl) {
+        countEl.hidden = n === 0;
+        countEl.textContent = n === 1
+          ? 'One extra added — Kristina will confirm the price for it.'
+          : n + ' extras added — Kristina will confirm the price for those.';
+      }
+      if (acceptBtn) {
+        acceptBtn.innerHTML = n
+          ? 'Yes — book it with ' + (n === 1 ? 'my extra' : 'my ' + n + ' extras')
+          : 'Yes — let\u2019s book it';
+      }
+    };
+    Array.prototype.forEach.call(root.querySelectorAll('input[name="addon"]'), function (box) {
+      box.addEventListener('change', function () {
+        var card = box.closest('.xtra');
+        if (card) card.classList.toggle('is-on', box.checked);
+        refreshXtras();
+      });
+    });
 
     if (acceptBtn) {
       acceptBtn.addEventListener('click', function () {
