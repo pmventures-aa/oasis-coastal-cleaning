@@ -47,7 +47,12 @@ export async function onRequestPost({ request, env }) {
     env.TURNSTILE_SECRET_KEY,
     request.headers.get('CF-Connecting-IP')
   );
-  if (!ok) return json({ error: 'The “I am human” check did not pass. Try it once more.' }, 400);
+  if (!ok) {
+    return json({
+      error: 'The “I am human” check did not go through. Reload and try once more — ' +
+             'or call or text (561) 201-7123 and Kristina will take the details herself.'
+    }, 400);
+  }
 
   const lead = {
     id: newId(),

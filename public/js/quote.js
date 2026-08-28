@@ -607,13 +607,19 @@ var state = { step: 0, leadId: null };
     if (body.company) { return; }
     body.formStartedAt = FORM_OPENED_AT;
 
+    /* Two different situations that look alike. If the widget is on the page
+       and unsolved, ask them to solve it. If it never appeared at all — an ad
+       blocker, a locked-down office network, Cloudflare having a bad minute —
+       then sending is better than a form nobody can submit, and the server
+       decides. Being unable to load a script is not the customer's fault. */
     if (D.turnstileSiteKey) {
       var token = root.querySelector('[name="cf-turnstile-response"]');
-      if (!token || !token.value) {
+      var rendered = !!root.querySelector('#turnstile-holder iframe');
+      if (rendered && (!token || !token.value)) {
         say('Please complete the “I am human” check, then send again.');
         return;
       }
-      body.turnstileToken = token.value;
+      if (token && token.value) { body.turnstileToken = token.value; }
     }
 
     var label = btn.textContent;

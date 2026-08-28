@@ -576,7 +576,7 @@ window.OASIS = {
      Cloudflare Turnstile keeps fake leads out of your inbox.
      Leave the key empty and the forms still work — they just skip the check.
      Get a key at: Cloudflare dashboard → Turnstile → Add site. */
-  turnstileSiteKey: '',
+  turnstileSiteKey: '0x4AAAAAAEfv-R_6-XHmLKNV',
 
   /* ----------------------------------------------------------------- footer */
   footerNote: 'Serving Palm Beach and Broward County, Florida.'
