@@ -30,10 +30,8 @@
     return '$' + (n / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
 
-  var formatDate = function (iso) {
-    var d = new Date(iso);
-    return isNaN(d) ? '' : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  };
+  // Florida time — see js/format.js.
+  var formatDate = function (iso) { return window.OasisFormat.formatDate(iso); };
 
   var api = function (path, opts) {
     return fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))

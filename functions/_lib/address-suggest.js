@@ -139,7 +139,7 @@ function scoreStreetMatch(item, typedQuery) {
   return score;
 }
 
-/** OSM often puts the road on `name` with no `street` (Margate NW 62nd Ave). */
+/** OSM often puts the road on `name` with no `street` (Margate NW 70th Ave). */
 function photonStreet(p) {
   if (p.street) return String(p.street).trim();
   if (p.osm_key === 'highway' && p.name) return String(p.name).trim();
@@ -268,7 +268,7 @@ async function nominatimSearch(params, fetchImpl) {
 }
 
 /**
- * House-level US search. Finds 2156 NW 62nd Ave in Margate; Photon often only
+ * House-level US search. Finds 123 NW 70th Ave in Margate; Photon often only
  * has the street centerline under `name`.
  */
 async function suggestNominatim(query, zip, city, fetchImpl) {

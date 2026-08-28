@@ -145,6 +145,29 @@ export async function onRequestPatch({ request, env }) {
     ).bind(new Date().toISOString(), id).run();
     return json({ ok: true, action: 'restored' });
   }
+  /* Accepted is not always final. The customer adds a room, the job changes,
+     or a payment question turns up weeks later — she needs the quote back
+     without losing what it said or who accepted it. Reopening is deliberate,
+     dated and recorded; the acceptance details stay on the row. */
+  if (action === 'reopen') {
+    if (existing.status !== 'accepted') {
+      return json({ error: 'Only an accepted quote needs reopening.' }, 400);
+    }
+    const at = new Date().toISOString();
+    const reason = clean(body.reason, 500);
+    await env.DB.prepare(
+      `UPDATE quotes SET status = 'sent', reopened_at = ?, reopen_reason = ?, updated_at = ?
+       WHERE id = ?`
+    ).bind(at, reason || null, at, id).run().catch(async (err) => {
+      console.error('Reopen columns missing:', err && err.message || err);
+      await env.DB.prepare(
+        `UPDATE quotes SET status = 'sent', updated_at = ? WHERE id = ?`
+      ).bind(at, id).run();
+    });
+    await logQuoteEvent(env.DB, id, 'reopened', reason ? { reason } : null);
+    return json({ ok: true, action: 'reopened' });
+  }
+
   if (action === 'delete') {
     await env.DB.prepare('DELETE FROM quote_events WHERE quote_id = ?').bind(id).run();
     await env.DB.prepare('DELETE FROM quotes WHERE id = ?').bind(id).run();

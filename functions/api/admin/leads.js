@@ -3,6 +3,7 @@
  * POST  /api/admin/leads          — log a phone/walk-in lead
  * PATCH /api/admin/leads          — edit fields, or action: archive | restore | delete
  */
+import { formatPhone } from '../../_lib/format.js';
 import { json, clean, newId } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
 
@@ -166,7 +167,9 @@ export async function onRequestPatch({ request, env }) {
   for (const [col, max] of Object.entries(EDITABLE)) {
     if (body[col] === undefined) continue;
     sets.push(`${col} = ?`);
-    values.push(clean(body[col], max));
+    // One shape for a phone number however it was typed, so the same person
+    // does not appear as 5613887879 here and (561) 388-7879 there.
+    values.push(col === 'phone' ? formatPhone(clean(body[col], max)) : clean(body[col], max));
     if (col === 'quoted_amount' && clean(body[col], max)) {
       sets.push('quoted_at = COALESCE(quoted_at, ?)');
       values.push(new Date().toISOString());

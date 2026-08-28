@@ -5,7 +5,7 @@
  */
 import { json, clean, sendEmail } from '../../_lib/util.js';
 import {
-  quoteFromRow, isExpired, recordQuoteView, logQuoteEvent, looksAutomated
+  quoteFromRow, isExpired, recordQuoteView, logQuoteEvent, looksAutomated, acceptanceTrail
 } from '../../_lib/quotes.js';
 import { availableAddons, resolveSelectedAddons } from '../../_lib/addons.js';
 import { buildQuoteAcceptedEmail, buildQuoteDeclinedEmail } from '../../_lib/email.js';
@@ -133,7 +133,8 @@ export async function onRequestPost({ request, env, params }) {
     await env.DB.prepare(
       `UPDATE quotes SET status = 'declined', declined_at = ?, updated_at = ? WHERE id = ?`
     ).bind(now, now, quote.id).run();
-    await logQuoteEvent(env.DB, quote.id, 'declined', reason ? { reason } : null);
+    await logQuoteEvent(env.DB, quote.id, 'declined',
+      { ...acceptanceTrail(request), ...(reason ? { reason } : {}) });
     try {
       const mail = buildQuoteDeclinedEmail(env, { quote, lead: row, reason });
       await sendEmail(env, {
@@ -155,17 +156,28 @@ export async function onRequestPost({ request, env, params }) {
     .filter((id) => allowed.has(id));
   const requestedAddons = resolveSelectedAddons(requestedIds);
 
+  // The one event worth identifying in detail.
+  const trail = acceptanceTrail(request);
   await env.DB.prepare(
-    `UPDATE quotes SET status = 'accepted', accepted_at = ?, updated_at = ? WHERE id = ?`
-  ).bind(now, now, quote.id).run();
-  await logQuoteEvent(
-    env.DB,
-    quote.id,
-    'accepted',
-    requestedAddons.length
+    `UPDATE quotes SET status = 'accepted', accepted_at = ?, updated_at = ?,
+       accepted_ip = ?, accepted_country = ?, accepted_region = ?, accepted_city = ?,
+       accepted_user_agent = ?
+     WHERE id = ?`
+  ).bind(now, now, trail.ip, trail.country, trail.region, trail.city, trail.userAgent, quote.id)
+   .run()
+   .catch(async (err) => {
+     // A database without migration 0006 must still be able to take a booking.
+     console.error('Acceptance trail not stored:', err && err.message || err);
+     await env.DB.prepare(
+       `UPDATE quotes SET status = 'accepted', accepted_at = ?, updated_at = ? WHERE id = ?`
+     ).bind(now, now, quote.id).run();
+   });
+  await logQuoteEvent(env.DB, quote.id, 'accepted', {
+    ...trail,
+    ...(requestedAddons.length
       ? { add_ons: requestedAddons.map((a) => ({ id: a.id, label: a.label })) }
-      : null
-  );
+      : {})
+  });
 
   await env.DB.prepare(
     `UPDATE leads SET status = 'booked', updated_at = ? WHERE id = ?`

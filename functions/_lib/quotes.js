@@ -207,3 +207,20 @@ export async function applyEmailWebhook(db, providerId, kind, detail = null) {
   await logQuoteEvent(db, quote.id, kind, detail);
   return quoteFromRow(await db.prepare('SELECT * FROM quotes WHERE id = ?').bind(quote.id).first());
 }
+
+/* -------------------------------------------------------- who accepted this
+   Cloudflare hands every request a set of facts about where it came from.
+   Recording them at the moment of acceptance is the difference between "the
+   quote says accepted" and "accepted from a phone in Boca Raton at 4:12pm on
+   the 3rd, from this address". Kept for exactly the one event that matters. */
+export function acceptanceTrail(request) {
+  const h = (name) => request.headers.get(name) || '';
+  const cf = request.cf || {};
+  return {
+    ip: h('cf-connecting-ip') || h('x-real-ip') || h('x-forwarded-for').split(',')[0].trim() || null,
+    country: cf.country || h('cf-ipcountry') || null,
+    region: cf.region || cf.regionCode || null,
+    city: cf.city || null,
+    userAgent: h('user-agent').slice(0, 400) || null
+  };
+}

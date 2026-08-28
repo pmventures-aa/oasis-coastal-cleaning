@@ -16,6 +16,7 @@
  *   - Both a rich HTML part and a clean plain-text part are always produced,
  *     which also helps a message land in the inbox instead of spam.
  */
+import { formatDate, formatPhone } from './format.js';
 import { escapeHtml } from './util.js';
 import { formatMoney } from './quotes.js';
 
@@ -409,10 +410,7 @@ function totalsBlock(subtotal, total, { moneyFn = cents } = {}) {
   );
 }
 
-function formatExpiry(iso) {
-  const d = new Date(iso);
-  return isNaN(d) ? '' : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-}
+const formatExpiry = (iso) => formatDate(iso);
 
 /**
  * Branded quote email to the customer plus an admin copy for Kristina.

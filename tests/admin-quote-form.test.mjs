@@ -9,14 +9,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const lib = await import(pathToFileURL(join(here, '../functions/_lib/address-suggest.js')).href);
 
-assert.equal(lib.expandStreetAbbreviations('2156 NW 62nd Ave'), '2156 Northwest 62nd Avenue');
-assert.equal(lib.extractHouseNumber('2156 NW 62nd Ave'), '2156');
+assert.equal(lib.expandStreetAbbreviations('123 NW 70th Ave'), '123 Northwest 70th Avenue');
+assert.equal(lib.extractHouseNumber('123 NW 70th Ave'), '123');
 
 const withNum = lib.applyTypedHouseNumber(
-  lib.normalizeSuggestion({ address: 'Northwest 62nd Avenue', city: 'Margate', zip: '33063' }),
-  '2156 NW 62nd Ave'
+  lib.normalizeSuggestion({ address: 'Northwest 70th Avenue', city: 'Margate', zip: '33063' }),
+  '123 NW 70th Ave'
 );
-assert.equal(withNum.address, '2156 Northwest 62nd Avenue');
+assert.equal(withNum.address, '123 Northwest 70th Avenue');
 assert.equal(withNum.city, 'Margate');
 assert.equal(withNum.zip, '33063');
 
@@ -52,7 +52,7 @@ const streetBody = {
   features: [
     {
       properties: {
-        street: 'Northwest 62nd Avenue',
+        street: 'Northwest 70th Avenue',
         city: 'Margate',
         state: 'Florida',
         postcode: '33063',
@@ -76,7 +76,7 @@ const photonNameOnlyBody = {
   features: [
     {
       properties: {
-        name: 'Northwest 62nd Avenue',
+        name: 'Northwest 70th Avenue',
         city: 'Margate',
         state: 'Florida',
         postcode: '33063',
@@ -87,7 +87,7 @@ const photonNameOnlyBody = {
     },
     {
       properties: {
-        name: 'Atlantic Boulevard/Northwest 62nd Avenue',
+        name: 'Atlantic Boulevard/Northwest 70th Avenue',
         street: 'West Atlantic Boulevard',
         city: 'Margate',
         state: 'Florida',
@@ -104,8 +104,8 @@ const nominatimMargate = [
   {
     name: '',
     address: {
-      house_number: '2156',
-      road: 'Northwest 62nd Avenue',
+      house_number: '123',
+      road: 'Northwest 70th Avenue',
       town: 'Margate',
       state: 'Florida',
       postcode: '33063',
@@ -129,37 +129,37 @@ function routeSuggest(url, { nominatim = nominatimMargate, photon = streetBody }
 }
 
 const nomResult = await lib.suggestFloridaAddresses(
-  '2156 NW 62nd Ave',
+  '123 NW 70th Ave',
   {},
   mockFetch((url) => routeSuggest(url)),
   { zip: '33063' }
 );
 assert.equal(nomResult.provider, 'nominatim');
 assert.ok(nomResult.suggestions.length >= 1);
-assert.equal(nomResult.suggestions[0].address, '2156 Northwest 62nd Avenue');
+assert.equal(nomResult.suggestions[0].address, '123 Northwest 70th Avenue');
 assert.equal(nomResult.suggestions[0].city, 'Margate');
 assert.equal(nomResult.suggestions[0].zip, '33063');
 assert.ok(!nomResult.suggestions.some((s) => /New York|Broadway|Pompano/i.test(s.label)));
 
 const photonName = await lib.suggestFloridaAddresses(
-  '2156 NW 62nd Ave',
+  '123 NW 70th Ave',
   {},
   mockFetch((url) => routeSuggest(url, { nominatim: [], photon: photonNameOnlyBody })),
   { zip: '33063' }
 );
 assert.equal(photonName.provider, 'photon');
-assert.equal(photonName.suggestions[0].address, '2156 Northwest 62nd Avenue');
+assert.equal(photonName.suggestions[0].address, '123 Northwest 70th Avenue');
 assert.equal(photonName.suggestions[0].city, 'Margate');
 assert.ok(!photonName.suggestions.some((s) => /Atlantic Boulevard/i.test(s.label)));
 
 const typedFallback = await lib.suggestFloridaAddresses(
-  '2156 NW 62nd Ave',
+  '123 NW 70th Ave',
   {},
   mockFetch((url) => routeSuggest(url, { nominatim: [], photon: { features: [] } })),
   { zip: '33063' }
 );
 assert.equal(typedFallback.provider, 'typed');
-assert.equal(typedFallback.suggestions[0].address, '2156 NW 62nd Ave');
+assert.equal(typedFallback.suggestions[0].address, '123 NW 70th Ave');
 assert.equal(typedFallback.suggestions[0].city, 'Margate');
 assert.equal(typedFallback.suggestions[0].zip, '33063');
 

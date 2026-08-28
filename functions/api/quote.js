@@ -11,6 +11,7 @@
  * clear reason, because silently accepting a lead nobody will ever read is
  * worse than telling the visitor to call.
  */
+import { formatPhone } from '../_lib/format.js';
 import { json, clean, cleanList, isEmail, newId, verifyTurnstile, sendEmail }
   from '../_lib/util.js';
 import { buildQuoteEmail } from '../_lib/email.js';
@@ -42,7 +43,7 @@ export async function onRequestPost({ request, env }) {
     created_at: new Date().toISOString(),
 
     name:         clean(body.name, 120),
-    phone:        clean(body.phone, 40),
+    phone:        formatPhone(clean(body.phone, 40)),
     email:        clean(body.email, 160),
     best_time:    clean(body.bestTime, 80),
     contact_pref: clean(body.contactPref, 40),

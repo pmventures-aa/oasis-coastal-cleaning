@@ -3,7 +3,7 @@
  *
  * ZIP-first Florida address autocomplete for the admin dashboard.
  * - ?zip=33063           → resolve city + map bias for that ZIP
- * - ?q=2156 NW 62nd&zip=33063 → street suggestions near that ZIP
+ * - ?q=123 NW 70th&zip=33063 → street suggestions near that ZIP
  */
 import { json, clean } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';

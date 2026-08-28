@@ -15,7 +15,8 @@
   var EVENT_LABELS = {
     created: 'Quote Created', sent: 'Email Sent', email_delivered: 'Email Delivered',
     email_opened: 'Email Opened', email_bounced: 'Email Bounced', email_failed: 'Email Failed',
-    viewed: 'Quote Viewed', accepted: 'Quote Accepted', declined: 'Quote Declined', expired: 'Quote Expired'
+    viewed: 'Quote Viewed', accepted: 'Quote Accepted', declined: 'Quote Declined', expired: 'Quote Expired',
+    revised: 'Quote Revised', reopened: 'Reopened by Kristina'
   };
 
   var state = {
@@ -157,6 +158,8 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   };
 
+  var FMT = window.OasisFormat;
+
   var when = function (iso) {
     var d = new Date(iso);
     if (isNaN(d)) { return iso || ''; }
@@ -165,15 +168,12 @@
     if (mins < 60) { return mins + 'm ago'; }
     if (mins < 1440) { return Math.round(mins / 60) + 'h ago'; }
     if (mins < 10080) { return Math.round(mins / 1440) + 'd ago'; }
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return FMT.formatDateShort(iso);
   };
 
-  var fullDate = function (iso) {
-    var d = new Date(iso);
-    return isNaN(d) ? (iso || '') : d.toLocaleString('en-US', {
-      weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-    });
-  };
+  // Florida time, and it says so. See js/format.js.
+  var fullDate = function (iso) { return FMT.formatStamp(iso) || (iso || ''); };
+  var phone = function (v) { return FMT.formatPhone(v); };
 
   var list = function (json) {
     try { var a = JSON.parse(json || '[]'); return Array.isArray(a) ? a : []; }
@@ -338,7 +338,7 @@
           '<div class="addr-suggest__wrap">' +
             '<input class="pf__v" type="text" data-col="address" data-address-suggest autocomplete="off" ' +
             (String(l.zip || '').replace(/\D/g, '').length === 5 ? '' : ' disabled') +
-              ' placeholder="' + (String(l.zip || '').replace(/\D/g, '').length === 5 ? 'e.g. 2156 NW 62nd Ave' : 'Enter ZIP first') + '" value="' + esc(l.address || '') + '">' +
+              ' placeholder="' + (String(l.zip || '').replace(/\D/g, '').length === 5 ? 'e.g. 123 NW 70th Ave' : 'Enter ZIP first') + '" value="' + esc(l.address || '') + '">' +
             '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
           '</div>' +
           '<span class="addr-suggest__hint">ZIP first, then street — suggestions stay in that ZIP</span></label>' +
@@ -867,6 +867,19 @@
     return bits.join(' · ');
   }
 
+  /* A user-agent string is 200 characters nobody wants to read. She wants to
+     know it was a phone, not which build of WebKit. */
+  function deviceOf(ua) {
+    var u = String(ua || '');
+    if (/iPhone|iPod/i.test(u)) return 'iPhone';
+    if (/iPad/i.test(u)) return 'iPad';
+    if (/Android/i.test(u)) return /Mobile/i.test(u) ? 'Android phone' : 'Android tablet';
+    if (/Macintosh|Mac OS X/i.test(u)) return 'Mac';
+    if (/Windows/i.test(u)) return 'Windows PC';
+    if (/Linux/i.test(u)) return 'Linux';
+    return 'unknown device';
+  }
+
   function quoteTimeline(q) {
     var events = (q.events || []).slice().sort(function (a, b) {
       return String(a.created_at).localeCompare(String(b.created_at));
@@ -882,6 +895,14 @@
         if (ev.kind === 'declined' && detail && detail.reason) meta += ' · “' + detail.reason + '”';
         if (ev.kind === 'accepted' && detail && detail.add_ons && detail.add_ons.length) {
           meta += ' · Add-ons: ' + detail.add_ons.map(function (a) { return a.label || a.id; }).join(', ');
+        }
+        if (ev.kind === 'reopened' && detail && detail.reason) meta += ' · “' + detail.reason + '”';
+        // Captured data with nowhere to read it is not captured, it is hoarded.
+        if ((ev.kind === 'accepted' || ev.kind === 'declined') && detail) {
+          var place = [detail.city, detail.region, detail.country].filter(Boolean).join(', ');
+          if (place) meta += ' · from ' + place;
+          if (detail.ip) meta += ' · ' + detail.ip;
+          if (detail.userAgent) meta += ' · ' + deviceOf(detail.userAgent);
         }
         var kindLabel = (ev.kind === 'sent' && detail && detail.resend)
           ? 'Email Resent'
@@ -903,8 +924,12 @@
       acts += '<button type="button" class="btn btn--primary btn--tiny" data-quote-action="resend" data-quote-id="' +
         esc(q.id) + '" data-quote-email="' + esc(to) + '">Resend</button>';
     }
-    // Accepted is a deal and stays as it is; anything else she can still change.
-    if (!isArchived && q.status !== 'accepted' && q.status !== 'draft') {
+    // An accepted quote is not edited in place — it is reopened first, which
+    // is a deliberate act with a reason and a date against it.
+    if (!isArchived && q.status === 'accepted') {
+      acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="reopen" data-quote-id="' +
+        esc(q.id) + '">Reopen</button>';
+    } else if (!isArchived && q.status !== 'draft') {
       acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="edit" data-quote-id="' +
         esc(q.id) + '">Edit</button>';
     }
@@ -1225,7 +1250,18 @@
       return;
     }
     if (action === 'delete' && !window.confirm('Delete this quote permanently?')) return;
-    api('/api/admin/quotes', { method: 'PATCH', body: JSON.stringify({ id: qid, action: action }) })
+
+    var extra = {};
+    if (action === 'reopen') {
+      var why = window.prompt(
+        'Reopen this accepted quote?\n\nIt goes back to sent so you can change and resend it. ' +
+        'Who accepted it and when is kept.\n\nWhy are you reopening it? (optional)');
+      if (why === null) return;                 // cancelled
+      if (why.trim()) extra.reason = why.trim();
+    }
+
+    api('/api/admin/quotes', { method: 'PATCH',
+      body: JSON.stringify(Object.assign({ id: qid, action: action }, extra)) })
       .then(function (r) {
         if (!r.ok) {
           window.alert(r.body.error || 'That action failed.');
@@ -1443,7 +1479,7 @@
     var street = scope && scope.querySelector('[data-address-suggest]');
     if (!street) return;
     street.disabled = !on;
-    street.placeholder = on ? 'e.g. 2156 NW 62nd Ave' : 'Enter ZIP first';
+    street.placeholder = on ? 'e.g. 123 NW 70th Ave' : 'Enter ZIP first';
     if (!on) hideAddressSuggestions(street);
   }
 
