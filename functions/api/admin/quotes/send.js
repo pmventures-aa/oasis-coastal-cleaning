@@ -29,15 +29,17 @@ export async function onRequestPost({ request, env }) {
 
   if (!row) return json({ error: 'Quote not found.' }, 404);
   if (row.status === 'accepted') return json({ error: 'This quote was already accepted.' }, 400);
+  if (row.archived_at) return json({ error: 'Restore this quote before sending again.' }, 400);
 
   const quote = quoteFromRow(row);
-  if (isExpired(quote)) return json({ error: 'This quote has expired. Edit the expiry and try again.' }, 400);
+  if (isExpired(quote)) return json({ error: 'This quote has expired. Create a new quote instead.' }, 400);
 
   const customerEmail = clean(body.customer_email, 160) || quote.customer_email || row.lead_email;
   if (!customerEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail)) {
     return json({ error: 'A valid customer email is required to send.' }, 400);
   }
 
+  const isResend = quote.status === 'sent' || quote.status === 'declined';
   const now = new Date().toISOString();
   const url = proposalUrl(env, quote.token);
   const mail = buildCustomerQuoteEmail(env, { quote, lead: row, proposalUrl: url });
@@ -49,12 +51,15 @@ export async function onRequestPost({ request, env }) {
     text: mail.customerText
   });
 
-  // Also notify Kristina that a quote went out.
-  const notifyErr = await sendEmail(env, {
-    subject: mail.adminSubject,
-    html: mail.adminHtml,
-    text: mail.adminText
-  });
+  // Also notify Kristina that a quote went out (skip noisy admin copy on resend).
+  let notifyErr = null;
+  if (!isResend) {
+    notifyErr = await sendEmail(env, {
+      subject: mail.adminSubject,
+      html: mail.adminHtml,
+      text: mail.adminText
+    });
+  }
 
   if (customerSend.error) {
     await env.DB.prepare(
@@ -64,15 +69,19 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'Could not send quote to customer.', detail: customerSend.error }, 502);
   }
 
+  // Keep the original sent_at on resend; reset status if they previously declined.
   await env.DB.prepare(
-    `UPDATE quotes SET status = 'sent', sent_at = ?, updated_at = ?, customer_email = ?,
-      email_status = 'sent', email_error = NULL, email_provider_id = ? WHERE id = ?`
+    `UPDATE quotes SET status = 'sent', sent_at = COALESCE(sent_at, ?), updated_at = ?, customer_email = ?,
+      email_status = 'sent', email_error = NULL, email_provider_id = ?,
+      declined_at = NULL
+     WHERE id = ?`
   ).bind(now, now, customerEmail, customerSend.providerId || null, id).run();
 
   await logQuoteEvent(env.DB, id, 'sent', {
     to: customerEmail,
     provider: customerSend.provider,
-    provider_id: customerSend.providerId || null
+    provider_id: customerSend.providerId || null,
+    resend: isResend
   });
 
   if (quote.lead_id) {
@@ -91,6 +100,7 @@ export async function onRequestPost({ request, env }) {
   const updated = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
   return json({
     ok: true,
+    resent: isResend,
     quote: quoteFromRow(updated),
     proposalUrl: url,
     emailWarning: notifyErr || null
