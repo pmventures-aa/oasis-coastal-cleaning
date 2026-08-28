@@ -13,6 +13,7 @@
  */
 import { formatPhone } from '../_lib/format.js';
 import { linkLead } from '../_lib/customers.js';
+import { loadSettings, alertTarget } from '../_lib/settings.js';
 import { json, clean, cleanList, isEmail, newId, verifyTurnstile, sendEmail }
   from '../_lib/util.js';
 import { buildQuoteEmail } from '../_lib/email.js';
@@ -104,7 +105,10 @@ export async function onRequestPost({ request, env }) {
   // One branded, email-client-safe template builds both the HTML and the
   // plain-text parts. Reply-to is the visitor so Kristina can answer directly.
   const { subject, text, html } = buildQuoteEmail(env, lead);
-  const mailProblem = await sendEmail(env, { subject, text, html, replyTo: lead.email });
+  const alertTo = alertTarget(await loadSettings(env.DB), env, 'request');
+  const mailProblem = alertTo
+    ? await sendEmail(env, { to: alertTo, subject, text, html, replyTo: lead.email })
+    : null;
 
   if (!stored && mailProblem) {
     console.log('Lead could not be stored or emailed:', mailProblem, '\n' + text);

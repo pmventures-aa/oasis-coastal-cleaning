@@ -22,7 +22,7 @@
   var state = {
     view: 'active', filter: '', followup: false, open: null, leadTab: {},
     leads: [], counts: {}, q: '', quotes: {}, composing: false, composingLead: false,
-    focusQuoteEditor: null, editingQuote: {},
+    focusQuoteEditor: null, editingQuote: {}, settings: null, settingsFields: [], health: {},
     propertyLookupConfigured: null, emailConfigured: true
   };
 
@@ -448,6 +448,8 @@
             '>Active<b>' + activeTotal + '</b></button>' +
           '<button type="button" data-view="archived"' + (state.view === 'archived' ? ' class="is-on"' : '') +
             '>Archived<b>' + (counts.archived || 0) + '</b></button>' +
+          '<button type="button" data-view="settings"' + (state.view === 'settings' ? ' class="is-on"' : '') +
+            '>Settings</button>' +
         '</div>' +
         (state.view === 'active'
           ? '<label class="toolbar__select"><span class="sr-only">Status</span><select id="status-filter">' +
@@ -463,14 +465,17 @@
               '<button type="button" class="btn btn--primary btn--new-quote" data-new-quote>+ New Quote</button>' +
             '</div>'
           : '') +
-        '<input type="search" id="search" class="toolbar__search" placeholder="Search name, city, ZIP, phone…" value="' + esc(state.q) + '" autocomplete="off">' +
+        (state.view === 'settings' ? ''
+          : '<input type="search" id="search" class="toolbar__search" placeholder="Search name, city, ZIP, phone…" value="' + esc(state.q) + '" autocomplete="off">') +
       '</div>' +
       (state.composingLead ? newLeadPanelHtml() : '') +
       (state.composing ? newQuotePanelHtml() : '') +
-      (state.leads.length
-        ? '<div class="leads">' + state.leads.map(row).join('') + '</div>' +
-          '<p id="search-empty" class="empty" hidden>Nothing matches.</p>'
-        : '<p class="empty">' + (state.view === 'archived' ? 'No archived leads.' : 'No quote requests yet.') + '</p>');
+      (state.view === 'settings'
+        ? settingsHtml()
+        : state.leads.length
+          ? '<div class="leads">' + state.leads.map(row).join('') + '</div>' +
+            '<p id="search-empty" class="empty" hidden>Nothing matches.</p>'
+          : '<p class="empty">' + (state.view === 'archived' ? 'No archived leads.' : 'No quote requests yet.') + '</p>');
 
     applySearchFilter();
     if (state.composingLead) {
@@ -960,6 +965,120 @@
         '<div class="quote-card-mini__acts">' + acts + '</div></div></details>';
   }
 
+  /* ------------------------------------------------------------- settings
+     Grouped the way she would ask the questions — how quotes look, how they
+     behave, what she wants to hear about — rather than the way they are
+     stored. Every field says what it is for underneath, so nothing needs
+     explaining twice. */
+  var SETTING_GROUPS = [
+    { title: 'Your quotes', keys: ['quote_from_name', 'quote_signoff'] },
+    { title: 'How quotes behave', keys: ['quote_expiry_days', 'quote_terms', 'quote_note'] },
+    { title: 'What you hear about', keys: ['notify_email', 'notify_on_request', 'notify_on_accept',
+                                           'notify_on_decline', 'notify_on_followup', 'notify_on_view'] }
+  ];
+
+  function settingField(f, value) {
+    var id = 'set-' + f.key;
+    var hint = f.hint ? '<span class="set__hint">' + esc(f.hint) + '</span>' : '';
+    if (f.type === 'toggle') {
+      var on = String(value).toLowerCase() === 'yes';
+      return '<div class="set set--toggle">' +
+        '<label class="set__switch" for="' + id + '">' +
+          '<input type="checkbox" id="' + id + '" data-setting="' + esc(f.key) + '"' + (on ? ' checked' : '') + '>' +
+          '<span class="set__track" aria-hidden="true"></span>' +
+          '<span class="set__label">' + esc(f.label) + '</span>' +
+        '</label>' + hint + '</div>';
+    }
+    var input = f.type === 'textarea'
+      ? '<textarea id="' + id + '" class="pf__v" rows="2" data-setting="' + esc(f.key) + '">' + esc(value || '') + '</textarea>'
+      : '<input id="' + id + '" class="pf__v" type="' + (f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : 'text') + '"' +
+        (f.type === 'number' ? ' min="1" max="365"' : '') +
+        ' data-setting="' + esc(f.key) + '" value="' + esc(value || '') + '">';
+    return '<div class="set">' +
+      '<label class="set__label" for="' + id + '">' + esc(f.label) +
+        (f.suffix ? ' <span class="muted">(' + esc(f.suffix) + ')</span>' : '') + '</label>' +
+      input + hint + '</div>';
+  }
+
+  var HEALTH_LABELS = {
+    database: ['Database', 'Leads, quotes and settings are saved.'],
+    settingsStored: ['Settings storage', 'This page can remember your choices.'],
+    quotes: ['Branded quotes', 'You can build and send quotes.'],
+    customers: ['Customers & properties', 'One customer can have several addresses.'],
+    email: ['Sending email', 'Quotes and alerts can leave the site.'],
+    emailTracking: ['Delivery tracking', 'You can see when a quote was delivered and opened.'],
+    propertyLookup: ['Property lookup', 'Fill beds, baths and square feet from an address.'],
+    spamCheck: ['Spam check', 'Extra protection on the public quote form.']
+  };
+
+  function settingsHtml() {
+    if (!state.settings) return '<p class="empty">Loading your settings…</p>';
+    var fields = {};
+    (state.settingsFields || []).forEach(function (f) { fields[f.key] = f; });
+
+    var groups = SETTING_GROUPS.map(function (g) {
+      return '<section class="card set-group">' +
+        '<h3 class="set-group__title">' + esc(g.title) + '</h3>' +
+        g.keys.map(function (k) {
+          return fields[k] ? settingField(fields[k], state.settings[k]) : '';
+        }).join('') + '</section>';
+    }).join('');
+
+    var health = Object.keys(HEALTH_LABELS).map(function (k) {
+      var on = !!state.health[k];
+      var l = HEALTH_LABELS[k];
+      return '<li class="health' + (on ? ' is-on' : '') + '">' +
+        '<span class="health__dot" aria-hidden="true"></span>' +
+        '<span class="health__body"><strong>' + esc(l[0]) + '</strong>' +
+        '<span class="muted">' + esc(on ? l[1] : 'Not set up yet.') + '</span></span>' +
+        '<span class="health__state">' + (on ? 'On' : 'Off') + '</span></li>';
+    }).join('');
+
+    return '<div class="settings">' + groups +
+      '<section class="card set-group">' +
+        '<h3 class="set-group__title">What this site can do</h3>' +
+        '<p class="muted set-group__lead">Anything switched off needs a setting added in Cloudflare. ' +
+          'Nothing here is broken — the site works without all of it.</p>' +
+        '<ul class="health-list">' + health + '</ul>' +
+      '</section>' +
+      '<div class="settings__save">' +
+        '<button type="button" class="btn btn--primary" data-save-settings>Save settings</button>' +
+        '<span class="settings__msg form-status" role="status" hidden></span>' +
+      '</div></div>';
+  }
+
+  function loadSettings() {
+    api('/api/admin/settings').then(function (r) {
+      if (!r.ok) {
+        state.settings = {}; state.settingsFields = []; state.health = {};
+        render();
+        return;
+      }
+      state.settings = r.body.settings;
+      state.settingsFields = r.body.fields;
+      state.health = r.body.health || {};
+      render();
+    });
+  }
+
+  function saveSettingsFromForm() {
+    var patch = {};
+    root.querySelectorAll('[data-setting]').forEach(function (el) {
+      patch[el.getAttribute('data-setting')] =
+        el.type === 'checkbox' ? (el.checked ? 'yes' : 'no') : el.value;
+    });
+    var msg = root.querySelector('.settings__msg');
+    api('/api/admin/settings', { method: 'PATCH', body: JSON.stringify(patch) })
+      .then(function (r) {
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = r.ok ? 'Saved.' : (r.body.error || 'Could not save.');
+          msg.className = 'settings__msg form-status ' + (r.ok ? 'form-status--ok' : 'form-status--err');
+        }
+        if (r.ok && r.body.settings) state.settings = r.body.settings;
+      });
+  }
+
   function renderQuotePanel(l, quotes) {
     var editingId = state.editingQuote && state.editingQuote[l.id];
     var editing = editingId && (quotes || []).find(function (q) { return q.id === editingId; });
@@ -1276,6 +1395,7 @@
       state.view = e.target.dataset.view;
       state.filter = ''; state.followup = false; state.open = null;
       state.composing = false; state.composingLead = false;
+      if (state.view === 'settings') { render(); loadSettings(); return; }
       load(); return;
     }
     if (e.target.matches('[data-new-lead]')) {
@@ -1374,6 +1494,7 @@
       if (editor.querySelectorAll('.quote-line').length > 1) { row.remove(); updateQuoteTotal(editor); }
       return;
     }
+    if (e.target.matches('[data-save-settings]')) { saveSettingsFromForm(); return; }
     if (e.target.matches('[data-save-quote]')) saveQuote(e.target.closest('.quote-editor'));
     if (e.target.matches('[data-send-quote]')) {
       var ed = e.target.closest('.quote-editor');

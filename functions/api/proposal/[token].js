@@ -8,6 +8,7 @@ import {
   quoteFromRow, isExpired, recordQuoteView, logQuoteEvent, looksAutomated, acceptanceTrail
 } from '../../_lib/quotes.js';
 import { availableAddons, resolveSelectedAddons } from '../../_lib/addons.js';
+import { loadSettings, alertTarget } from '../../_lib/settings.js';
 import { buildQuoteAcceptedEmail, buildQuoteDeclinedEmail } from '../../_lib/email.js';
 
 export async function onRequestGet({ request, env, params }) {
@@ -136,13 +137,18 @@ export async function onRequestPost({ request, env, params }) {
     await logQuoteEvent(env.DB, quote.id, 'declined',
       { ...acceptanceTrail(request), ...(reason ? { reason } : {}) });
     try {
-      const mail = buildQuoteDeclinedEmail(env, { quote, lead: row, reason });
-      await sendEmail(env, {
-        subject: mail.subject,
-        html: mail.html,
-        text: mail.text,
-        replyTo: row.lead_email || undefined
-      });
+      // Only if she asked to hear about declines, and wherever she asked.
+      const to = alertTarget(await loadSettings(env.DB), env, 'decline');
+      if (to) {
+        const mail = buildQuoteDeclinedEmail(env, { quote, lead: row, reason });
+        await sendEmail(env, {
+          to,
+          subject: mail.subject,
+          html: mail.html,
+          text: mail.text,
+          replyTo: row.lead_email || undefined
+        });
+      }
     } catch (err) {
       console.error('Decline notification email failed:', err);
     }
@@ -184,13 +190,17 @@ export async function onRequestPost({ request, env, params }) {
   ).bind(now, quote.lead_id).run();
 
   try {
-    const mail = buildQuoteAcceptedEmail(env, { quote, lead: row, requestedAddons });
-    await sendEmail(env, {
-      subject: mail.subject,
-      html: mail.html,
-      text: mail.text,
-      replyTo: row.lead_email || undefined
-    });
+    const to = alertTarget(await loadSettings(env.DB), env, 'accept');
+    if (to) {
+      const mail = buildQuoteAcceptedEmail(env, { quote, lead: row, requestedAddons });
+      await sendEmail(env, {
+        to,
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
+        replyTo: row.lead_email || undefined
+      });
+    }
   } catch (err) {
     console.error('Accept notification email failed:', err);
   }

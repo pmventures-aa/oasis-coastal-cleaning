@@ -3,6 +3,7 @@
  * visit. Flags the lead that was just created and tells Kristina.
  */
 import { json, clean, sendEmail } from '../_lib/util.js';
+import { loadSettings, alertTarget } from '../_lib/settings.js';
 import { buildFollowupEmail } from '../_lib/email.js';
 
 const KINDS = { call: 'a phone call', visit: 'an in-person walkthrough', text: 'a text message' };
@@ -28,7 +29,8 @@ export async function onRequestPost({ request, env }) {
   }
 
   const { subject, text, html } = buildFollowupEmail(env, { name, kindLabel: KINDS[kind], id });
-  await sendEmail(env, { subject, text, html });
+  const to = alertTarget(await loadSettings(env.DB), env, 'followup');
+  if (to) await sendEmail(env, { to, subject, text, html });
 
   return json({ ok: true });
 }

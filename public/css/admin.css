@@ -666,3 +666,56 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   margin: 0.5rem 0 0.35rem; font-size: var(--step--1);
 }
 .quote-link a { font-weight: 600; }
+
+/* ================================================================ settings
+   Grouped the way she would ask the questions, not the way they are stored.
+   ========================================================================= */
+.settings { display: grid; gap: clamp(0.9rem, 2vw, 1.25rem); max-width: 640px; }
+.set-group__title {
+  margin: 0 0 0.35rem; font-size: 0.78rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--oasis-teal);
+}
+.set-group__lead { margin: 0 0 0.9rem; font-size: 0.82rem; }
+.set { display: grid; gap: 0.3rem; margin-top: 0.9rem; }
+.set:first-of-type { margin-top: 0.6rem; }
+.set__label { font-weight: 600; font-size: 0.84rem; }
+.set__hint { font-size: 0.76rem; line-height: 1.45; color: var(--oasis-muted); }
+
+/* A toggle reads as a sentence: the label sits beside the switch. */
+.set--toggle { margin-top: 0.7rem; }
+.set__switch {
+  display: flex; align-items: center; gap: 0.7rem;
+  min-height: 44px; cursor: pointer;
+}
+.set__switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.set__track {
+  flex: none; width: 44px; height: 26px; border-radius: 999px;
+  background: var(--oasis-line); position: relative; transition: background 0.18s ease;
+}
+.set__track::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(9, 64, 69, 0.35); transition: transform 0.18s ease;
+}
+.set__switch input:checked + .set__track { background: var(--oasis-teal); }
+.set__switch input:checked + .set__track::after { transform: translateX(18px); }
+.set__switch input:focus-visible + .set__track { outline: 3px solid var(--oasis-sea); outline-offset: 2px; }
+.set--toggle .set__hint { margin-left: calc(44px + 0.7rem); }
+
+/* What the site can do, in plain words rather than variable names. */
+.health-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; }
+.health { display: flex; align-items: flex-start; gap: 0.65rem; font-size: 0.84rem; }
+.health__dot {
+  flex: none; width: 9px; height: 9px; border-radius: 50%; margin-top: 0.4rem;
+  background: var(--oasis-line);
+}
+.health.is-on .health__dot { background: var(--oasis-teal); }
+.health__body { display: grid; gap: 0.1rem; flex: 1; }
+.health__body .muted { font-size: 0.76rem; line-height: 1.4; }
+.health__state {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--oasis-muted); padding-top: 0.15rem;
+}
+.health.is-on .health__state { color: var(--oasis-teal); }
+
+.settings__save { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
