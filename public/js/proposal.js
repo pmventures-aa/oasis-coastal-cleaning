@@ -110,6 +110,14 @@
       '</tr>';
     }).join('');
 
+    // A copy to keep, whatever state the quote is in. Someone forwarding this
+    // to whoever signs things off needs a document, not a link.
+    var token = new URLSearchParams(location.search).get('t') || '';
+    var download = status === 'draft' ? '' :
+      '<p class="proposal__download">' +
+        '<a class="btn btn--ghost btn--tiny" href="/api/proposal/' + encodeURIComponent(token) + '/pdf">' +
+        'Download a PDF copy</a></p>';
+
     var actions = '';
     if (status === 'sent') {
       actions =
@@ -129,6 +137,7 @@
     } else if (status === 'expired') {
       actions = '<div class="proposal__done">This quote has expired. Contact Kristina for an updated quote.</div>';
     }
+    actions += download;
 
     root.innerHTML =
       '<article class="card proposal">' +

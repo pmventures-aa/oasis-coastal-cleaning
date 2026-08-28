@@ -976,3 +976,6 @@ h2 { line-height: 1.18; }
   background: rgba(39, 189, 206, 0.10);
   border: 1px solid rgba(39, 189, 206, 0.28);
 }
+
+/* The keep-a-copy link, under whatever the quote is currently asking of them. */
+.proposal__download { margin: 1.1rem 0 0; text-align: center; }

@@ -4,6 +4,8 @@
 import { json, clean, sendEmail } from '../../../_lib/util.js';
 import { isSignedIn } from '../../../_lib/auth.js';
 import { quoteFromRow, proposalUrl, isExpired, logQuoteEvent } from '../../../_lib/quotes.js';
+import { renderQuotePdf } from '../../../_lib/quote-doc.js';
+import { toBase64 } from '../../../_lib/util.js';
 import { buildCustomerQuoteEmail } from '../../../_lib/email.js';
 
 const guard = async (request, env) => {
@@ -59,11 +61,22 @@ export async function onRequestPost({ request, env }) {
   const url = proposalUrl(env, quote.token);
   const mail = buildCustomerQuoteEmail(env, { quote, lead: row, proposalUrl: url });
 
+  // The quote travels as a document as well as a link, so it survives being
+  // forwarded to whoever actually signs things off.
+  let attachments;
+  try {
+    const pdf = await renderQuotePdf(env, request, { quote, lead: row });
+    attachments = [{ filename: pdf.filename, content: pdf.bytes }];
+  } catch (err) {
+    console.error('Quote PDF could not be built:', err && err.message || err);
+  }
+
   const customerSend = await sendCustomerEmail(env, {
     to: customerEmail,
     subject: mail.customerSubject,
     html: mail.customerHtml,
-    text: mail.customerText
+    text: mail.customerText,
+    attachments
   });
 
   // Also notify Kristina that a quote went out (skip noisy admin copy on resend).
@@ -72,7 +85,8 @@ export async function onRequestPost({ request, env }) {
     notifyErr = await sendEmail(env, {
       subject: mail.adminSubject,
       html: mail.adminHtml,
-      text: mail.adminText
+      text: mail.adminText,
+      attachments
     });
   }
 
@@ -122,7 +136,7 @@ export async function onRequestPost({ request, env }) {
   });
 }
 
-async function sendCustomerEmail(env, { to, subject, text, html }) {
+async function sendCustomerEmail(env, { to, subject, text, html, attachments }) {
   if (env.RESEND_API_KEY) {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -131,7 +145,10 @@ async function sendCustomerEmail(env, { to, subject, text, html }) {
         from: env.QUOTE_FROM_EMAIL || 'Oasis Coastal Cleaning <onboarding@resend.dev>',
         to: [to],
         reply_to: env.QUOTE_TO_EMAIL || 'info@oasiscoastalcleaning.com',
-        subject, text, html
+        subject, text, html,
+        ...(attachments && attachments.length
+          ? { attachments: attachments.map((a) => ({ filename: a.filename, content: toBase64(a.content) })) }
+          : {})
       })
     });
     const body = await res.json().catch(() => ({}));

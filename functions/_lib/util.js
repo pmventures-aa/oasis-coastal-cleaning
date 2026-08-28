@@ -69,13 +69,13 @@ export function siteBase(env) {
   return String(raw).replace(/\/+$/, '');
 }
 
-export async function sendEmail(env, { to, bcc, subject, text, html, replyTo }) {
+export async function sendEmail(env, { to, bcc, subject, text, html, replyTo, attachments }) {
   const dest = to || env.QUOTE_TO_EMAIL || 'info@oasiscoastalcleaning.com';
   const fromName = env.QUOTE_FROM_NAME || 'Oasis Coastal Cleaning';
   const jobs = [];
 
-  if (env.RESEND_API_KEY) jobs.push(sendResend(env, { to: dest, bcc, fromName, subject, text, html, replyTo }));
-  if (env.BREVO_API_KEY) jobs.push(sendBrevo(env, { to: dest, bcc, fromName, subject, text, html, replyTo }));
+  if (env.RESEND_API_KEY) jobs.push(sendResend(env, { to: dest, bcc, fromName, subject, text, html, replyTo, attachments }));
+  if (env.BREVO_API_KEY) jobs.push(sendBrevo(env, { to: dest, bcc, fromName, subject, text, html, replyTo, attachments }));
   if (env.NOTIFY_WEBHOOK_URL) jobs.push(sendWebhook(env, { to: dest, subject, text, replyTo }));
 
   if (!jobs.length) return 'No notification channel is configured';
@@ -90,7 +90,18 @@ function asList(value) {
   return (Array.isArray(value) ? value : [value]).map((v) => String(v).trim()).filter(Boolean);
 }
 
-async function sendResend(env, { to, bcc, fromName, subject, text, html, replyTo }) {
+/** Bytes to base64, in chunks so a large file cannot blow the argument limit. */
+export function toBase64(bytes) {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let binary = '';
+  const STEP = 0x8000;
+  for (let i = 0; i < arr.length; i += STEP) {
+    binary += String.fromCharCode.apply(null, arr.subarray(i, i + STEP));
+  }
+  return btoa(binary);
+}
+
+async function sendResend(env, { to, bcc, fromName, subject, text, html, replyTo, attachments }) {
   const payload = {
     from: env.QUOTE_FROM_EMAIL || `${fromName} <onboarding@resend.dev>`,
     to: asList(to),
@@ -99,6 +110,11 @@ async function sendResend(env, { to, bcc, fromName, subject, text, html, replyTo
   };
   const bccList = asList(bcc).filter((addr) => !payload.to.includes(addr));
   if (bccList.length) payload.bcc = bccList;
+  if (attachments && attachments.length) {
+    payload.attachments = attachments.map((a) => ({
+      filename: a.filename, content: toBase64(a.content)
+    }));
+  }
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
@@ -108,7 +124,7 @@ async function sendResend(env, { to, bcc, fromName, subject, text, html, replyTo
   return `Resend returned ${res.status}: ${await res.text()}`;
 }
 
-async function sendBrevo(env, { to, bcc, fromName, subject, text, html, replyTo }) {
+async function sendBrevo(env, { to, bcc, fromName, subject, text, html, replyTo, attachments }) {
   // Brevo wants the address on its own, not inside a "Name <addr>" string.
   const fromEmail = bareAddress(env.QUOTE_FROM_EMAIL) || 'noreply@oasiscoastalcleaning.com';
   const toList = asList(to).map((email) => ({ email }));
@@ -124,6 +140,11 @@ async function sendBrevo(env, { to, bcc, fromName, subject, text, html, replyTo 
     htmlContent: html
   };
   if (bccList.length) payload.bcc = bccList;
+  if (attachments && attachments.length) {
+    payload.attachment = attachments.map((a) => ({
+      name: a.filename, content: toBase64(a.content)
+    }));
+  }
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: { 'api-key': env.BREVO_API_KEY, 'Content-Type': 'application/json', accept: 'application/json' },

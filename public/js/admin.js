@@ -931,6 +931,10 @@
     }
     // An accepted quote is not edited in place — it is reopened first, which
     // is a deliberate act with a reason and a date against it.
+    if (q.status !== 'draft') {
+      acts += '<a class="btn btn--ghost btn--tiny" href="/api/admin/quotes/pdf?id=' + esc(q.id) +
+        '" target="_blank" rel="noopener">PDF</a>';
+    }
     if (!isArchived && q.status === 'accepted') {
       acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="reopen" data-quote-id="' +
         esc(q.id) + '">Reopen</button>';

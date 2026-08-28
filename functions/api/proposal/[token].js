@@ -9,6 +9,7 @@ import {
 } from '../../_lib/quotes.js';
 import { availableAddons, resolveSelectedAddons } from '../../_lib/addons.js';
 import { loadSettings, alertTarget } from '../../_lib/settings.js';
+import { renderQuotePdf } from '../../_lib/quote-doc.js';
 import { buildQuoteAcceptedEmail, buildQuoteDeclinedEmail } from '../../_lib/email.js';
 
 export async function onRequestGet({ request, env, params }) {
@@ -193,12 +194,23 @@ export async function onRequestPost({ request, env, params }) {
     const to = alertTarget(await loadSettings(env.DB), env, 'accept');
     if (to) {
       const mail = buildQuoteAcceptedEmail(env, { quote, lead: row, requestedAddons });
+      // The signed document, attached to the moment it was signed.
+      let attachments;
+      try {
+        const pdf = await renderQuotePdf(env, request, {
+          quote: { ...quote, status: 'accepted', accepted_at: now }, lead: row
+        });
+        attachments = [{ filename: pdf.filename, content: pdf.bytes }];
+      } catch (err) {
+        console.error('Quote PDF could not be built:', err && err.message || err);
+      }
       await sendEmail(env, {
         to,
         subject: mail.subject,
         html: mail.html,
         text: mail.text,
-        replyTo: row.lead_email || undefined
+        replyTo: row.lead_email || undefined,
+        attachments
       });
     }
   } catch (err) {
