@@ -410,3 +410,51 @@ export async function lookupRentCast(apiKey, loc, fetchImpl = globalThis.fetch) 
     not_found: true
   };
 }
+
+/* ------------------------------------------------------------------- cache
+   The free plan allows fifty lookups a month. Kristina can tap the button
+   twice on the same lead without thinking about it, and a street address does
+   not change between taps, so every answer is kept — misses included, since
+   re-asking about a house RentCast has never heard of costs exactly as much as
+   asking about one it knows. */
+
+/** One address, one key, regardless of spacing, case or punctuation. */
+export function addressKey({ address, city, state, zip }) {
+  return [address, city, state, zip]
+    .map((p) => String(p || '').toLowerCase()
+      .replace(/[.'\u2019]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim())
+    .filter(Boolean)
+    .join('|');
+}
+
+export async function readPropertyCache(db, key) {
+  if (!db || !key) return null;
+  try {
+    const row = await db.prepare(
+      'SELECT property, found FROM property_cache WHERE address_key = ?'
+    ).bind(key).first();
+    if (!row) return null;
+    await db.prepare(
+      'UPDATE property_cache SET hits = hits + 1 WHERE address_key = ?'
+    ).bind(key).run();
+    return { found: !!row.found, property: row.property ? JSON.parse(row.property) : null };
+  } catch {
+    return null;                 // a cache that errors must not break a lookup
+  }
+}
+
+export async function writePropertyCache(db, key, { found, property }) {
+  if (!db || !key) return;
+  try {
+    await db.prepare(
+      `INSERT INTO property_cache (address_key, property, found, created_at, hits)
+       VALUES (?, ?, ?, ?, 0)
+       ON CONFLICT(address_key) DO UPDATE SET
+         property = excluded.property, found = excluded.found, created_at = excluded.created_at`
+    ).bind(key, property ? JSON.stringify(property) : null, found ? 1 : 0, new Date().toISOString()).run();
+  } catch (err) {
+    console.error('Property cache write failed:', err && err.message || err);
+  }
+}

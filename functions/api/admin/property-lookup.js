@@ -13,7 +13,7 @@
  */
 import { json, clean } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
-import { lookupRentCast } from '../../_lib/rentcast.js';
+import { lookupRentCast, addressKey, readPropertyCache, writePropertyCache } from '../../_lib/rentcast.js';
 
 const RENTCAST_SETUP =
   'Create a free API key at https://app.rentcast.io/app/api (Developer plan, 50 lookups/month). ' +
@@ -55,10 +55,23 @@ export async function onRequestPost({ request, env }) {
   if (!address) return json({ error: 'Add a street address first.' }, 400);
   if (!city && !zip) return json({ error: 'Add a city or ZIP so we can find the property.' }, 400);
 
+  const key = addressKey({ address, city, state, zip });
+
+  // A repeat tap on the same lead costs nothing.
+  const cached = await readPropertyCache(env.DB, key);
+  if (cached) {
+    return cached.found
+      ? json({ ok: true, property: cached.property, cached: true })
+      : json({ error: 'No property record found for that address.', not_found: true, cached: true }, 404);
+  }
+
   try {
     const apiKey = String(env.RENTCAST_API_KEY || '').trim();
     const result = await lookupRentCast(apiKey, { address, city, state, zip });
     if (result.error) {
+      // Remember a genuine "no such property" too — asking again costs the same
+      // request and gets the same answer. Outages and rate limits are not cached.
+      if (result.not_found) await writePropertyCache(env.DB, key, { found: false, property: null });
       return json({
         error: result.error,
         tried: result.tried || null,
@@ -67,6 +80,7 @@ export async function onRequestPost({ request, env }) {
         setupUrl: 'https://app.rentcast.io/app/api'
       }, result.status || 502);
     }
+    await writePropertyCache(env.DB, key, { found: true, property: result.property });
     return json({ ok: true, property: result.property });
   } catch (err) {
     return json({

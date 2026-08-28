@@ -5,7 +5,7 @@
  */
 import { json, clean, sendEmail } from '../../_lib/util.js';
 import {
-  quoteFromRow, isExpired, recordQuoteView, logQuoteEvent
+  quoteFromRow, isExpired, recordQuoteView, logQuoteEvent, looksAutomated
 } from '../../_lib/quotes.js';
 import { availableAddons, resolveSelectedAddons } from '../../_lib/addons.js';
 import { buildQuoteAcceptedEmail, buildQuoteDeclinedEmail } from '../../_lib/email.js';
@@ -35,7 +35,7 @@ export async function onRequestGet({ request, env, params }) {
       quote.status = 'expired';
     }
 
-    await recordQuoteView(env.DB, quote);
+    if (!looksAutomated(request)) await recordQuoteView(env.DB, quote);
     const fresh = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(quote.id).first();
     quote = quoteFromRow(fresh || row);
 
@@ -77,7 +77,11 @@ export async function onRequestGet({ request, env, params }) {
       }
     });
   } catch (err) {
-    return json({ error: 'Service unavailable.', detail: String(err && err.message || err) }, 503);
+    // Anyone with a link reaches this handler, so the reason stays in the logs
+    // rather than going back in the response. The signed-in endpoints still
+    // return detail, which is what makes them debuggable for Kristina.
+    console.error('Proposal view failed:', err && err.message || err);
+    return json({ error: 'Service unavailable.' }, 503);
   }
 }
 

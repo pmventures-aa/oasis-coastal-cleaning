@@ -1,4 +1,5 @@
 /** Verify Svix-signed webhooks (used by Resend). */
+import { safeEqual } from './util.js';
 
 const TOLERANCE_SEC = 5 * 60;
 
@@ -24,7 +25,10 @@ async function sign(content, secretBytes) {
 
 /** Returns null when valid, or an error string. Skips check when secret is unset. */
 export async function verifySvixWebhook(request, rawBody, secret) {
-  if (!secret) return null;
+  // No secret means nothing can be verified, so nothing may be trusted. This
+  // used to return null — treating an unconfigured webhook as a valid one, and
+  // letting anyone post forged delivery and open events into the tracking.
+  if (!secret) return 'Webhook secret is not configured.';
 
   const id = request.headers.get('svix-id');
   const timestamp = request.headers.get('svix-timestamp');
@@ -42,9 +46,11 @@ export async function verifySvixWebhook(request, rawBody, secret) {
   const secretBytes = decodeSecret(secret);
   const expected = toBase64(await sign(signedContent, secretBytes));
 
+  // Compared with safeEqual rather than === for the same reason the admin
+  // password is: a plain compare returns early on the first wrong byte.
   const valid = signatureHeader.split(' ').some((part) => {
     const [version, sig] = part.split(',');
-    return version === 'v1' && sig === expected;
+    return version === 'v1' && safeEqual(sig, expected);
   });
 
   return valid ? null : 'Invalid Svix signature.';

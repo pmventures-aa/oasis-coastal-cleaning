@@ -55,9 +55,12 @@ export function normalizeLineItems(raw) {
 
     const description = String(row.description || '').trim().slice(0, 400);
     const qty = Math.max(1, Math.min(999, Math.round(Number(row.qty) || 1)));
-    const unitPrice = Number.isFinite(+row.unit_price)
-      ? Math.max(0, Math.round(+row.unit_price))
-      : parseDollars(row.unit_dollars);
+    // Both branches clamp. Only the first one used to, so a typed "-100" in the
+    // dollars field produced a negative line, a negative total, and an emailed
+    // quote that owed the customer money.
+    const unitPrice = Math.max(0, Number.isFinite(+row.unit_price)
+      ? Math.round(+row.unit_price)
+      : parseDollars(row.unit_dollars));
     const total = qty * unitPrice;
 
     return { label, description, qty, unit_price: unitPrice, total };
@@ -140,6 +143,18 @@ export async function attachQuoteEvents(db, quotes) {
     out.push(quote);
   }
   return out;
+}
+
+/* Link scanners, spam filters and chat previews all fetch a URL the moment it
+   lands in an inbox. Counting those as views tells Kristina a customer read her
+   quote when nobody has, and she chases someone who never opened it. */
+const BOT_UA = /bot|crawl|spider|slurp|preview|fetch|monitor|scan|curl|wget|python-requests|headless|facebookexternalhit|whatsapp|telegram|slackbot|discord|twitterbot|linkedinbot|bingpreview|google-?(read-?aloud|other)|proofpoint|barracuda|mimecast|microsoft office|skypeuripreview/i;
+
+export function looksAutomated(request) {
+  if (!request) return false;
+  const ua = request.headers.get('user-agent') || '';
+  if (!ua.trim()) return true;              // no agent string at all
+  return BOT_UA.test(ua);
 }
 
 export async function recordQuoteView(db, quote) {
