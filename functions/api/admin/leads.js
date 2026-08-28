@@ -81,14 +81,18 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'Unreadable request.' }, 400); }
 
-  const name = clean(body.name, 120);
+  const firstName = clean(body.first_name, 60);
+  const lastName = clean(body.last_name, 60);
+  const name = clean(body.name, 120) || [firstName, lastName].filter(Boolean).join(' ');
   const phone = clean(body.phone, 40);
   const email = clean(body.email, 160);
+  const address = clean(body.address, 200);
   const city = clean(body.city, 80);
+  const zip = clean(body.zip, 12);
   const serviceLabel = clean(body.service_label, 120) || clean(body.service, 80) || 'Phone inquiry';
   const notes = clean(body.notes, 2000);
 
-  if (!name) return json({ error: 'Name is required.' }, 400);
+  if (!name) return json({ error: 'First name is required.' }, 400);
   const phoneDigits = phone.replace(/\D/g, '');
   if (phoneDigits.length < 10) return json({ error: 'A valid phone number is required.' }, 400);
 
@@ -99,9 +103,12 @@ export async function onRequestPost({ request, env }) {
     await env.DB.prepare(
       `INSERT INTO leads (
         id, created_at, updated_at, name, phone, email, service, service_label,
-        city, notes, status, source_page
-      ) VALUES (?, ?, ?, ?, ?, ?, 'phone', ?, ?, ?, 'new', 'admin-phone')`
-    ).bind(id, now, now, name, phone, email || '', serviceLabel, serviceLabel, city, notes).run();
+        address, city, zip, notes, status, source_page
+      ) VALUES (?, ?, ?, ?, ?, ?, 'phone', ?, ?, ?, ?, ?, 'new', 'admin-phone')`
+    ).bind(
+      id, now, now, name, phone, email || '', serviceLabel,
+      address, city, zip, notes
+    ).run();
 
     const row = await env.DB.prepare('SELECT * FROM leads WHERE id = ?').bind(id).first();
     return json({ lead: row }, 201);

@@ -54,6 +54,8 @@ migrations_dir = "migrations"
 #   RENTCAST_API_KEY       admin "Fill beds / baths / sq ft" (RentCast Property API)
 #                          Free key: https://app.rentcast.io/app/api  → then redeploy
 #                          See docs/property-lookup.md
+#   MAPBOX_ACCESS_TOKEN    optional — sharper Florida address typeahead in /admin
+#                          (without it, Photon/OSM Florida suggestions are used)
 #   TURNSTILE_SECRET_KEY   optional spam check; pairs with turnstileSiteKey
 #                          in public/js/data.js
 #
