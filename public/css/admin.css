@@ -728,3 +728,15 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 }
 .setup-cta p { margin: 0; font-size: 0.84rem; line-height: 1.5; }
 .setup-cta .btn { justify-self: start; }
+
+/* A setting that is half done is worse than one that is off. */
+.health-warn {
+  margin: 0.9rem 0 0; padding: 0.75rem 0.9rem; border-radius: 10px;
+  font-size: 0.82rem; line-height: 1.5;
+  background: rgba(200, 156, 83, 0.14); border: 1px solid rgba(200, 156, 83, 0.45);
+  color: var(--oasis-navy);
+}
+.health-warn code {
+  font-size: 0.94em; padding: 0.05rem 0.3rem; border-radius: 4px;
+  background: rgba(9, 64, 69, 0.08);
+}

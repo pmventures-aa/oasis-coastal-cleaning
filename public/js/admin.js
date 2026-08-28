@@ -1021,8 +1021,22 @@
         }).join('') + '</section>';
     }).join('');
 
+    /* Turnstile needs a secret in Cloudflare AND a site key in the site. With
+       only the secret, the form rejects every real customer — so the two halves
+       are reported separately and a half-finished setup is called out. */
+    var siteKey = !!(window.OASIS && window.OASIS.turnstileSiteKey);
+    var secret = !!state.health.extraSpamCheck;
+    var turnstileWarning = (secret && !siteKey)
+      ? '<p class="health-warn"><strong>Turnstile is half set up.</strong> The secret is in Cloudflare ' +
+        'but the site key is missing from the site, so the quote form is turning real customers away. ' +
+        'Add the site key, or remove <code>TURNSTILE_SECRET_KEY</code> in Cloudflare to switch it off.</p>'
+      : (siteKey && !secret)
+        ? '<p class="health-warn"><strong>Turnstile is half set up.</strong> The site key is in the site ' +
+          'but the secret is missing from Cloudflare, so the check is shown but never verified.</p>'
+        : '';
+
     var health = Object.keys(HEALTH_LABELS).map(function (k) {
-      var on = !!state.health[k];
+      var on = k === 'extraSpamCheck' ? (secret && siteKey) : !!state.health[k];
       var l = HEALTH_LABELS[k];
       return '<li class="health' + (on ? ' is-on' : '') + '">' +
         '<span class="health__dot" aria-hidden="true"></span>' +
@@ -1049,6 +1063,7 @@
         '<p class="muted set-group__lead">Nothing here is broken — the site works without all of it.</p>' +
         setupPanel +
         '<ul class="health-list">' + health + '</ul>' +
+        turnstileWarning +
       '</section>' +
       '<div class="settings__save">' +
         '<button type="button" class="btn btn--primary" data-save-settings>Save settings</button>' +
