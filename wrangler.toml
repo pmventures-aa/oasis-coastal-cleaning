@@ -51,8 +51,9 @@ migrations_dir = "migrations"
 #   SESSION_SECRET         any long random string; signs the login cookie
 #   RESEND_API_KEY         so new requests reach the inbox
 #   RESEND_WEBHOOK_SECRET  Svix signing secret from Resend → Webhooks (quote tracking)
-#   RENTCAST_API_KEY       optional — admin "Lookup property" fills beds/baths/sqft
-#                          (free Developer key at rentcast.io; Zillow has no public API)
+#   RENTCAST_API_KEY       admin "Fill beds / baths / sq ft" (RentCast Property API)
+#                          Free key: https://app.rentcast.io/app/api  → then redeploy
+#                          See docs/property-lookup.md
 #   TURNSTILE_SECRET_KEY   optional spam check; pairs with turnstileSiteKey
 #                          in public/js/data.js
 #

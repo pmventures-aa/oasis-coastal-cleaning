@@ -195,7 +195,9 @@
     var tab = state.leadTab[l.id] || 'quotes';
 
     var lookupHint = state.propertyLookupConfigured === false
-      ? '<p class="profile__lookup-setup muted">Property lookup needs <code>RENTCAST_API_KEY</code> in Cloudflare secrets, then redeploy.</p>'
+      ? '<p class="profile__lookup-setup muted">Property lookup needs a free RentCast key: ' +
+        '<a href="https://app.rentcast.io/app/api" target="_blank" rel="noopener">get API key</a> → ' +
+        'add Cloudflare secret <code>RENTCAST_API_KEY</code> → redeploy.</p>'
       : '';
 
     var intake =
@@ -267,7 +269,9 @@
           '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft</button>' +
         '</div>' +
         (state.propertyLookupConfigured === false
-          ? '<p class="profile__lookup-setup muted">Lookup needs <code>RENTCAST_API_KEY</code> in Cloudflare → Variables and secrets, then redeploy.</p>'
+          ? '<p class="profile__lookup-setup muted">Lookup needs a free RentCast key: ' +
+            '<a href="https://app.rentcast.io/app/api" target="_blank" rel="noopener">get API key</a> → ' +
+            'Cloudflare secret <code>RENTCAST_API_KEY</code> → redeploy.</p>'
           : '') +
         '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Tap add-ons to price the job, then send — or resend a quote already out.</p>' +
         '<div class="quote-panel__body"><p class="muted" style="font-size:var(--step--1)">Loading quotes…</p></div></div>' +
@@ -725,8 +729,8 @@
       Array.prototype.forEach.call(buttons, function (b) { b.disabled = false; });
       if (!r.ok) {
         var err = r.body.error || 'Lookup failed.';
-        if (r.body.setup) err += ' ' + r.body.setup;
         if (r.status === 503) state.propertyLookupConfigured = false;
+        if (r.body.setup) err = r.body.error + ' Open rentcast.io to create a free key, then add RENTCAST_API_KEY in Cloudflare and redeploy.';
         setLookupMsgs(card, err);
         return;
       }
