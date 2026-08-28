@@ -187,8 +187,10 @@ assert.match(admin, /disabled/);
 assert.match(admin, /applyCity/);
 assert.match(admin, /zipLookupSeq/);
 assert.match(admin, /_zipCityFor/);
+assert.match(admin, /FL_ZIP_CITY/);
+assert.match(admin, /cityForZip/);
 assert.match(admin, /Never blank City from a 5-digit ZIP/);
-assert.match(admin, /applyCity\(addressSuggestScope\(zipInput\), ''\)/);
+assert.match(admin, /applyCity\(scope, ''\)/);
 // ZIP field appears before street address in New Quote composer
 const quoteZipAt = admin.indexOf('quote-zip');
 const quoteAddrAt = admin.indexOf('quote-address');

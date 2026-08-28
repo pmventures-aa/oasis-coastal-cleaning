@@ -36,6 +36,22 @@
     return cities;
   }
 
+  // Keep in sync with functions/_lib/address-suggest.js FL_ZIP_HINTS cities.
+  // Applied instantly on ZIP input so City never waits on (or sticks empty from) the API.
+  var FL_ZIP_CITY = {
+    '33060': 'Pompano Beach', '33062': 'Pompano Beach', '33063': 'Margate',
+    '33064': 'Pompano Beach', '33065': 'Coral Springs', '33066': 'Coconut Creek',
+    '33067': 'Coral Springs', '33068': 'North Lauderdale', '33069': 'Pompano Beach',
+    '33071': 'Coral Springs', '33073': 'Coconut Creek', '33076': 'Parkland',
+    '33431': 'Boca Raton', '33432': 'Boca Raton', '33433': 'Boca Raton',
+    '33434': 'Boca Raton', '33441': 'Deerfield Beach', '33442': 'Deerfield Beach',
+    '33486': 'Boca Raton', '33487': 'Boca Raton', '33496': 'Boca Raton', '33498': 'Boca Raton'
+  };
+
+  function cityForZip(zip) {
+    return FL_ZIP_CITY[String(zip || '').replace(/\D/g, '').slice(0, 5)] || '';
+  }
+
   function oasisPropertyTypes() {
     return [''].concat(OASIS.propertyTypes || []);
   }
@@ -1411,7 +1427,12 @@
     }
 
     setStreetEnabled(scope, true);
-    // Same ZIP already filled this city — still re-apply so a wiped city comes back.
+    var known = cityForZip(zip);
+    if (known) {
+      applyCity(scope, known);
+      zipInput._zipComplete = true;
+      zipInput._zipCityFor = zip;
+    }
     api('/api/admin/address-suggest?zip=' + encodeURIComponent(zip) + '&t=' + Date.now()).then(function (r) {
       if (seq !== zipLookupSeq) return;
       var still = String(zipInput.value || '').replace(/\D/g, '').slice(0, 5);
@@ -1473,11 +1494,21 @@
       clearTimeout(zipLookupTimer);
       var zipInput = e.target;
       var zipDigits = String(zipInput.value || '').replace(/\D/g, '').slice(0, 5);
+      var scope = addressSuggestScope(zipInput);
       if (zipDigits.length !== 5) {
         zipLookupSeq += 1; // drop any in-flight city fill for the previous ZIP
         zipInput._zipComplete = false;
-        applyCity(addressSuggestScope(zipInput), '');
-        setStreetEnabled(addressSuggestScope(zipInput), false);
+        zipInput._zipCityFor = '';
+        applyCity(scope, '');
+        setStreetEnabled(scope, false);
+      } else {
+        var knownNow = cityForZip(zipDigits);
+        if (knownNow) {
+          applyCity(scope, knownNow);
+          zipInput._zipComplete = true;
+          zipInput._zipCityFor = zipDigits;
+        }
+        setStreetEnabled(scope, true);
       }
       zipLookupTimer = setTimeout(function () { runZipLookup(zipInput); }, 180);
     }
