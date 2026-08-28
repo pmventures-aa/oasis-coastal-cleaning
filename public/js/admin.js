@@ -728,6 +728,26 @@
               return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
             }).join('') + '</select></label>' +
           '<label class="pf"><span class="pf__k">Service</span><input class="pf__v quote-service" type="text" placeholder="What the job is" value=""></label>' +
+        '</div>' +
+        /* The same property block the lead profile has. A quote written from
+           scratch is for a real house too, and typing beds and baths by hand
+           when the address is already there is work for nothing. */
+        '<div class="compose__property">' +
+          '<div class="profile__lookup">' +
+            '<button type="button" class="btn btn--primary btn--tiny" data-compose-lookup>' +
+              'Fill beds / baths / sq ft</button>' +
+            '<span class="profile__lookup-msg" data-compose-lookup-msg hidden></span>' +
+          '</div>' +
+          '<div class="profile__grid">' +
+            '<label class="pf"><span class="pf__k">Bedrooms</span>' +
+              '<input class="pf__v quote-bedrooms" type="text" inputmode="numeric" placeholder="—"></label>' +
+            '<label class="pf"><span class="pf__k">Bathrooms</span>' +
+              '<input class="pf__v quote-bathrooms" type="text" inputmode="decimal" placeholder="—"></label>' +
+            '<label class="pf"><span class="pf__k">Size</span>' +
+              '<input class="pf__v quote-size" type="text" placeholder="e.g. 1,850 sq ft"></label>' +
+            '<label class="pf"><span class="pf__k">Property</span>' +
+              '<input class="pf__v quote-property-type" type="text" placeholder="House, condo, office"></label>' +
+          '</div>' +
         '</div>'
       : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
           esc(quote.customer_email || l.email) + '"></label>';
@@ -1547,6 +1567,52 @@
     });
   }
 
+  /* The same lookup the lead profile does, reading and writing the composer's
+     own fields. It is a different set of inputs, not a different idea, so it
+     shares the endpoint and the caching behind it. */
+  function lookupForComposer(btn) {
+    var editor = btn.closest('.quote-editor');
+    if (!editor) return;
+    var v = function (sel) { return ((editor.querySelector(sel) || {}).value || '').trim(); };
+    var msg = editor.querySelector('[data-compose-lookup-msg]');
+    var say = function (text, bad) {
+      if (!msg) return;
+      msg.hidden = !text;
+      msg.textContent = text;
+      msg.className = 'profile__lookup-msg' + (bad ? ' is-bad' : '');
+    };
+
+    var address = v('.quote-address');
+    if (!address) { say('Add the street address first.', true); return; }
+
+    btn.disabled = true;
+    say('Looking up property records…');
+    api('/api/admin/property-lookup', {
+      method: 'POST',
+      body: JSON.stringify({ address: address, city: v('.quote-city'), zip: v('.quote-zip'), state: 'FL' })
+    }).then(function (r) {
+      btn.disabled = false;
+      if (!r.ok) {
+        say(r.body.error || 'No record for that address — type them in below.', true);
+        return;
+      }
+      var p = r.body.property || {};
+      var put = function (sel, value) {
+        var el = editor.querySelector(sel);
+        if (el && value) el.value = value;
+      };
+      put('.quote-bedrooms', p.bedrooms);
+      put('.quote-bathrooms', p.bathrooms);
+      put('.quote-size', p.size_label ||
+        (p.square_footage ? Number(p.square_footage).toLocaleString('en-US') + ' sq ft' : ''));
+      put('.quote-property-type', p.property_type);
+      say((r.body.cached ? 'Filled from a saved lookup (no request used): ' : 'Filled: ') +
+        [p.bedrooms && p.bedrooms + ' bed', p.bathrooms && p.bathrooms + ' bath',
+         p.square_footage && Number(p.square_footage).toLocaleString('en-US') + ' sq ft']
+          .filter(Boolean).join(' · '));
+    });
+  }
+
   function quotePayload(editor) {
     var payload = {
       id: editor.dataset.quoteId || undefined,
@@ -1572,6 +1638,10 @@
       payload.address = ((editor.querySelector('.quote-address') || {}).value || '').trim();
       payload.city = ((editor.querySelector('.quote-city') || {}).value || '').trim();
       payload.zip = ((editor.querySelector('.quote-zip') || {}).value || '').trim();
+      payload.bedrooms = ((editor.querySelector('.quote-bedrooms') || {}).value || '').trim();
+      payload.bathrooms = ((editor.querySelector('.quote-bathrooms') || {}).value || '').trim();
+      payload.size_label = ((editor.querySelector('.quote-size') || {}).value || '').trim();
+      payload.property_type = ((editor.querySelector('.quote-property-type') || {}).value || '').trim();
       delete payload.lead_id;
       delete payload.id;
     }
@@ -1780,6 +1850,10 @@
     }
     if (e.target.matches('[data-property-lookup]')) {
       lookupProperty(e.target);
+      return;
+    }
+    if (e.target.matches('[data-compose-lookup]')) {
+      lookupForComposer(e.target);
       return;
     }
     if (e.target.matches('[data-ptab-jump]')) {

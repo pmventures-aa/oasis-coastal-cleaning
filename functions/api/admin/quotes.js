@@ -67,8 +67,9 @@ export async function onRequestPost({ request, env }) {
     await env.DB.prepare(
       `INSERT INTO leads (
         id, created_at, updated_at, name, phone, email, service, service_label,
-        address, city, zip, status, source_page
-      ) VALUES (?, ?, ?, ?, ?, ?, 'custom', ?, ?, ?, ?, 'new', 'admin-new-quote')`
+        address, city, zip, bedrooms, bathrooms, size_label, property_type,
+        status, source_page
+      ) VALUES (?, ?, ?, ?, ?, ?, 'custom', ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'admin-new-quote')`
     ).bind(
       leadId, now, now,
       customerName,
@@ -77,7 +78,11 @@ export async function onRequestPost({ request, env }) {
       serviceLabel,
       address,
       city,
-      zip
+      zip,
+      clean(body.bedrooms, 20) || null,
+      clean(body.bathrooms, 20) || null,
+      clean(body.size_label, 140) || null,
+      clean(body.property_type, 80) || null
     ).run();
     lead = { id: leadId, name: customerName, email: customerEmail };
   } else {

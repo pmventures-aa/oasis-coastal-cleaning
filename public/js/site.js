@@ -74,10 +74,13 @@
 
   /* -------------------------------------------------------------- chrome */
   function renderHeader(el) {
-    var links = D.nav.map(function (n) {
+    var link = function (n) {
       return '<a href="' + esc(n.href) + '"' + (isCurrent(n.href) ? ' aria-current="page"' : '') + '>' +
              esc(n.label) + '</a>';
-    }).join('');
+    };
+    // The bar across the top takes the short list; the phone menu takes them all.
+    var topLinks = D.nav.filter(function (n) { return n.top; }).map(link).join('');
+    var allLinks = D.nav.map(link).join('');
 
     el.innerHTML =
       '<a class="skip-link" href="#main">Skip to content</a>' +
@@ -86,12 +89,12 @@
           '<a class="topbar__brand" href="/" aria-label="' + esc(D.business.name) + ' — home">' +
             '<img src="/logo/logo-260.webp" width="260" height="260" alt="' + esc(D.business.name) + '">' +
           '</a>' +
-          '<nav class="nav" aria-label="Main">' + links + '</nav>' +
+          '<nav class="nav" aria-label="Main">' + topLinks + '</nav>' +
           '<a class="btn btn--primary topbar__cta" href="/quote">Get a Quote</a>' +
           '<button class="navtoggle" type="button" aria-expanded="false" aria-controls="drawer" ' +
             'aria-label="Open menu">' + icon('menu') + '</button>' +
         '</div>' +
-        '<div class="drawer" id="drawer">' + links +
+        '<div class="drawer" id="drawer">' + allLinks +
           '<a class="btn btn--primary" href="/quote">Get a Quote</a>' +
         '</div>' +
       '</header>';

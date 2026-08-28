@@ -888,3 +888,10 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--oasis-muted);
 }
+
+/* The property block inside the standalone quote composer. */
+.compose__property {
+  margin-top: 0.9rem; padding-top: 0.9rem;
+  border-top: 1px solid var(--oasis-line);
+}
+.compose__property .profile__lookup { margin-bottom: 0.7rem; }

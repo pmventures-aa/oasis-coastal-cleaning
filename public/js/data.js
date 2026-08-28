@@ -73,16 +73,21 @@ window.OASIS = {
 
   /* ------------------------------------------------------------------- nav
      Order here is the order in the header and the footer. */
+  /* One list, two places. `top: true` puts a link in the bar across the top of
+     a wide screen, where nine of them wrapped onto two lines and stopped
+     looking like a menu. Everything here appears in the footer and in the
+     phone menu regardless, so nothing is hidden — Corporate and Vacation
+     Rentals are reached from the services page and the home page instead,
+     which is where somebody looking for them actually is. */
   nav: [
-    { label: 'Home',          href: '/' },
-    { label: 'Services',      href: '/services' },
+    { label: 'Services',      href: '/services',          top: true },
+    { label: 'Pricing',       href: '/pricing',           top: true },
+    { label: 'Service Areas', href: '/service-areas',     top: true },
+    { label: 'About',         href: '/about',             top: true },
+    { label: 'FAQ',           href: '/faq',               top: true },
+    { label: 'Contact',       href: '/contact',           top: true },
     { label: 'Corporate',     href: '/corporate-cleaning' },
-    { label: 'Vacation Rentals', href: '/airbnb-cleaning' },
-    { label: 'Pricing',       href: '/pricing' },
-    { label: 'Service Areas', href: '/service-areas' },
-    { label: 'About',         href: '/about' },
-    { label: 'FAQ',           href: '/faq' },
-    { label: 'Contact',       href: '/contact' }
+    { label: 'Vacation Rentals', href: '/airbnb-cleaning' }
   ],
 
   /* Home-page cards for the dedicated commercial / STR landings. */
@@ -222,7 +227,7 @@ window.OASIS = {
             the services page, the pricing table and the quote form. ---- */
     {
       id: 'movein',
-      active: false,
+      active: true,
       name: 'Move-In / Move-Out Cleaning',
       short: 'An empty place handed over spotless.',
       blurb: 'Inside cabinets, inside appliances, inside closets — the clean that gets a ' +
@@ -266,7 +271,7 @@ window.OASIS = {
     },
     {
       id: 'postconstruction',
-      active: false,
+      active: true,
       name: 'Post-Construction Cleaning',
       short: 'After the trades leave and before you move back in.',
       blurb: 'Fine dust settles for days. This is the two-pass clean that gets it out of ' +
