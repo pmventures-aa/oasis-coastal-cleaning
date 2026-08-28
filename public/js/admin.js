@@ -99,7 +99,10 @@
   function setSelectValue(select, value) {
     if (!select) return;
     var v = String(value || '');
-    if (!v) { select.value = ''; return; }
+    if (!v) {
+      select.value = '';
+      return;
+    }
     var found = false;
     Array.prototype.forEach.call(select.options, function (opt) {
       if (opt.value === v) found = true;
@@ -1260,10 +1263,13 @@
   root.addEventListener('change', function (e) {
     if (e.target.id === 'status-filter') { state.filter = e.target.value; state.open = null; load(); }
     if (e.target.matches('select[data-col]')) saveField(e.target);
+    if (e.target.matches('[data-zip-lookup]')) runZipLookup(e.target, { focusStreet: false });
   });
 
   var addressSuggestTimer = null;
+  var zipLookupTimer = null;
   var addressSuggestSeq = 0;
+  var zipLookupSeq = 0;
 
   function addressSuggestScope(input) {
     return input.closest('.compose__customer, .compose, .quote-editor, .profile, .acc__in, .lead') || root;
@@ -1321,10 +1327,22 @@
     return zipEl ? String(zipEl.value || '').replace(/\D/g, '').slice(0, 5) : '';
   }
 
+  function cityField(scope) {
+    return scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
+  }
+
   function currentCityFor(input) {
-    var scope = addressSuggestScope(input);
-    var cityEl = scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
+    var cityEl = cityField(addressSuggestScope(input));
     return cityEl ? String(cityEl.value || '').trim() : '';
+  }
+
+  function applyCity(scope, city) {
+    var cityEl = cityField(scope);
+    if (!cityEl) return;
+    var next = String(city || '');
+    if (cityEl.tagName === 'SELECT') setSelectValue(cityEl, next);
+    else cityEl.value = next;
+    if (cityEl.hasAttribute('data-col')) saveField(cityEl);
   }
 
   function setStreetEnabled(scope, on) {
@@ -1360,36 +1378,37 @@
         return;
       }
       if (r.body.place && r.body.place.city) {
-        var scope = addressSuggestScope(input);
-        var cityEl = scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
-        if (cityEl) {
-          if (cityEl.tagName === 'SELECT') setSelectValue(cityEl, r.body.place.city);
-          else cityEl.value = r.body.place.city;
-          if (cityEl.hasAttribute('data-col')) saveField(cityEl);
-        }
+        applyCity(addressSuggestScope(input), r.body.place.city);
       }
       renderAddressSuggestions(input, r.body.suggestions || []);
     });
   }
 
-  function runZipLookup(zipInput) {
+  function runZipLookup(zipInput, opts) {
+    opts = opts || {};
     var zip = String(zipInput.value || '').replace(/\D/g, '').slice(0, 5);
     var scope = addressSuggestScope(zipInput);
+    var seq = ++zipLookupSeq;
+    var wasComplete = !!zipInput._zipComplete;
+
     if (zip.length !== 5) {
+      zipInput._zipComplete = false;
       setStreetEnabled(scope, false);
+      applyCity(scope, '');
       return;
     }
+
     setStreetEnabled(scope, true);
-    api('/api/admin/address-suggest?zip=' + encodeURIComponent(zip)).then(function (r) {
-      if (!r.ok || !r.body.place) return;
-      var cityEl = scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
-      if (cityEl && r.body.place.city) {
-        if (cityEl.tagName === 'SELECT') setSelectValue(cityEl, r.body.place.city);
-        else cityEl.value = r.body.place.city;
-        if (cityEl.hasAttribute('data-col')) saveField(cityEl);
-      }
+    api('/api/admin/address-suggest?zip=' + encodeURIComponent(zip) + '&t=' + Date.now()).then(function (r) {
+      if (seq !== zipLookupSeq) return;
+      if (!r.ok) return;
+      var city = r.body.place && r.body.place.city ? r.body.place.city : '';
+      applyCity(scope, city);
+      zipInput._zipComplete = true;
       var street = scope.querySelector('[data-address-suggest]');
-      if (street && !String(street.value || '').trim()) street.focus();
+      var justCompleted = !wasComplete && document.activeElement === zipInput;
+      if (opts.focusStreet === false) justCompleted = false;
+      if (justCompleted && street && !String(street.value || '').trim()) street.focus();
       else if (street && String(street.value || '').trim().length >= 3) runAddressSuggest(street);
     });
   }
@@ -1436,9 +1455,15 @@
       addressSuggestTimer = setTimeout(function () { runAddressSuggest(suggestInput); }, 280);
     }
     if (e.target.matches('[data-zip-lookup]')) {
-      clearTimeout(addressSuggestTimer);
+      clearTimeout(zipLookupTimer);
       var zipInput = e.target;
-      addressSuggestTimer = setTimeout(function () { runZipLookup(zipInput); }, 220);
+      var zipDigits = String(zipInput.value || '').replace(/\D/g, '').slice(0, 5);
+      if (zipDigits.length !== 5) {
+        zipInput._zipComplete = false;
+        applyCity(addressSuggestScope(zipInput), '');
+        setStreetEnabled(addressSuggestScope(zipInput), false);
+      }
+      zipLookupTimer = setTimeout(function () { runZipLookup(zipInput); }, 180);
     }
   });
 
@@ -1487,6 +1512,7 @@
       var input = e.target;
       setTimeout(function () { hideAddressSuggestions(input); }, 150);
     }
+    if (e.target.matches('[data-zip-lookup]')) runZipLookup(e.target, { focusStreet: false });
   }, true);
 
   function saveField(el) {

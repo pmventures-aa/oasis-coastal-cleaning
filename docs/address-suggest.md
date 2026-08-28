@@ -7,6 +7,7 @@ addresses in the ZIP you enter. Street is locked until ZIP is 5 digits.
 
 1. **ZIP first** (e.g. `33063`) — fills City when known (Margate for 33063,
    not the USPS postal city “Pompano Beach”). Street field unlocks.
+   Changing or re-entering ZIP always refreshes City.
 2. **Street next** (e.g. `2156 NW 62nd Ave`) — suggestions stay in that ZIP.
    Abbreviations expand (`NW` → Northwest, `Ave` → Avenue).
 3. Tap a suggestion — street, city, and ZIP are filled. If the map only has

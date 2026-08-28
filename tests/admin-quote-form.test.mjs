@@ -170,6 +170,12 @@ assert.equal(place.city, 'Margate');
 assert.equal(place.zip, '33063');
 assert.ok(place.lat > 26 && place.lat < 27);
 
+const boca = await lib.resolveFloridaZip('33432', mockFetch(() => {
+  throw new Error('33432 should use the local Boca Raton hint');
+}));
+assert.equal(boca.city, 'Boca Raton');
+assert.equal(boca.zip, '33432');
+
 const admin = readFileSync(join(here, '../public/js/admin.js'), 'utf8');
 assert.match(admin, /data-zip-lookup/);
 assert.match(admin, /ZIP first/);
@@ -178,6 +184,10 @@ assert.match(admin, /runZipLookup/);
 assert.match(admin, /setStreetEnabled/);
 assert.match(admin, /Enter ZIP first/);
 assert.match(admin, /disabled/);
+assert.match(admin, /applyCity/);
+assert.match(admin, /zipLookupSeq/);
+assert.match(admin, /focusStreet: false/);
+assert.match(admin, /applyCity\(addressSuggestScope\(zipInput\), ''\)/);
 // ZIP field appears before street address in New Quote composer
 const quoteZipAt = admin.indexOf('quote-zip');
 const quoteAddrAt = admin.indexOf('quote-address');

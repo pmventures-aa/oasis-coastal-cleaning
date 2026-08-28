@@ -36,8 +36,16 @@ const FL_ZIP_HINTS = {
   33064: { city: 'Pompano Beach', lat: 26.267, lon: -80.116 },
   33069: { city: 'Pompano Beach', lat: 26.218, lon: -80.162 },
   33076: { city: 'Parkland', lat: 26.322, lon: -80.237 },
+  33431: { city: 'Boca Raton', lat: 26.358, lon: -80.083 },
+  33432: { city: 'Boca Raton', lat: 26.35, lon: -80.083 },
+  33433: { city: 'Boca Raton', lat: 26.348, lon: -80.16 },
+  33434: { city: 'Boca Raton', lat: 26.38, lon: -80.16 },
   33441: { city: 'Deerfield Beach', lat: 26.315, lon: -80.1 },
-  33442: { city: 'Deerfield Beach', lat: 26.307, lon: -80.143 }
+  33442: { city: 'Deerfield Beach', lat: 26.307, lon: -80.143 },
+  33486: { city: 'Boca Raton', lat: 26.37, lon: -80.11 },
+  33487: { city: 'Boca Raton', lat: 26.4, lon: -80.1 },
+  33496: { city: 'Boca Raton', lat: 26.4, lon: -80.16 },
+  33498: { city: 'Boca Raton', lat: 26.39, lon: -80.2 }
 };
 
 export function isFloridaState(value) {
