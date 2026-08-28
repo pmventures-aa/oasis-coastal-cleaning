@@ -21,8 +21,38 @@
   var state = {
     view: 'active', filter: '', open: null, leadTab: {},
     leads: [], counts: {}, q: '', quotes: {}, composing: false,
-    focusQuoteEditor: null
+    focusQuoteEditor: null,
+    propertyLookupConfigured: null
   };
+
+  var CATALOG = window.OASIS_ADMIN_CATALOG || { bases: [], addOns: [] };
+  var PRICE_STORE_KEY = 'oasis_admin_addon_prices_v1';
+
+  function loadSavedPrices() {
+    try { return JSON.parse(localStorage.getItem(PRICE_STORE_KEY) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+
+  function saveAddonPrice(id, dollars) {
+    if (!id) return;
+    var n = Number(dollars);
+    if (!Number.isFinite(n) || n < 0) return;
+    var map = loadSavedPrices();
+    map[id] = Math.round(n * 100) / 100;
+    try { localStorage.setItem(PRICE_STORE_KEY, JSON.stringify(map)); } catch (e) { /* ignore */ }
+  }
+
+  function catalogPrice(item) {
+    var saved = loadSavedPrices();
+    if (saved[item.id] != null) return saved[item.id];
+    return item.dollars;
+  }
+
+  function moneyDollars(n) {
+    var x = Number(n);
+    if (!Number.isFinite(x)) return '$0';
+    return '$' + x.toFixed(x % 1 ? 2 : 0);
+  }
 
   var esc = function (s) {
     return String(s == null ? '' : s)
@@ -164,6 +194,10 @@
     // Default to Quotes so she can price the job immediately; Intake stays one tap away.
     var tab = state.leadTab[l.id] || 'quotes';
 
+    var lookupHint = state.propertyLookupConfigured === false
+      ? '<p class="profile__lookup-setup muted">Property lookup needs <code>RENTCAST_API_KEY</code> in Cloudflare secrets, then redeploy.</p>'
+      : '';
+
     var intake =
       acc('Contact', field('Name', 'name', l.name) + field('Phone', 'phone', l.phone) +
         field('Email', 'email', l.email) +
@@ -171,14 +205,14 @@
         field('Best time', 'best_time', l.best_time, { options: ['', 'Morning', 'Afternoon', 'Evening', 'Any time'] }), true) +
       acc('Property',
         '<div class="profile__lookup">' +
-          '<button type="button" class="btn btn--ghost btn--tiny" data-property-lookup>Lookup beds / baths / sq ft</button>' +
+          '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft</button>' +
           '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
-        '</div>' +
+        '</div>' + lookupHint +
         field('Address', 'address', l.address, { placeholder: 'Street address' }) +
         field('City', 'city', l.city) + field('ZIP', 'zip', l.zip) +
         field('Type', 'property_type', l.property_type) + field('Size', 'size_label', l.size_label) +
         field('Bedrooms', 'bedrooms', l.bedrooms) + field('Bathrooms', 'bathrooms', l.bathrooms) +
-        field('Getting in', 'access', l.access, { placeholder: 'Lockbox, gate code' })) +
+        field('Getting in', 'access', l.access, { placeholder: 'Lockbox, gate code' }), true) +
       acc('Request & Notes',
         '<div class="profile__grid">' + readOnly('Service', l.service_label || l.service) +
         field('Frequency', 'frequency', l.frequency) +
@@ -196,9 +230,17 @@
         (l.quoted_at ? '<p class="profile__stamp">Quoted ' + esc(fullDate(l.quoted_at)) + '</p>' : '') +
         field('Your notes', 'admin_notes', l.admin_notes, { multiline: true, placeholder: 'What you quoted and why.' }));
 
+    var propBits = [];
+    if (l.address) propBits.push(l.address);
+    if (l.city) propBits.push(l.city);
+    if (l.bedrooms) propBits.push(l.bedrooms + ' bed');
+    if (l.bathrooms) propBits.push(l.bathrooms + ' bath');
+    if (l.size_label) propBits.push(l.size_label);
+
     return '<div class="profile">' +
       '<div class="profile__bar">' +
         '<button type="button" class="btn btn--primary" data-start-quote>Quote</button>' +
+        '<button type="button" class="btn btn--ghost" data-property-lookup title="Fill beds, baths, and square footage from the street address">Lookup property</button>' +
         '<a class="btn btn--ghost" href="tel:+1' + tel + '">Call</a>' +
         '<a class="btn btn--ghost" href="sms:+1' + tel + '">Text</a>' +
         '<a class="btn btn--ghost" href="mailto:' + esc(l.email) + '">Email</a>' +
@@ -209,6 +251,7 @@
               s.charAt(0).toUpperCase() + s.slice(1) + '</option>';
           }).join('') + '</select></label>' +
         '<span class="saved" data-saved hidden>Saved</span></div>' +
+      '<p class="profile__lookup-msg muted" data-lookup-msg hidden style="margin:0 0 .65rem"></p>' +
 
       '<div class="ptabs" role="tablist">' +
         '<button type="button" class="ptabs__btn' + (tab === 'quotes' ? ' is-on' : '') + '" data-ptab="quotes" role="tab">Branded Quotes</button>' +
@@ -216,7 +259,17 @@
       '</div>' +
 
       '<div class="ptab' + (tab === 'quotes' ? ' is-on' : '') + '" data-pane="quotes" data-quote-panel="' + esc(l.id) + '">' +
-        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Price the job, send the branded quote, or resend one already out.</p>' +
+        '<div class="quote-property-bar">' +
+          '<div class="quote-property-bar__text">' +
+            '<strong>Property</strong> ' +
+            '<span class="muted">' + esc(propBits.join(' · ') || 'Add an address on Intake, then fill beds / baths / sq ft') + '</span>' +
+          '</div>' +
+          '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft</button>' +
+        '</div>' +
+        (state.propertyLookupConfigured === false
+          ? '<p class="profile__lookup-setup muted">Lookup needs <code>RENTCAST_API_KEY</code> in Cloudflare → Variables and secrets, then redeploy.</p>'
+          : '') +
+        '<p class="muted" style="font-size:var(--step--1);margin:0 0 .75rem">Tap add-ons to price the job, then send — or resend a quote already out.</p>' +
         '<div class="quote-panel__body"><p class="muted" style="font-size:var(--step--1)">Loading quotes…</p></div></div>' +
       '<div class="ptab' + (tab === 'intake' ? ' is-on' : '') + '" data-pane="intake">' + intake + '</div>' +
 
@@ -301,12 +354,48 @@
 
   function quoteLineHtml(line) {
     line = line || {};
-    return '<div class="quote-line">' +
+    return '<div class="quote-line"' + (line.catalog_id ? ' data-catalog-id="' + esc(line.catalog_id) + '"' : '') + '>' +
       '<input type="text" class="quote-label" placeholder="Description" value="' + esc(line.label || '') + '">' +
       '<input type="number" class="quote-qty" min="1" value="' + esc(line.qty || 1) + '">' +
       '<input type="text" class="quote-price" inputmode="decimal" placeholder="$0.00" value="' +
         esc(line.unit_dollars != null ? line.unit_dollars : (line.unit_price ? (line.unit_price / 100).toFixed(2) : '')) + '">' +
       '<button type="button" class="quote-line__remove" data-remove-line>&times;</button></div>';
+  }
+
+  function catalogChipHtml(item) {
+    var price = catalogPrice(item);
+    return '<button type="button" class="quote-addon-chip" data-add-catalog ' +
+      'data-catalog-id="' + esc(item.id) + '" ' +
+      'data-catalog-label="' + esc(item.label) + '" ' +
+      'data-catalog-price="' + esc(String(price)) + '">' +
+      '<span class="quote-addon-chip__label">' + esc(item.label) + '</span>' +
+      '<span class="quote-addon-chip__price">' + esc(moneyDollars(price)) + '</span></button>';
+  }
+
+  function quoteCatalogHtml() {
+    var bases = (CATALOG.bases || []).map(catalogChipHtml).join('');
+    var groups = {};
+    var order = [];
+    (CATALOG.addOns || []).forEach(function (a) {
+      var g = a.group || 'Add-ons';
+      if (!groups[g]) { groups[g] = []; order.push(g); }
+      groups[g].push(a);
+    });
+    var addonBlocks = order.map(function (name) {
+      return '<div class="quote-addons__group">' +
+        '<p class="quote-addons__group-label">' + esc(name) + '</p>' +
+        '<div class="quote-addons__chips">' + groups[name].map(catalogChipHtml).join('') + '</div></div>';
+    }).join('');
+
+    return '<div class="quote-addons">' +
+      '<p class="quote-addons__title">Tap to add with a starting price</p>' +
+      '<p class="quote-addons__hint muted">Edit any price after adding — your last price for each item is remembered on this device.</p>' +
+      (bases
+        ? '<div class="quote-addons__group"><p class="quote-addons__group-label">Base service</p>' +
+          '<div class="quote-addons__chips">' + bases + '</div></div>'
+        : '') +
+      addonBlocks +
+    '</div>';
   }
 
   function quoteEditorHtml(l, quote, opts) {
@@ -334,8 +423,9 @@
       '<div class="quote-editor"' + (standalone ? ' data-standalone="1"' : '') +
         ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '">' +
       customerFields +
+      quoteCatalogHtml() +
       '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
-      '<button type="button" class="btn btn--ghost btn--tiny" data-add-line>+ Line Item</button>' +
+      '<button type="button" class="btn btn--ghost btn--tiny" data-add-line>+ Custom line</button>' +
       '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
       '<label class="pf pf--wide"><span class="pf__k">Note</span><textarea class="pf__v quote-notes" rows="2">' +
         esc(notesVal || '') + '</textarea></label>' +
@@ -344,6 +434,46 @@
         '<button type="button" class="btn btn--primary" data-send-quote>Send to Customer</button></div>' +
       '<div class="quote-msg form-status" role="alert" hidden></div></div>' +
       (standalone ? '' : '</div></details>');
+  }
+
+  function addCatalogItem(editor, btn) {
+    var id = btn.getAttribute('data-catalog-id') || '';
+    var label = btn.getAttribute('data-catalog-label') || '';
+    var price = btn.getAttribute('data-catalog-price') || '';
+    if (!label) return;
+
+    var lines = editor.querySelector('.quote-lines');
+    var existing = null;
+    Array.prototype.forEach.call(lines.querySelectorAll('.quote-line'), function (row) {
+      var rowId = row.getAttribute('data-catalog-id');
+      var rowLabel = (row.querySelector('.quote-label') || {}).value || '';
+      if (!existing && ((id && rowId === id) || rowLabel === label)) existing = row;
+    });
+
+    if (existing) {
+      var qtyEl = existing.querySelector('.quote-qty');
+      qtyEl.value = String(Math.min(999, (parseInt(qtyEl.value, 10) || 1) + 1));
+    } else {
+      // If the only line is an empty/placeholder seed with no price, replace it.
+      var rows = lines.querySelectorAll('.quote-line');
+      if (rows.length === 1) {
+        var only = rows[0];
+        var onlyPrice = (only.querySelector('.quote-price') || {}).value;
+        var onlyLabel = ((only.querySelector('.quote-label') || {}).value || '').trim();
+        if (!onlyPrice && onlyLabel && !only.getAttribute('data-catalog-id')) {
+          only.remove();
+        }
+      }
+      lines.insertAdjacentHTML('beforeend', quoteLineHtml({
+        catalog_id: id,
+        label: label,
+        qty: 1,
+        unit_dollars: price
+      }));
+    }
+    updateQuoteTotal(editor);
+    btn.classList.add('is-added');
+    setTimeout(function () { btn.classList.remove('is-added'); }, 600);
   }
 
   function newQuotePanelHtml() {
@@ -502,6 +632,13 @@
     });
   }
 
+  function setLookupMsgs(card, text) {
+    Array.prototype.forEach.call(card.querySelectorAll('[data-lookup-msg]'), function (msg) {
+      msg.hidden = !text;
+      msg.textContent = text || '';
+    });
+  }
+
   function lookupProperty(btn) {
     var card = btn.closest('.lead');
     if (!card) return;
@@ -511,49 +648,56 @@
 
     function val(col) {
       var el = card.querySelector('[data-col="' + col + '"]');
-      return el ? el.value.trim() : (lead[col] || '');
+      if (el && el.value.trim()) return el.value.trim();
+      return lead[col] || '';
     }
 
-    var msg = card.querySelector('[data-lookup-msg]');
     var address = val('address');
     var city = val('city');
     var zip = val('zip');
     if (!address) {
-      if (msg) { msg.hidden = false; msg.textContent = 'Add a street address first.'; }
+      setLookupMsgs(card, 'Add a street address on the Intake tab first.');
+      state.leadTab[leadId] = 'intake';
+      render();
       return;
     }
 
-    btn.disabled = true;
-    if (msg) { msg.hidden = false; msg.textContent = 'Looking up…'; }
+    var buttons = card.querySelectorAll('[data-property-lookup]');
+    Array.prototype.forEach.call(buttons, function (b) { b.disabled = true; });
+    setLookupMsgs(card, 'Looking up property records…');
 
     api('/api/admin/property-lookup', {
       method: 'POST',
       body: JSON.stringify({ address: address, city: city, zip: zip, state: 'FL' })
     }).then(function (r) {
-      btn.disabled = false;
+      Array.prototype.forEach.call(buttons, function (b) { b.disabled = false; });
       if (!r.ok) {
-        if (msg) {
-          msg.hidden = false;
-          msg.textContent = r.body.error || 'Lookup failed.';
-          if (r.body.setup) msg.textContent += ' ' + r.body.setup;
-        }
+        var err = r.body.error || 'Lookup failed.';
+        if (r.body.setup) err += ' ' + r.body.setup;
+        if (r.status === 503) state.propertyLookupConfigured = false;
+        setLookupMsgs(card, err);
         return;
       }
+      state.propertyLookupConfigured = true;
       var p = r.body.property || {};
       var patch = { id: leadId };
       ['bedrooms', 'bathrooms', 'size_label', 'property_type'].forEach(function (col) {
         if (!p[col]) return;
         patch[col] = p[col];
+        lead[col] = p[col];
         var el = card.querySelector('[data-col="' + col + '"]');
         if (el) el.value = p[col];
-        lead[col] = p[col];
       });
       api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify(patch) }).then(function () {
-        if (msg) {
-          msg.hidden = false;
-          msg.textContent = 'Filled from property records' +
-            (p.square_footage ? ' · ' + Number(p.square_footage).toLocaleString('en-US') + ' sq ft' : '') + '.';
-        }
+        var ok = 'Filled: ' +
+          [p.bedrooms && (p.bedrooms + ' bed'), p.bathrooms && (p.bathrooms + ' bath'),
+            p.square_footage && (Number(p.square_footage).toLocaleString('en-US') + ' sq ft')]
+            .filter(Boolean).join(' · ');
+        // Re-render so the Quotes property bar updates; keep current tab.
+        render();
+        if ((state.leadTab[leadId] || 'quotes') === 'quotes') loadQuotes(leadId);
+        var fresh = root.querySelector('.lead[data-id="' + leadId + '"]');
+        if (fresh) setLookupMsgs(fresh, ok || 'Property filled from records.');
       });
     });
   }
@@ -730,6 +874,11 @@
       ed.querySelector('.quote-lines').insertAdjacentHTML('beforeend', quoteLineHtml({}));
       updateQuoteTotal(ed); return;
     }
+    var catalogBtn = e.target.closest('[data-add-catalog]');
+    if (catalogBtn) {
+      addCatalogItem(catalogBtn.closest('.quote-editor'), catalogBtn);
+      return;
+    }
     if (e.target.matches('[data-remove-line]')) {
       var row = e.target.closest('.quote-line');
       var editor = e.target.closest('.quote-editor');
@@ -754,6 +903,11 @@
 
   root.addEventListener('blur', function (e) {
     if (e.target.matches('input[data-col], textarea[data-col]')) saveField(e.target);
+    if (e.target.matches('.quote-price')) {
+      var line = e.target.closest('.quote-line');
+      var catalogId = line && line.getAttribute('data-catalog-id');
+      if (catalogId) saveAddonPrice(catalogId, e.target.value.replace(/[^0-9.]/g, ''));
+    }
   }, true);
 
   function saveField(el) {
@@ -784,6 +938,7 @@
       if (!status.authConfigured) { showSetup(status); return; }
       if (!status.signedIn) { showSignIn(''); return; }
       if (!status.databaseConfigured) { showSetup(status); return; }
+      state.propertyLookupConfigured = !!status.propertyLookupConfigured;
 
       var qs = '?archived=' + (state.view === 'archived' ? '1' : '0');
       if (state.filter && state.view === 'active') qs += '&status=' + encodeURIComponent(state.filter);

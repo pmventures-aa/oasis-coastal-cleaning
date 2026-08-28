@@ -154,6 +154,54 @@ body.admin-theme {
   margin: 0 0 0.75rem;
 }
 .profile__lookup-msg { font-size: 0.72rem; line-height: 1.35; }
+.profile__lookup-setup {
+  font-size: 0.72rem; line-height: 1.4; margin: 0 0 0.75rem;
+}
+.profile__lookup-setup code {
+  font-size: 0.68rem; background: rgba(9,64,69,.06); padding: 0.1em 0.35em; border-radius: 4px;
+}
+
+.quote-property-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem;
+  margin: 0 0 0.75rem; padding: 0.7rem 0.85rem;
+  background: rgba(2, 89, 95, 0.06); border: 1px solid var(--oasis-line);
+  border-radius: var(--radius);
+}
+.quote-property-bar__text { flex: 1 1 12rem; font-size: var(--step--1); line-height: 1.4; }
+.quote-property-bar__text strong { margin-right: 0.35rem; }
+
+.quote-addons {
+  margin: 0.35rem 0 0.9rem; padding: 0.75rem 0.85rem;
+  border: 1px solid var(--oasis-line); border-radius: var(--radius);
+  background: var(--oasis-cream);
+}
+.quote-addons__title {
+  margin: 0; font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--oasis-gold);
+}
+.quote-addons__hint { margin: 0.3rem 0 0.65rem; font-size: 0.7rem; line-height: 1.35; }
+.quote-addons__group { margin-bottom: 0.65rem; }
+.quote-addons__group:last-child { margin-bottom: 0; }
+.quote-addons__group-label {
+  margin: 0 0 0.35rem; font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--oasis-muted);
+}
+.quote-addons__chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.quote-addon-chip {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  padding: 0.4rem 0.65rem; border-radius: 999px; cursor: pointer;
+  border: 1.5px solid var(--oasis-line); background: var(--oasis-white);
+  color: var(--oasis-navy); font: inherit; font-size: 0.72rem; font-weight: 600;
+  transition: border-color .15s, background .15s, transform .15s;
+}
+.quote-addon-chip:hover { border-color: var(--oasis-teal); }
+.quote-addon-chip.is-added {
+  border-color: var(--oasis-teal); background: rgba(2, 89, 95, 0.1);
+  transform: scale(1.03);
+}
+.quote-addon-chip__price {
+  color: var(--oasis-teal); font-variant-numeric: tabular-nums;
+}
 
 .profile__block { padding: 0.9rem 0; border-bottom: 1px solid var(--oasis-line); }
 .profile__block:last-of-type { border-bottom: 0; }

@@ -17,6 +17,11 @@ Her revised figures, August 2026:
 | Organizing | $40 | per hour |
 | Laundry | $15 | per hamper |
 
+These floors (plus per-add-on starting prices) also power the tap-to-add chips in
+the admin quote composer (`public/js/admin-catalog.js`). That file is only loaded
+on `/admin`, not the public site. She can still edit any price after tapping;
+the last price she used for each chip is remembered in her browser.
+
 These are floors, not quotes. What moves a real number up:
 
 - More square footage, more bathrooms, more floors

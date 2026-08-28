@@ -11,6 +11,7 @@ export async function onRequestGet({ request, env }) {
     authConfigured: authConfigured(env),
     databaseConfigured: Boolean(env.DB),
     emailConfigured: Boolean(env.RESEND_API_KEY),
+    propertyLookupConfigured: Boolean(env.RENTCAST_API_KEY),
     signedIn: await isSignedIn(request, env)
   });
 }
