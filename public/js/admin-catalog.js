@@ -1,36 +1,41 @@
 /* ==========================================================================
-   Admin-only quote catalog — starting prices for the composer.
-   Loaded only on /admin. Each row has an editable $ for THIS quote.
-   Prices are never remembered across jobs — she custom-quotes every visit.
+   Admin-only quote catalog — the list of things that can go on a quote.
+   Loaded only on /admin.
+
+   There are no amounts in here, and there are none anywhere else either.
+   Kristina prices every job for the job: the catalog saves her typing the
+   name of a service, and the price is hers to enter each time. A number
+   sitting in the box before she has looked at the house is a number that
+   gets sent by accident.
    ========================================================================== */
 window.OASIS_ADMIN_CATALOG = {
-  /* Quick base services — floors from docs/rates.md */
+  /* Base services */
   bases: [
-    { id: 'base-home', label: 'Home Cleaning', dollars: 120 },
-    { id: 'base-office', label: 'Office Cleaning', dollars: 100 },
-    { id: 'base-turnover', label: 'Airbnb / short-term turnover', dollars: 150 },
-    { id: 'base-organizing', label: 'Organizing (per hour)', dollars: 40 },
-    { id: 'base-laundry', label: 'Laundry (per hamper)', dollars: 15 }
+    { id: 'base-home', label: 'Home Cleaning' },
+    { id: 'base-office', label: 'Office Cleaning' },
+    { id: 'base-turnover', label: 'Airbnb / short-term turnover' },
+    { id: 'base-organizing', label: 'Organizing (per hour)' },
+    { id: 'base-laundry', label: 'Laundry (per hamper)' }
   ],
 
-  /* Same add-ons as the public catalog, with working starting prices ($) */
+  /* The same add-ons the customer sees on the public site */
   addOns: [
-    { id: 'refrigerator', label: 'Refrigerator (inside)', group: 'Kitchen', dollars: 40 },
-    { id: 'oven', label: 'Oven (inside)', group: 'Kitchen', dollars: 45 },
-    { id: 'microwave', label: 'Microwave (inside)', group: 'Kitchen', dollars: 20 },
-    { id: 'dishes', label: 'Dishes', group: 'Kitchen', dollars: 25 },
-    { id: 'cabinets', label: 'Cabinet cleaning', group: 'Kitchen', dollars: 50 },
+    { id: 'refrigerator', label: 'Refrigerator (inside)', group: 'Kitchen' },
+    { id: 'oven', label: 'Oven (inside)', group: 'Kitchen' },
+    { id: 'microwave', label: 'Microwave (inside)', group: 'Kitchen' },
+    { id: 'dishes', label: 'Dishes', group: 'Kitchen' },
+    { id: 'cabinets', label: 'Cabinet cleaning', group: 'Kitchen' },
 
-    { id: 'beds', label: 'Bed making', group: 'Around the house', dollars: 15 },
-    { id: 'laundry', label: 'Laundry (per hamper)', group: 'Around the house', dollars: 15 },
-    { id: 'trash', label: 'Trash removal', group: 'Around the house', dollars: 20 },
-    { id: 'blinds', label: 'Dusting blinds', group: 'Around the house', dollars: 35 },
-    { id: 'walls', label: 'Wall washing', group: 'Around the house', dollars: 60 },
+    { id: 'beds', label: 'Bed making', group: 'Around the house' },
+    { id: 'laundry', label: 'Laundry (per hamper)', group: 'Around the house' },
+    { id: 'trash', label: 'Trash removal', group: 'Around the house' },
+    { id: 'blinds', label: 'Dusting blinds', group: 'Around the house' },
+    { id: 'walls', label: 'Wall washing', group: 'Around the house' },
 
-    { id: 'windows-in', label: 'Interior window', group: 'Windows', dollars: 12 },
-    { id: 'windows-out', label: 'Exterior window', group: 'Windows', dollars: 15 },
+    { id: 'windows-in', label: 'Interior window', group: 'Windows' },
+    { id: 'windows-out', label: 'Exterior window', group: 'Windows' },
 
-    { id: 'closets', label: 'Closet organization', group: 'Organizing', dollars: 75 },
-    { id: 'cabinet-org', label: 'Cabinet organization', group: 'Organizing', dollars: 75 }
+    { id: 'closets', label: 'Closet organization', group: 'Organizing' },
+    { id: 'cabinet-org', label: 'Cabinet organization', group: 'Organizing' }
   ]
 };

@@ -96,8 +96,11 @@
   // Drop legacy per-browser catalog price cache — each job is custom-quoted.
   try { localStorage.removeItem('oasis_admin_addon_prices_v1'); } catch (e) { /* ignore */ }
 
-  function catalogPrice(item) {
-    return item && item.dollars != null ? item.dollars : '';
+  /* Always blank. The catalog carries names, never amounts — see
+     js/admin-catalog.js. Kept as a function so every call site stays honest
+     about where a price does not come from. */
+  function catalogPrice() {
+    return '';
   }
 
   function splitName(full) {
@@ -591,7 +594,7 @@
         '<span class="sr-only">Price for ' + esc(item.label) + '</span>' +
         '<span class="quote-catalog__dollar" aria-hidden="true">$</span>' +
         '<input type="text" inputmode="decimal" class="quote-catalog__price-input" ' +
-          'value="' + esc(String(price)) + '" data-catalog-price-input>' +
+          'placeholder="0.00" value="' + esc(String(price)) + '" data-catalog-price-input>' +
       '</label>' +
       '<button type="button" class="btn btn--primary btn--tiny" data-add-catalog>Add</button>' +
     '</div>';

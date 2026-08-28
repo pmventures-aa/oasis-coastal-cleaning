@@ -85,3 +85,28 @@ await testAsync('a broken cache never breaks a lookup', async () => {
 });
 
 console.log('\n' + n + ' assertions passed');
+
+/* ---- the catalog carries no amounts, and an unpriced quote cannot be sent -- */
+import { readFileSync } from 'node:fs';
+
+test('the admin catalog stores no dollar amounts', () => {
+  const src = readFileSync(new URL('../public/js/admin-catalog.js', import.meta.url), 'utf8');
+  const globalRef = {};
+  new Function('window', src)(globalRef);
+  const cat = globalRef.OASIS_ADMIN_CATALOG;
+  const all = [...cat.bases, ...cat.addOns];
+  assert.ok(all.length >= 19, 'catalog should still list every service');
+  for (const item of all) {
+    assert.deepEqual(Object.keys(item).filter((k) => /dollar|price|amount|cent|rate/i.test(k)), [],
+      'no money key on ' + item.label);
+    assert.ok(item.id && item.label, 'still has id and label: ' + JSON.stringify(item));
+  }
+});
+
+test('no digits-as-money survive anywhere in the catalog file', () => {
+  const src = readFileSync(new URL('../public/js/admin-catalog.js', import.meta.url), 'utf8');
+  const body = src.slice(src.indexOf('window.OASIS_ADMIN_CATALOG'));
+  assert.equal(/:\s*\d+/.test(body), false, 'a bare number is left in the catalog data');
+});
+
+console.log('\n' + n + ' assertions passed (catalog)');

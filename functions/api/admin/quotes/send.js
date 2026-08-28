@@ -34,6 +34,21 @@ export async function onRequestPost({ request, env }) {
   const quote = quoteFromRow(row);
   if (isExpired(quote)) return json({ error: 'This quote has expired. Create a new quote instead.' }, 400);
 
+  /* Nothing prefills a price any more — every amount is typed for the job —
+     so an untouched line reads $0.00 and would go out that way. A draft may sit
+     unfinished for as long as she likes; sending is where it has to be real. */
+  const unpriced = (quote.line_items || []).filter((it) => !(Number(it.unit_price) > 0));
+  if (unpriced.length) {
+    return json({
+      error: unpriced.length === 1
+        ? `"${unpriced[0].label || 'One line'}" has no price yet.`
+        : `${unpriced.length} lines have no price yet.`
+    }, 400);
+  }
+  if (!(Number(quote.total) > 0)) {
+    return json({ error: 'This quote still totals $0.00. Add the amounts before sending.' }, 400);
+  }
+
   const customerEmail = clean(body.customer_email, 160) || quote.customer_email || row.lead_email;
   if (!customerEmail || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(customerEmail)) {
     return json({ error: 'A valid customer email is required to send.' }, 400);
