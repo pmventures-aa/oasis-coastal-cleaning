@@ -99,14 +99,21 @@
   function setSelectValue(select, value) {
     if (!select) return;
     var v = String(value || '');
+    var found = false;
+    var emptyIdx = -1;
+    Array.prototype.forEach.call(select.options, function (opt, i) {
+      if (opt.value === '') emptyIdx = i;
+      if (opt.value === v) found = true;
+      opt.selected = false;
+    });
     if (!v) {
+      if (emptyIdx >= 0) {
+        select.selectedIndex = emptyIdx;
+        select.options[emptyIdx].selected = true;
+      }
       select.value = '';
       return;
     }
-    var found = false;
-    Array.prototype.forEach.call(select.options, function (opt) {
-      if (opt.value === v) found = true;
-    });
     if (!found) {
       var opt = document.createElement('option');
       opt.value = v;
@@ -114,6 +121,9 @@
       select.appendChild(opt);
     }
     select.value = v;
+    Array.prototype.forEach.call(select.options, function (opt) {
+      opt.selected = opt.value === v;
+    });
   }
 
   function moneyDollars(n) {
@@ -1459,6 +1469,7 @@
       var zipInput = e.target;
       var zipDigits = String(zipInput.value || '').replace(/\D/g, '').slice(0, 5);
       if (zipDigits.length !== 5) {
+        zipLookupSeq += 1; // drop any in-flight city fill for the previous ZIP
         zipInput._zipComplete = false;
         applyCity(addressSuggestScope(zipInput), '');
         setStreetEnabled(addressSuggestScope(zipInput), false);
