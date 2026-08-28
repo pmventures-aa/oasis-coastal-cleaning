@@ -1,7 +1,7 @@
 /* ==========================================================================
-   Admin-only quote catalog — starting prices for the branded-quote composer.
-   Loaded only on /admin (not the public site). Kristina can edit any price
-   after tapping an add-on; the last price she used is remembered in this browser.
+   Admin-only quote catalog — default starting prices for the composer.
+   Loaded only on /admin. Each row has an editable $ field; Add uses that
+   custom amount. Last price per item is remembered in this browser.
    ========================================================================== */
 window.OASIS_ADMIN_CATALOG = {
   /* Quick base services — floors from docs/rates.md */

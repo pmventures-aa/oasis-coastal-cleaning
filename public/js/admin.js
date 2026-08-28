@@ -362,18 +362,11 @@
       '<button type="button" class="quote-line__remove" data-remove-line>&times;</button></div>';
   }
 
-  function catalogChipHtml(item) {
-    var price = catalogPrice(item);
-    return '<button type="button" class="quote-addon-chip" data-add-catalog ' +
-      'data-catalog-id="' + esc(item.id) + '" ' +
-      'data-catalog-label="' + esc(item.label) + '" ' +
-      'data-catalog-price="' + esc(String(price)) + '">' +
-      '<span class="quote-addon-chip__label">' + esc(item.label) + '</span>' +
-      '<span class="quote-addon-chip__price">' + esc(moneyDollars(price)) + '</span></button>';
-  }
-
-  function quoteCatalogHtml() {
-    var bases = (CATALOG.bases || []).map(catalogChipHtml).join('');
+  function catalogSections() {
+    var sections = [];
+    if ((CATALOG.bases || []).length) {
+      sections.push({ id: 'base', label: 'Base', items: CATALOG.bases });
+    }
     var groups = {};
     var order = [];
     (CATALOG.addOns || []).forEach(function (a) {
@@ -381,21 +374,55 @@
       if (!groups[g]) { groups[g] = []; order.push(g); }
       groups[g].push(a);
     });
-    var addonBlocks = order.map(function (name) {
-      return '<div class="quote-addons__group">' +
-        '<p class="quote-addons__group-label">' + esc(name) + '</p>' +
-        '<div class="quote-addons__chips">' + groups[name].map(catalogChipHtml).join('') + '</div></div>';
+    order.forEach(function (name) {
+      var short = name === 'Around the house' ? 'House'
+        : name === 'Organizing' ? 'Organize' : name;
+      sections.push({
+        id: 'g-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        label: short,
+        items: groups[name]
+      });
+    });
+    return sections;
+  }
+
+  function catalogRowHtml(item) {
+    var price = catalogPrice(item);
+    return '<div class="quote-catalog__row" data-catalog-row data-catalog-id="' + esc(item.id) + '" data-catalog-label="' + esc(item.label) + '">' +
+      '<span class="quote-catalog__name">' + esc(item.label) + '</span>' +
+      '<label class="quote-catalog__price">' +
+        '<span class="sr-only">Price for ' + esc(item.label) + '</span>' +
+        '<span class="quote-catalog__dollar" aria-hidden="true">$</span>' +
+        '<input type="text" inputmode="decimal" class="quote-catalog__price-input" ' +
+          'value="' + esc(String(price)) + '" data-catalog-price-input>' +
+      '</label>' +
+      '<button type="button" class="btn btn--primary btn--tiny" data-add-catalog>Add</button>' +
+    '</div>';
+  }
+
+  function quoteCatalogHtml() {
+    var sections = catalogSections();
+    if (!sections.length) return '';
+    var tabs = sections.map(function (s, i) {
+      return '<button type="button" class="quote-catalog__tab' + (i === 0 ? ' is-on' : '') +
+        '" data-catalog-tab="' + esc(s.id) + '" role="tab">' + esc(s.label) + '</button>';
+    }).join('');
+    var panels = sections.map(function (s, i) {
+      return '<div class="quote-catalog__panel' + (i === 0 ? ' is-on' : '') +
+        '" data-catalog-panel="' + esc(s.id) + '" role="tabpanel">' +
+        s.items.map(catalogRowHtml).join('') +
+      '</div>';
     }).join('');
 
-    return '<div class="quote-addons">' +
-      '<p class="quote-addons__title">Tap to add with a starting price</p>' +
-      '<p class="quote-addons__hint muted">Edit any price after adding — your last price for each item is remembered on this device.</p>' +
-      (bases
-        ? '<div class="quote-addons__group"><p class="quote-addons__group-label">Base service</p>' +
-          '<div class="quote-addons__chips">' + bases + '</div></div>'
-        : '') +
-      addonBlocks +
-    '</div>';
+    return '<details class="quote-catalog">' +
+      '<summary class="quote-catalog__sum">' +
+        '<span class="quote-catalog__sum-title">Add priced items</span>' +
+        '<span class="quote-catalog__sum-meta muted">Set $ then Add · remembered</span>' +
+      '</summary>' +
+      '<div class="quote-catalog__body">' +
+        '<div class="quote-catalog__tabs" role="tablist">' + tabs + '</div>' +
+        panels +
+      '</div></details>';
   }
 
   function quoteEditorHtml(l, quote, opts) {
@@ -423,13 +450,15 @@
       '<div class="quote-editor"' + (standalone ? ' data-standalone="1"' : '') +
         ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '">' +
       customerFields +
-      quoteCatalogHtml() +
       '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
-      '<button type="button" class="btn btn--ghost btn--tiny" data-add-line>+ Custom line</button>' +
+      '<div class="quote-lines-actions">' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-add-line>+ Custom line</button>' +
+      '</div>' +
       '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
+      quoteCatalogHtml() +
       '<label class="pf pf--wide"><span class="pf__k">Note</span><textarea class="pf__v quote-notes" rows="2">' +
         esc(notesVal || '') + '</textarea></label>' +
-      '<div class="quote-actions">' +
+      '<div class="quote-actions quote-actions--sticky">' +
         '<button type="button" class="btn btn--ghost" data-save-quote>Save Draft</button>' +
         '<button type="button" class="btn btn--primary" data-send-quote>Send to Customer</button></div>' +
       '<div class="quote-msg form-status" role="alert" hidden></div></div>' +
@@ -437,24 +466,35 @@
   }
 
   function addCatalogItem(editor, btn) {
-    var id = btn.getAttribute('data-catalog-id') || '';
-    var label = btn.getAttribute('data-catalog-label') || '';
-    var price = btn.getAttribute('data-catalog-price') || '';
+    var row = btn.closest('[data-catalog-row]');
+    if (!row) return;
+    var id = row.getAttribute('data-catalog-id') || '';
+    var label = row.getAttribute('data-catalog-label') || '';
+    var priceInput = row.querySelector('[data-catalog-price-input]');
+    var priceRaw = priceInput ? String(priceInput.value || '').replace(/[^0-9.]/g, '') : '';
+    var priceNum = Number(priceRaw);
     if (!label) return;
+    if (!Number.isFinite(priceNum) || priceNum < 0) {
+      if (priceInput) priceInput.focus();
+      return;
+    }
+    var price = String(Math.round(priceNum * 100) / 100);
+    saveAddonPrice(id, price);
 
     var lines = editor.querySelector('.quote-lines');
     var existing = null;
-    Array.prototype.forEach.call(lines.querySelectorAll('.quote-line'), function (row) {
-      var rowId = row.getAttribute('data-catalog-id');
-      var rowLabel = (row.querySelector('.quote-label') || {}).value || '';
-      if (!existing && ((id && rowId === id) || rowLabel === label)) existing = row;
+    Array.prototype.forEach.call(lines.querySelectorAll('.quote-line'), function (line) {
+      var rowId = line.getAttribute('data-catalog-id');
+      var rowLabel = (line.querySelector('.quote-label') || {}).value || '';
+      if (!existing && ((id && rowId === id) || rowLabel === label)) existing = line;
     });
 
     if (existing) {
       var qtyEl = existing.querySelector('.quote-qty');
+      var priceEl = existing.querySelector('.quote-price');
       qtyEl.value = String(Math.min(999, (parseInt(qtyEl.value, 10) || 1) + 1));
+      if (priceEl) priceEl.value = price;
     } else {
-      // If the only line is an empty/placeholder seed with no price, replace it.
       var rows = lines.querySelectorAll('.quote-line');
       if (rows.length === 1) {
         var only = rows[0];
@@ -472,8 +512,20 @@
       }));
     }
     updateQuoteTotal(editor);
-    btn.classList.add('is-added');
-    setTimeout(function () { btn.classList.remove('is-added'); }, 600);
+    row.classList.add('is-added');
+    setTimeout(function () { row.classList.remove('is-added'); }, 700);
+  }
+
+  function switchCatalogTab(tabBtn) {
+    var catalog = tabBtn.closest('.quote-catalog');
+    if (!catalog) return;
+    var id = tabBtn.getAttribute('data-catalog-tab');
+    Array.prototype.forEach.call(catalog.querySelectorAll('[data-catalog-tab]'), function (t) {
+      t.classList.toggle('is-on', t === tabBtn);
+    });
+    Array.prototype.forEach.call(catalog.querySelectorAll('[data-catalog-panel]'), function (p) {
+      p.classList.toggle('is-on', p.getAttribute('data-catalog-panel') === id);
+    });
   }
 
   function newQuotePanelHtml() {
@@ -874,6 +926,11 @@
       ed.querySelector('.quote-lines').insertAdjacentHTML('beforeend', quoteLineHtml({}));
       updateQuoteTotal(ed); return;
     }
+    var catalogTab = e.target.closest('[data-catalog-tab]');
+    if (catalogTab) {
+      switchCatalogTab(catalogTab);
+      return;
+    }
     var catalogBtn = e.target.closest('[data-add-catalog]');
     if (catalogBtn) {
       addCatalogItem(catalogBtn.closest('.quote-editor'), catalogBtn);
@@ -907,6 +964,10 @@
       var line = e.target.closest('.quote-line');
       var catalogId = line && line.getAttribute('data-catalog-id');
       if (catalogId) saveAddonPrice(catalogId, e.target.value.replace(/[^0-9.]/g, ''));
+    }
+    if (e.target.matches('[data-catalog-price-input]')) {
+      var crow = e.target.closest('[data-catalog-row]');
+      if (crow) saveAddonPrice(crow.getAttribute('data-catalog-id'), e.target.value.replace(/[^0-9.]/g, ''));
     }
   }, true);
 
