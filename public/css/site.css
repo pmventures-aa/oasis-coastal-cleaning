@@ -923,3 +923,48 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
 .proposal__decline-acts {
   display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem;
 }
+
+
+/* ============================================================== typography
+   One tracking value was doing every job. 0.16em is right for a 0.7rem
+   eyebrow, where the letters need air to read as small caps, and far too
+   wide for a 3.2rem headline, where it costs a phone a whole extra line.
+   Tracking now loosens as type gets smaller and tightens as it grows, which
+   is how the Cinzel was drawn to be set. The eyebrows keep the wide setting
+   that makes them read as labels. */
+h1 { letter-spacing: 0.045em; }
+h2 { letter-spacing: 0.07em; }
+h3 { letter-spacing: 0.1em; }
+
+/* Big display type also wants a little less air between the lines. */
+h1 { line-height: 1.14; }
+h2 { line-height: 1.18; }
+
+
+/* ------------------------------------------------- the quote a customer sees
+   These two labels were still gold on white — 2.52:1 — and the site-wide audit
+   never caught them because this page builds itself from the API after load,
+   so there was nothing on the page to measure. Same correction as everywhere
+   else: gold is not a text colour on a light ground. */
+.proposal__table th,
+.proposal__addon-group-label { color: var(--oasis-teal); }
+
+/* Accept and decline were the same weight, on the one screen where the whole
+   point is to accept. Decline stays entirely available — same target size,
+   same focus ring — but stops competing for the eye. */
+.proposal__decline,
+.proposal__actions .btn--ghost {
+  border-color: var(--oasis-line);
+  color: var(--oasis-muted);
+  font-weight: 500;
+}
+.proposal__decline:hover,
+.proposal__actions .btn--ghost:hover {
+  border-color: var(--oasis-gold);
+  background: transparent;
+  color: var(--oasis-navy);
+}
+
+/* A quote page is not a place to go browsing the services menu. The footer
+   keeps who this is and how to reach her, and drops the site navigation. */
+[data-page="proposal"] .footer__links { display: none; }

@@ -187,11 +187,20 @@
     return Number.isFinite(n) ? Math.round(n * 100) : 0;
   };
 
+  /* Never rejects. Kristina works from her phone, and a dropped request used to
+     leave whichever button she pressed disabled with a message that said it was
+     still working — forever, until she reloaded. Nineteen call sites already
+     handle a non-ok response, and none of them handled a thrown one, so a
+     failure to reach the server is reported as one more non-ok response. */
   var api = function (path, opts) {
     return fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
       .then(function (r) {
         return r.json().catch(function () { return {}; })
           .then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+      })
+      .catch(function () {
+        return { ok: false, status: 0, offline: true,
+                 body: { error: 'No connection — check your signal and try again.' } };
       });
   };
 
@@ -1028,7 +1037,7 @@
         if (el) el.value = p[col];
       });
       api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify(patch) }).then(function () {
-        var ok = 'Filled: ' +
+        var ok = (r.body.cached ? 'Filled from a saved lookup (no request used): ' : 'Filled: ') +
           [p.bedrooms && (p.bedrooms + ' bed'), p.bathrooms && (p.bathrooms + ' bath'),
             p.square_footage && (Number(p.square_footage).toLocaleString('en-US') + ' sq ft')]
             .filter(Boolean).join(' · ');
