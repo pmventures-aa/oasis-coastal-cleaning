@@ -165,8 +165,9 @@
   }
 
   /* ------------------------------------------------------------ sections */
-  /* The one she is actually known for, given the room to say so. Seven equal
-     cards told a visitor nothing about what this business mostly is. */
+  /* Homes lead because they are the easiest thing to say yes to, not because
+     they are most of the work — the mix is genuinely a mix. The label says
+     who the block is for and claims nothing about the balance of her book. */
   function renderFeaturedService(el) {
     var all = activeServices();
     var s = null;
@@ -176,7 +177,7 @@
     el.className = 'feature';
     el.innerHTML =
       '<div class="feature__body">' +
-        '<p class="eyebrow">What she mostly does</p>' +
+        '<p class="eyebrow">For your home</p>' +
         '<h2 class="feature__h">' + esc(s.name) + '</h2>' +
         '<p class="feature__lead">' + esc(s.blurb || s.short) + '</p>' +
         '<ul class="feature__list">' +
