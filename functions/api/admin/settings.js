@@ -7,6 +7,7 @@ import { json } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { loadSettings, saveSettings, FIELDS, DEFAULTS } from '../../_lib/settings.js';
 import { hasCustomerTables } from '../../_lib/customers.js';
+import { checkSchema } from '../../_lib/schema.js';
 
 export async function onRequestGet({ request, env }) {
   if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
@@ -18,11 +19,15 @@ export async function onRequestGet({ request, env }) {
   try { await env.DB.prepare('SELECT 1 FROM quotes LIMIT 1').first(); quotesReady = true; } catch { /* no */ }
   try { await env.DB.prepare('SELECT 1 FROM settings LIMIT 1').first(); settingsStored = true; } catch { /* no */ }
 
+  // Whether the database is actually up to date, columns included.
+  const schema = await checkSchema(env.DB);
+
   return json({
     ok: true,
     settings,
     fields: FIELDS,
     defaults: DEFAULTS,
+    schema,
     health: {
       database: Boolean(env.DB),
       settingsStored,

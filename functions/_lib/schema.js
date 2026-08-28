@@ -118,6 +118,44 @@ const BACKFILL = [
    WHERE property_id IS NULL AND customer_id IS NOT NULL`
 ];
 
+/**
+ * What is missing, without changing anything.
+ *
+ * The health panel used to ask only whether tables existed, so a release that
+ * added a column left the portal insisting everything was fine while the
+ * screens that needed it failed. It checks columns now too.
+ */
+export async function checkSchema(db) {
+  const missingTables = [], missingColumns = [];
+  if (!db) return { ok: false, missingTables, missingColumns, noDatabase: true };
+
+  for (const [name] of TABLES) {
+    try { await db.prepare(`SELECT 1 FROM ${name} LIMIT 1`).first(); }
+    catch { missingTables.push(name); }
+  }
+
+  // One read per table tells us every column it has.
+  const seen = {};
+  for (const [table, column] of COLUMNS) {
+    if (missingTables.includes(table)) continue;
+    if (!seen[table]) {
+      try {
+        const info = await db.prepare(`PRAGMA table_info(${table})`).all();
+        seen[table] = new Set((info.results || []).map((r) => r.name));
+      } catch {
+        seen[table] = null;
+      }
+    }
+    if (seen[table] && !seen[table].has(column)) missingColumns.push(`${table}.${column}`);
+  }
+
+  return {
+    ok: !missingTables.length && !missingColumns.length,
+    missingTables,
+    missingColumns
+  };
+}
+
 const isDuplicate = (message) =>
   /duplicate column|already exists/i.test(String(message || ''));
 

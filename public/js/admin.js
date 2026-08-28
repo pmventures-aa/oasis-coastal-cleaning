@@ -40,7 +40,7 @@
     view: 'active', filter: '', followup: false, open: null, leadTab: {},
     leads: [], counts: {}, q: '', quotes: {}, composing: false, composingLead: false,
     focusQuoteEditor: null, editingQuote: {}, settings: null, settingsFields: [], health: {},
-    pipeline: null, pipelineCounts: {}, clients: null,
+    pipeline: null, pipelineCounts: {}, clients: null, schema: null,
     propertyLookupConfigured: null, emailConfigured: true
   };
 
@@ -1119,17 +1119,22 @@
         '<span class="health__state">' + (on ? 'On' : 'Off') + '</span></li>';
     }).join('');
 
-    // Anything the site can switch on for itself gets a button rather than an
-    // instruction to go and paste SQL somewhere.
-    var fixable = ['settingsStored', 'quotes', 'customers'].filter(function (k) { return !state.health[k]; });
-    var setupPanel = fixable.length
-      ? '<div class="setup-cta">' +
-          '<p><strong>' + fixable.length + ' of these can be switched on right now.</strong> ' +
-            'It takes a few seconds and nothing already saved is touched.</p>' +
-          '<button type="button" class="btn btn--primary" data-run-setup>Set them up</button>' +
-          '<span class="setup-cta__msg form-status" role="status" hidden></span>' +
-        '</div>'
-      : '';
+    /* Anything the site can switch on for itself gets a button rather than an
+       instruction to go and paste SQL somewhere. The button is always here:
+       it is safe to press twice, and a release that adds a field needs it
+       again even when every feature already reads as on. */
+    var schema = state.schema || {};
+    var behind = (schema.missingTables || []).length + (schema.missingColumns || []).length;
+    var setupPanel = '<div class="setup-cta' + (behind ? ' is-needed' : '') + '">' +
+      '<p>' + (behind
+        ? '<strong>The database is ' + behind + ' item' + (behind === 1 ? '' : 's') +
+          ' behind the site.</strong> Some screens will not work until this is run.'
+        : '<strong>Everything is up to date.</strong> Run this again any time — ' +
+          'after an update, or if a screen says something is missing.') + '</p>' +
+      '<button type="button" class="btn btn--' + (behind ? 'primary' : 'ghost') + '" data-run-setup>' +
+        (behind ? 'Bring it up to date' : 'Check and update') + '</button>' +
+      '<span class="setup-cta__msg form-status" role="status" hidden></span>' +
+    '</div>';
 
     return '<div class="settings">' + groups +
       '<section class="card set-group">' +
@@ -1155,6 +1160,7 @@
       state.settings = r.body.settings;
       state.settingsFields = r.body.fields;
       state.health = r.body.health || {};
+      state.schema = r.body.schema || {};
       render();
     });
   }
@@ -1265,7 +1271,7 @@
   var STAGE_FOR_VIEW = { quotes: 'drafts', pending: 'pending', accepted: 'accepted', paid: 'paid' };
 
   var STAGE_EMPTY = {
-    drafts: ['No quotes in progress', 'Start one from a request, or with + New Quote.'],
+    drafts: ['No quotes in progress', 'Start one from a request, or with + New quote.'],
     pending: ['Nothing waiting on a customer', 'Quotes you send will sit here until they answer.'],
     accepted: ['Nothing accepted yet', 'When someone says yes, the job appears here to be done and paid.'],
     paid: ['Nothing finished yet', 'Jobs you mark paid are kept here.']
@@ -1340,8 +1346,9 @@
         (state.pipeline.needsSetup ? ' Open Settings and press Set them up.' : '') + '</p>';
     }
     var list = state.pipeline.quotes || [];
+    var openLeads = state.pipeline.openLeads || [];
     var stage = STAGE_FOR_VIEW[view];
-    if (!list.length) {
+    if (!list.length && !openLeads.length) {
       var e = STAGE_EMPTY[stage] || ['Nothing here', ''];
       return '<div class="empty-state"><h3>' + esc(e[0]) + '</h3><p class="muted">' + esc(e[1]) + '</p></div>';
     }
@@ -1351,7 +1358,32 @@
       head = '<p class="pipeline__sum">' + esc(money(owed)) + ' still to collect across ' +
         list.length + ' job' + (list.length === 1 ? '' : 's') + '.</p>';
     }
-    return head + '<div class="pcards">' + list.map(function (q) { return pipelineCard(q, view); }).join('') + '</div>';
+    var cards = list.map(function (q) { return pipelineCard(q, view); }).join('') +
+      openLeads.map(leadNeedingQuoteCard).join('');
+    return head + '<div class="pcards">' + cards + '</div>';
+  }
+
+  /* A request she has marked quoted but never wrote a quote for. It is on this
+     screen because that is where she would look for it, and it says plainly
+     what is missing. */
+  function leadNeedingQuoteCard(l) {
+    var where = [l.service_label, l.city].filter(Boolean).join(' · ');
+    return '<article class="pcard pcard--todo">' +
+      '<div class="pcard__head">' +
+        '<div><h3 class="pcard__who">' + esc(l.name || 'Someone') + '</h3>' +
+          (where ? '<p class="pcard__where muted">' + esc(where) + '</p>' : '') + '</div>' +
+        '<span class="pcard__amt pcard__amt--none">' +
+          esc(l.quoted_amount ? l.quoted_amount : 'No quote yet') + '</span>' +
+      '</div>' +
+      '<div class="pcard__flags"><span class="pill pill--flag">Marked quoted</span></div>' +
+      '<p class="pcard__when muted">You marked this quoted ' + esc(when(l.updated_at || l.created_at)) +
+        ', but there is no quote here to send or track.</p>' +
+      '<div class="pcard__acts">' +
+        '<button type="button" class="btn btn--primary btn--tiny" data-quote-action="open-lead" ' +
+          'data-quote-id="lead-' + esc(l.id) + '" data-lead-id="' + esc(l.id) + '">Build the quote</button>' +
+        (l.phone ? '<a class="btn btn--ghost btn--tiny" href="' + esc(FMT.telHref(l.phone)) + '">Call</a>' : '') +
+      '</div>' +
+    '</article>';
   }
 
   /* The tab counts come from the same query as the lists, so they are fetched

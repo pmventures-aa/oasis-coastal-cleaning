@@ -73,8 +73,34 @@ export async function onRequestGet({ request, env }) {
     const quotes = (rows.results || []).map(quoteFromRow);
     await attachQuoteEvents(env.DB, quotes);
 
+    /* Kristina marks a request "quoted" when she has told someone a price,
+       which does not always mean she built one here. Those leads belong on
+       the same screen as the drafts — from where she is standing they are the
+       same thing, a quote in progress — with something to press that turns one
+       into the other. */
+    let openLeads = [];
+    if (stage === 'drafts') {
+      try {
+        const rows = await env.DB.prepare(
+          `SELECT l.* FROM leads l
+           WHERE l.status = 'quoted'
+             AND l.archived_at IS NULL
+             AND NOT EXISTS (
+               SELECT 1 FROM quotes q
+               WHERE q.lead_id = l.id AND q.archived_at IS NULL
+             )
+           ORDER BY l.updated_at DESC, l.created_at DESC
+           LIMIT 100`
+        ).all();
+        openLeads = rows.results || [];
+      } catch (err) {
+        console.log('Could not read leads marked quoted:', err && err.message);
+      }
+    }
+
     const counts = (await env.DB.prepare(COUNTS).first()) || {};
-    return json({ ok: true, stage, quotes, counts });
+    counts.drafts = (Number(counts.drafts) || 0) + openLeads.length;
+    return json({ ok: true, stage, quotes, openLeads, counts });
   } catch (err) {
     return json({
       error: 'Could not load that list.',
