@@ -25,7 +25,16 @@ export async function onRequestGet({ request, env, params }) {
     if (!row) return json({ error: 'Quote not found.' }, 404);
 
     let quote = quoteFromRow(row);
-    if (quote.status === 'draft') return json({ error: 'This quote is not ready yet.' }, 403);
+    if (quote.status === 'draft') {
+      // A draft that already has a sent_at is one Kristina has pulled back to
+      // change. The customer holding the link deserves better than being told
+      // it was never ready.
+      return json({
+        error: quote.sent_at
+          ? 'Kristina is updating this quote. The new one will be with you shortly.'
+          : 'This quote is not ready yet.'
+      }, 403);
+    }
 
     if (isExpired(quote) && quote.status === 'sent') {
       await env.DB.prepare(

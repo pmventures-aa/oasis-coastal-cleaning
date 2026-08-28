@@ -151,10 +151,31 @@ export async function onRequestPatch({ request, env }) {
     return json({ ok: true, action: 'deleted' });
   }
 
-  if (existing.status !== 'draft') return json({ error: 'Only draft quotes can be edited.' }, 400);
+  /* A quote that has gone out can still be fixed — she under-quoted, or the
+     customer asked for the oven too. Editing pulls it back to a draft so the
+     link stops showing a price she is halfway through changing, keeps the same
+     token and the original sent_at, and waits for her to send it again.
+
+     An accepted quote is a deal, not a document, so it stays locked. */
+  if (existing.status === 'accepted') {
+    return json({
+      error: 'This quote was accepted, so it cannot be changed. Create a new quote for the extra work.'
+    }, 400);
+  }
+  if (existing.archived_at) {
+    return json({ error: 'Restore this quote before editing it.' }, 400);
+  }
+
+  const wasSent = existing.status !== 'draft';
+
 
   const sets = [];
   const values = [];
+
+  if (wasSent) {
+    sets.push('status = ?');
+    values.push('draft');
+  }
 
   if (body.line_items !== undefined) {
     let normalized;
@@ -197,6 +218,10 @@ export async function onRequestPatch({ request, env }) {
   values.push(id);
 
   await env.DB.prepare(`UPDATE quotes SET ${sets.join(', ')} WHERE id = ?`).bind(...values).run();
+
+  // The history is the point of the trail: a quote that changed after the
+  // customer already had it should say so.
+  if (wasSent) await logQuoteEvent(env.DB, id, 'revised', { from_status: existing.status });
   const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
   return json({ quote: quoteFromRow(row) });
 }
