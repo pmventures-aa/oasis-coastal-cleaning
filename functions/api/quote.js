@@ -12,6 +12,7 @@
  * worse than telling the visitor to call.
  */
 import { formatPhone } from '../_lib/format.js';
+import { linkLead } from '../_lib/customers.js';
 import { json, clean, cleanList, isEmail, newId, verifyTurnstile, sendEmail }
   from '../_lib/util.js';
 import { buildQuoteEmail } from '../_lib/email.js';
@@ -110,6 +111,14 @@ export async function onRequestPost({ request, env }) {
     return json({
       error: 'This site is not finished taking messages yet. Please call or text instead.'
     }, 503);
+  }
+
+  // A new request belongs to somebody, and somewhere. Doing this at the door
+  // means the manager with six Airbnbs is one customer from the first one,
+  // rather than six rows that have to be untangled later.
+  if (stored) {
+    try { await linkLead(env.DB, lead); }
+    catch (err) { console.error('Could not link lead to a customer:', err && err.message || err); }
   }
 
   return json({ ok: true, id: lead.id, stored, emailed: !mailProblem });
