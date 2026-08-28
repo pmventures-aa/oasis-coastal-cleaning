@@ -218,7 +218,7 @@
 
   function renderServiceNav(el) {
     el.innerHTML = activeServices().map(function (s) {
-      return '<a class="btn btn--ghost" href="#' + esc(s.id) + '" style="padding:.55em 1.2em">' +
+      return '<a class="btn btn--ghost btn--chip" href="#' + esc(s.id) + '">' +
              esc(s.name) + '</a>';
     }).join(' ');
   }

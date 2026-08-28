@@ -20,7 +20,10 @@
   var services = U.activeServices();
   var freqs = U.activeFrequencies();
 
-  var state = { step: 0, leadId: null };
+  // Recorded so the server can tell a person from something that filled the
+  // whole form in under four seconds.
+  var FORM_OPENED_AT = Date.now();
+var state = { step: 0, leadId: null };
 
   /* ------------------------------------------------------------ the steps */
   var STEPS = [
@@ -376,20 +379,51 @@
       city.classList.remove('is-bad');
     };
 
-    // A recognised ZIP fills the city so there is nothing left to do.
+    /* A recognised ZIP fills the city so there is nothing left to do. The map
+       covers her own area; anywhere else in Florida is asked of the server,
+       which looks it up once and then remembers it. Either way this is a
+       convenience — the city stays editable and a failed lookup is silent. */
+    var lookingUp = null;
     zip.addEventListener('input', function () {
       var digits = zip.value.replace(/\D/g, '').slice(0, 5);
       if (zip.value !== digits) { zip.value = digits; }
       state.zip = digits;
-      if (digits.length !== 5) { return; }
-      var known = (D.zipCity || {})[digits];
-      if (known && !city.value.trim()) {
-        choose(known);
-        if (hint) { hint.textContent = 'That is ' + known + ' — change it below if not.'; }
-      } else if (hint && known) {
-        hint.textContent = 'That ZIP is in ' + known + '.';
+      if (digits.length !== 5) {
+        if (hint) { hint.textContent = 'Five digits — it tells us the route.'; }
+        return;
       }
+
+      var known = (D.zipCity || {})[digits];
+      if (known) { applyCity(digits, known); return; }
+
+      if (lookingUp === digits) { return; }
+      lookingUp = digits;
+      if (hint) { hint.textContent = 'Looking that up…'; }
+
+      fetch('/api/zip?z=' + encodeURIComponent(digits))
+        .then(function (r) { return r.json(); })
+        .then(function (r) {
+          if (state.zip !== digits) { return; }        // they kept typing
+          if (r && r.outsideFlorida) {
+            if (hint) { hint.textContent = 'That looks like it is outside Florida — tell us the city.'; }
+            return;
+          }
+          if (r && r.city) { applyCity(digits, r.city); return; }
+          if (hint) { hint.textContent = 'Tell us the city and we will take it from there.'; }
+        })
+        .catch(function () {
+          if (hint) { hint.textContent = 'Five digits — it tells us the route.'; }
+        });
     });
+
+    function applyCity(digits, name) {
+      if (!city.value.trim()) {
+        choose(name);
+        if (hint) { hint.textContent = 'That is ' + name + ' — change it below if not.'; }
+      } else if (hint) {
+        hint.textContent = 'That ZIP is in ' + name + '.';
+      }
+    }
 
     city.addEventListener('input', function () { open(match(city.value)); });
     city.addEventListener('focus', function () { if (!city.value.trim()) { open(match('')); } });
@@ -571,6 +605,7 @@
   function submit(btn) {
     var body = payload();
     if (body.company) { return; }
+    body.formStartedAt = FORM_OPENED_AT;
 
     if (D.turnstileSiteKey) {
       var token = root.querySelector('[name="cf-turnstile-response"]');

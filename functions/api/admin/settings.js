@@ -31,7 +31,8 @@ export async function onRequestGet({ request, env }) {
       email: Boolean(env.RESEND_API_KEY || env.BREVO_API_KEY || env.NOTIFY_WEBHOOK_URL),
       emailTracking: Boolean(env.RESEND_WEBHOOK_SECRET),
       propertyLookup: Boolean(env.RENTCAST_API_KEY),
-      spamCheck: Boolean(env.TURNSTILE_SECRET_KEY)
+      spamCheck: true,
+      extraSpamCheck: Boolean(env.TURNSTILE_SECRET_KEY)
     }
   });
 }

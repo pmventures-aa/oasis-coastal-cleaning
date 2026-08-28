@@ -1019,3 +1019,26 @@ h2 { line-height: 1.18; }
 .counts__b:hover { border-color: var(--oasis-gold); }
 .counts__b.is-on { background: var(--oasis-teal); border-color: var(--oasis-teal); color: var(--oasis-cream); }
 .counts__b:focus-visible { outline: 3px solid var(--oasis-sea); outline-offset: 2px; }
+
+/* A compact button is still something a thumb has to hit. Both of these were
+   under 40px: the service jump-links on /services and the header's Get a Quote
+   once it appears at tablet width. */
+.btn--chip {
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 0 1.2em;
+}
+.topbar__cta { min-height: 44px; align-items: center; }
+@media (min-width: 560px) { .topbar__cta { display: inline-flex; } }
+
+/* The desktop nav links were 34px of clickable area inside a much taller
+   header row. Giving them the full height costs nothing visually — the
+   underline still sits under the text — and makes them comfortable to hit. */
+@media (min-width: 860px) {
+  .nav a { display: inline-flex; align-items: center; min-height: 44px; }
+}
+
+/* A floor for every button. On a 320px screen the wizard's Next shrank below
+   40px, and a button you have to aim at is a button people mis-tap. */
+.btn { min-height: 44px; }
+button.btn, a.btn { display: inline-flex; align-items: center; justify-content: center; }
+.btn--block { width: 100%; }

@@ -14,6 +14,7 @@
 import { formatPhone } from '../_lib/format.js';
 import { linkLead } from '../_lib/customers.js';
 import { loadSettings, alertTarget } from '../_lib/settings.js';
+import { checkSubmission, noteSubmission } from '../_lib/spam.js';
 import { json, clean, cleanList, isEmail, newId, verifyTurnstile, sendEmail }
   from '../_lib/util.js';
 import { buildQuoteEmail } from '../_lib/email.js';
@@ -30,9 +31,17 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'That request could not be read.' }, 400);
   }
 
-  // Honeypot — a real person never sees this field.
-  if (clean(body.company)) return json({ ok: true, id: null });
+  /* Three checks that need no third-party key: a field a person never sees,
+     the time between the page loading and the form being sent, and how many
+     requests this address has made in the last hour. A bot is answered with a
+     cheerful ok so it learns nothing about what it tripped. */
+  const spam = await checkSubmission(env, request, body);
+  if (!spam.ok) {
+    console.log('Blocked a submission:', spam.reasons.join(', '));
+    return json({ ok: true, id: null });
+  }
 
+  // Turnstile as well, when Kristina has set it up. Both can be on at once.
   const ok = await verifyTurnstile(
     clean(body.turnstileToken, 2048),
     env.TURNSTILE_SECRET_KEY,
@@ -121,6 +130,7 @@ export async function onRequestPost({ request, env }) {
   // means the manager with six Airbnbs is one customer from the first one,
   // rather than six rows that have to be untangled later.
   if (stored) {
+    await noteSubmission(env, spam.ip, 'quote');
     try { await linkLead(env.DB, lead); }
     catch (err) { console.error('Could not link lead to a customer:', err && err.message || err); }
   }

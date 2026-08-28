@@ -429,7 +429,7 @@ window.OASIS = {
       county: 'Broward County',
       note: 'From Deerfield Beach down through Miramar.',
       cities: [
-        'Deerfield Beach', 'Pompano Beach', 'Coconut Creek', 'Margate', 'Coral Springs',
+        'Deerfield Beach', 'Pompano Beach', 'Coconut Creek', 'Margate', 'North Lauderdale', 'Coral Springs',
         'Parkland', 'Tamarac', 'Sunrise', 'Lauderhill', 'Plantation', 'Fort Lauderdale',
         'Wilton Manors', 'Oakland Park', 'Davie', 'Weston', 'Southwest Ranches',
         'Cooper City', 'Dania Beach', 'Hollywood', 'Hallandale Beach', 'Pembroke Pines',

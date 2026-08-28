@@ -325,12 +325,12 @@
         '</div>' + lookupHint +
         '<label class="pf"><span class="pf__k">ZIP</span>' +
           '<input class="pf__v" type="text" data-col="zip" data-zip-lookup inputmode="numeric" autocomplete="postal-code" ' +
-            'placeholder="33063" maxlength="10" value="' + esc(l.zip || '') + '"></label>' +
+            'placeholder="5-digit ZIP" maxlength="10" value="' + esc(l.zip || '') + '"></label>' +
         '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
           '<div class="addr-suggest__wrap">' +
             '<input class="pf__v" type="text" data-col="address" data-address-suggest autocomplete="off" ' +
             (String(l.zip || '').replace(/\D/g, '').length === 5 ? '' : ' disabled') +
-              ' placeholder="' + (String(l.zip || '').replace(/\D/g, '').length === 5 ? 'e.g. 123 NW 70th Ave' : 'Enter ZIP first') + '" value="' + esc(l.address || '') + '">' +
+              ' placeholder="' + (String(l.zip || '').replace(/\D/g, '').length === 5 ? 'Street address' : 'Enter ZIP first') + '" value="' + esc(l.address || '') + '">' +
             '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
           '</div>' +
           '<span class="addr-suggest__hint">ZIP first, then street — suggestions stay in that ZIP</span></label>' +
@@ -646,7 +646,7 @@
             esc(quote.customer_email || '') + '"></label>' +
           '<label class="pf"><span class="pf__k">Phone</span><input class="pf__v quote-phone" type="tel" placeholder="Optional" value=""></label>' +
           '<label class="pf"><span class="pf__k">ZIP</span>' +
-            '<input class="pf__v quote-zip" type="text" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="33063" maxlength="10"></label>' +
+            '<input class="pf__v quote-zip" type="text" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="5-digit ZIP" maxlength="10"></label>' +
           '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
             '<div class="addr-suggest__wrap">' +
               '<input class="pf__v quote-address" type="text" data-address-suggest autocomplete="off" disabled ' +
@@ -658,7 +658,7 @@
             oasisCities().map(function (c) {
               return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
             }).join('') + '</select></label>' +
-          '<label class="pf"><span class="pf__k">Service</span><input class="pf__v quote-service" type="text" placeholder="e.g. Airbnb turnover" value=""></label>' +
+          '<label class="pf"><span class="pf__k">Service</span><input class="pf__v quote-service" type="text" placeholder="What the job is" value=""></label>' +
         '</div>'
       : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
           esc(quote.customer_email || l.email) + '"></label>';
@@ -785,7 +785,7 @@
         '<label class="pf"><span class="pf__k">Phone *</span><input class="pf__v" type="tel" data-lead-field="phone" autocomplete="tel"></label>' +
         '<label class="pf"><span class="pf__k">Email</span><input class="pf__v" type="email" data-lead-field="email" autocomplete="email"></label>' +
         '<label class="pf"><span class="pf__k">ZIP</span>' +
-          '<input class="pf__v" type="text" data-lead-field="zip" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="33063" maxlength="10"></label>' +
+          '<input class="pf__v" type="text" data-lead-field="zip" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="5-digit ZIP" maxlength="10"></label>' +
         '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
           '<div class="addr-suggest__wrap">' +
             '<input class="pf__v" type="text" data-lead-field="address" data-address-suggest autocomplete="off" disabled ' +
@@ -797,7 +797,7 @@
           oasisCities().map(function (c) {
             return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
           }).join('') + '</select></label>' +
-        '<label class="pf pf--wide"><span class="pf__k">Service</span><input class="pf__v" type="text" data-lead-field="service" placeholder="e.g. Home cleaning, Airbnb turnover"></label>' +
+        '<label class="pf pf--wide"><span class="pf__k">Service</span><input class="pf__v" type="text" data-lead-field="service" placeholder="What the job is"></label>' +
         '<label class="pf pf--wide"><span class="pf__k">Notes</span><textarea class="pf__v" data-lead-field="notes" rows="2" placeholder="What they asked for on the call"></textarea></label>' +
       '</div>' +
       '<div class="quote-actions">' +
@@ -1004,7 +1004,8 @@
     email: ['Sending email', 'Quotes and alerts can leave the site.'],
     emailTracking: ['Delivery tracking', 'You can see when a quote was delivered and opened.'],
     propertyLookup: ['Property lookup', 'Fill beds, baths and square feet from an address.'],
-    spamCheck: ['Spam check', 'Extra protection on the public quote form.']
+    spamCheck: ['Spam check', 'Hidden field, timing and rate limits on the public form.'],
+    extraSpamCheck: ['Turnstile', 'Cloudflare\u2019s human check, on top of the built-in one.']
   };
 
   function settingsHtml() {
@@ -1030,11 +1031,23 @@
         '<span class="health__state">' + (on ? 'On' : 'Off') + '</span></li>';
     }).join('');
 
+    // Anything the site can switch on for itself gets a button rather than an
+    // instruction to go and paste SQL somewhere.
+    var fixable = ['settingsStored', 'quotes', 'customers'].filter(function (k) { return !state.health[k]; });
+    var setupPanel = fixable.length
+      ? '<div class="setup-cta">' +
+          '<p><strong>' + fixable.length + ' of these can be switched on right now.</strong> ' +
+            'It takes a few seconds and nothing already saved is touched.</p>' +
+          '<button type="button" class="btn btn--primary" data-run-setup>Set them up</button>' +
+          '<span class="setup-cta__msg form-status" role="status" hidden></span>' +
+        '</div>'
+      : '';
+
     return '<div class="settings">' + groups +
       '<section class="card set-group">' +
         '<h3 class="set-group__title">What this site can do</h3>' +
-        '<p class="muted set-group__lead">Anything switched off needs a setting added in Cloudflare. ' +
-          'Nothing here is broken — the site works without all of it.</p>' +
+        '<p class="muted set-group__lead">Nothing here is broken — the site works without all of it.</p>' +
+        setupPanel +
         '<ul class="health-list">' + health + '</ul>' +
       '</section>' +
       '<div class="settings__save">' +
@@ -1054,6 +1067,26 @@
       state.settingsFields = r.body.fields;
       state.health = r.body.health || {};
       render();
+    });
+  }
+
+  function runSetup(btn) {
+    var msg = root.querySelector('.setup-cta__msg');
+    btn.disabled = true;
+    var label = btn.textContent;
+    btn.textContent = 'Setting up…';
+    var show = function (text, ok) {
+      if (!msg) return;
+      msg.hidden = false;
+      msg.textContent = text;
+      msg.className = 'setup-cta__msg form-status ' + (ok ? 'form-status--ok' : 'form-status--err');
+    };
+    api('/api/admin/setup', { method: 'POST' }).then(function (r) {
+      btn.disabled = false;
+      btn.textContent = label;
+      if (!r.ok) { show(r.body.error || 'That did not work.', false); return; }
+      show(r.body.message || 'Done.', true);
+      loadSettings();                       // the list re-reads itself
     });
   }
 
@@ -1490,6 +1523,7 @@
       if (editor.querySelectorAll('.quote-line').length > 1) { row.remove(); updateQuoteTotal(editor); }
       return;
     }
+    if (e.target.matches('[data-run-setup]')) { runSetup(e.target); return; }
     if (e.target.matches('[data-save-settings]')) { saveSettingsFromForm(); return; }
     if (e.target.matches('[data-save-quote]')) saveQuote(e.target.closest('.quote-editor'));
     if (e.target.matches('[data-send-quote]')) {
@@ -1596,7 +1630,7 @@
     var street = scope && scope.querySelector('[data-address-suggest]');
     if (!street) return;
     street.disabled = !on;
-    street.placeholder = on ? 'e.g. 123 NW 70th Ave' : 'Enter ZIP first';
+    street.placeholder = on ? 'Street address' : 'Enter ZIP first';
     if (!on) hideAddressSuggestions(street);
   }
 
