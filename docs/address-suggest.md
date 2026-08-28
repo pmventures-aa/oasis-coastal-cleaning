@@ -1,33 +1,29 @@
 # Florida address typeahead (admin)
 
-The admin **Street address** fields (New Quote, New Lead, Profile) suggest
-Florida addresses as you type. International results are filtered out.
+Admin **ZIP → Street** fields (New Quote, New Lead, Profile) suggest Florida
+addresses near the ZIP you enter. International results are filtered out.
 
-## How it works
+## How Kristina should enter an address
 
-`GET /api/admin/address-suggest?q=…` (signed-in only) returns:
+1. **ZIP first** (e.g. `33063`) — fills City when known (Margate).
+2. **Street next** (e.g. `2156 NW 62nd Ave`) — suggestions use that ZIP as a
+   location bias and expand abbreviations (`NW` → Northwest, `Ave` → Avenue).
+3. Tap a suggestion — street, city, and ZIP are filled. If OpenStreetMap only
+   has the street (no house number), we still keep the number she typed.
 
-```json
-{ "ok": true, "suggestions": [
-  { "address": "100 N Ocean Blvd", "city": "Boca Raton", "state": "FL", "zip": "33432", "label": "…" }
-]}
-```
+## API
 
-Picking a suggestion fills street, city, and ZIP.
+`GET /api/admin/address-suggest` (signed-in only)
+
+| Query | Result |
+|---|---|
+| `?zip=33063` | `{ place: { zip, city, lat, lon } }` |
+| `?q=2156%20NW%2062nd%20Ave&zip=33063` | `{ suggestions: [ … ] }` |
 
 ## Providers
 
-1. **Mapbox** (optional) — if Cloudflare secret `MAPBOX_ACCESS_TOKEN` is set,
-   suggestions use Mapbox Geocoding, still limited to a Florida bounding box and
-   `country=US`.
-2. **Photon / OpenStreetMap** (default) — free, no key. Same Florida bbox filter
-   plus a US/Florida check on each result.
+1. **Mapbox** (optional) — Cloudflare secret `MAPBOX_ACCESS_TOKEN`
+2. **Photon / OpenStreetMap** (default) — free, no key
 
-## Optional Mapbox setup
-
-1. Create a token at [mapbox.com](https://account.mapbox.com/access-tokens/).
-2. Cloudflare → Workers & Pages → `oasis-coastal-cleaning` → Variables and secrets.
-3. Add Production secret `MAPBOX_ACCESS_TOKEN`.
-4. Redeploy the latest deployment.
-
-Without Mapbox, Florida suggestions still work via Photon.
+OSM coverage varies by street. ZIP-first + abbreviation expansion makes Margate /
+Broward addresses much more reliable than free-typing street alone.

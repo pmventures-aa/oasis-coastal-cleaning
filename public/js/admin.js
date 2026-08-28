@@ -290,15 +290,17 @@
           '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft</button>' +
           '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
         '</div>' + lookupHint +
+        '<label class="pf"><span class="pf__k">ZIP</span>' +
+          '<input class="pf__v" type="text" data-col="zip" data-zip-lookup inputmode="numeric" autocomplete="postal-code" ' +
+            'placeholder="33063" maxlength="10" value="' + esc(l.zip || '') + '"></label>' +
         '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
           '<div class="addr-suggest__wrap">' +
             '<input class="pf__v" type="text" data-col="address" data-address-suggest autocomplete="off" ' +
-              'placeholder="Start typing a Florida address" value="' + esc(l.address || '') + '">' +
+              'placeholder="e.g. 2156 NW 62nd Ave" value="' + esc(l.address || '') + '">' +
             '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
           '</div>' +
-          '<span class="addr-suggest__hint">Florida addresses only</span></label>' +
+          '<span class="addr-suggest__hint">Enter ZIP first — Florida streets near that ZIP</span></label>' +
         field('City', 'city', l.city, { options: oasisCities() }) +
-        field('ZIP', 'zip', l.zip) +
         field('Type', 'property_type', l.property_type, { options: oasisPropertyTypes() }) +
         field('Size', 'size_label', l.size_label) +
         field('Bedrooms', 'bedrooms', l.bedrooms) + field('Bathrooms', 'bathrooms', l.bathrooms) +
@@ -604,19 +606,19 @@
           '<label class="pf"><span class="pf__k">Email</span><input class="pf__v quote-email" type="email" placeholder="name@email.com" value="' +
             esc(quote.customer_email || '') + '"></label>' +
           '<label class="pf"><span class="pf__k">Phone</span><input class="pf__v quote-phone" type="tel" placeholder="Optional" value=""></label>' +
+          '<label class="pf"><span class="pf__k">ZIP</span>' +
+            '<input class="pf__v quote-zip" type="text" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="33063" maxlength="10"></label>' +
           '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
             '<div class="addr-suggest__wrap">' +
               '<input class="pf__v quote-address" type="text" data-address-suggest autocomplete="off" ' +
-                'placeholder="Start typing a Florida address">' +
+                'placeholder="e.g. 2156 NW 62nd Ave">' +
               '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
             '</div>' +
-            '<span class="addr-suggest__hint">Florida addresses only</span></label>' +
+            '<span class="addr-suggest__hint">ZIP first, then street — Florida only</span></label>' +
           '<label class="pf"><span class="pf__k">City</span><select class="pf__v quote-city">' +
             oasisCities().map(function (c) {
               return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
             }).join('') + '</select></label>' +
-          '<label class="pf"><span class="pf__k">ZIP</span>' +
-            '<input class="pf__v quote-zip" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="33444" maxlength="10"></label>' +
           '<label class="pf"><span class="pf__k">Service</span><input class="pf__v quote-service" type="text" placeholder="e.g. Airbnb turnover" value=""></label>' +
         '</div>'
       : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
@@ -730,19 +732,19 @@
         '<label class="pf"><span class="pf__k">Last name</span><input class="pf__v" type="text" data-lead-field="last_name" autocomplete="family-name"></label>' +
         '<label class="pf"><span class="pf__k">Phone *</span><input class="pf__v" type="tel" data-lead-field="phone" autocomplete="tel"></label>' +
         '<label class="pf"><span class="pf__k">Email</span><input class="pf__v" type="email" data-lead-field="email" autocomplete="email"></label>' +
+        '<label class="pf"><span class="pf__k">ZIP</span>' +
+          '<input class="pf__v" type="text" data-lead-field="zip" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="33063" maxlength="10"></label>' +
         '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
           '<div class="addr-suggest__wrap">' +
             '<input class="pf__v" type="text" data-lead-field="address" data-address-suggest autocomplete="off" ' +
-              'placeholder="Start typing a Florida address">' +
+              'placeholder="e.g. 2156 NW 62nd Ave">' +
             '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
           '</div>' +
-          '<span class="addr-suggest__hint">Florida addresses only</span></label>' +
+          '<span class="addr-suggest__hint">ZIP first, then street — Florida only</span></label>' +
         '<label class="pf"><span class="pf__k">City</span><select class="pf__v" data-lead-field="city">' +
           oasisCities().map(function (c) {
             return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
           }).join('') + '</select></label>' +
-        '<label class="pf"><span class="pf__k">ZIP</span>' +
-          '<input class="pf__v" type="text" data-lead-field="zip" inputmode="numeric" autocomplete="postal-code" placeholder="33444" maxlength="10"></label>' +
         '<label class="pf pf--wide"><span class="pf__k">Service</span><input class="pf__v" type="text" data-lead-field="service" placeholder="e.g. Home cleaning, Airbnb turnover"></label>' +
         '<label class="pf pf--wide"><span class="pf__k">Notes</span><textarea class="pf__v" data-lead-field="notes" rows="2" placeholder="What they asked for on the call"></textarea></label>' +
       '</div>' +
@@ -1312,20 +1314,55 @@
     list._suggestions = suggestions;
   }
 
+  function currentZipFor(input) {
+    var scope = addressSuggestScope(input);
+    var zipEl = scope.querySelector('[data-col="zip"], .quote-zip, [data-lead-field="zip"]');
+    return zipEl ? String(zipEl.value || '').replace(/\D/g, '').slice(0, 5) : '';
+  }
+
   function runAddressSuggest(input) {
     var q = String(input.value || '').trim();
     if (q.length < 3) {
       hideAddressSuggestions(input);
       return;
     }
+    var zip = currentZipFor(input);
     var seq = ++addressSuggestSeq;
-    api('/api/admin/address-suggest?q=' + encodeURIComponent(q)).then(function (r) {
+    var path = '/api/admin/address-suggest?q=' + encodeURIComponent(q);
+    if (zip.length === 5) path += '&zip=' + encodeURIComponent(zip);
+    api(path).then(function (r) {
       if (seq !== addressSuggestSeq) return;
       if (!r.ok) {
         hideAddressSuggestions(input);
         return;
       }
+      if (r.body.place && r.body.place.city) {
+        var scope = addressSuggestScope(input);
+        var cityEl = scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
+        if (cityEl) {
+          if (cityEl.tagName === 'SELECT') setSelectValue(cityEl, r.body.place.city);
+          else cityEl.value = r.body.place.city;
+          if (cityEl.hasAttribute('data-col')) saveField(cityEl);
+        }
+      }
       renderAddressSuggestions(input, r.body.suggestions || []);
+    });
+  }
+
+  function runZipLookup(zipInput) {
+    var zip = String(zipInput.value || '').replace(/\D/g, '').slice(0, 5);
+    if (zip.length !== 5) return;
+    api('/api/admin/address-suggest?zip=' + encodeURIComponent(zip)).then(function (r) {
+      if (!r.ok || !r.body.place) return;
+      var scope = addressSuggestScope(zipInput);
+      var cityEl = scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
+      if (cityEl && r.body.place.city) {
+        if (cityEl.tagName === 'SELECT') setSelectValue(cityEl, r.body.place.city);
+        else cityEl.value = r.body.place.city;
+        if (cityEl.hasAttribute('data-col')) saveField(cityEl);
+      }
+      var street = scope.querySelector('[data-address-suggest]');
+      if (street && String(street.value || '').trim().length >= 3) runAddressSuggest(street);
     });
   }
 
@@ -1369,6 +1406,11 @@
       clearTimeout(addressSuggestTimer);
       var suggestInput = e.target;
       addressSuggestTimer = setTimeout(function () { runAddressSuggest(suggestInput); }, 280);
+    }
+    if (e.target.matches('[data-zip-lookup]')) {
+      clearTimeout(addressSuggestTimer);
+      var zipInput = e.target;
+      addressSuggestTimer = setTimeout(function () { runZipLookup(zipInput); }, 220);
     }
   });
 
