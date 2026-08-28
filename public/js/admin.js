@@ -301,12 +301,6 @@
     var counts = state.counts;
     var activeTotal = STATUSES.reduce(function (n, s) { return n + (counts[s] || 0); }, 0);
 
-    var shown = state.leads.filter(function (l) {
-      if (!state.q) { return true; }
-      var hay = [l.name, l.phone, l.email, l.city, l.address, l.service_label].join(' ').toLowerCase();
-      return hay.indexOf(state.q.toLowerCase()) !== -1;
-    });
-
     root.innerHTML =
       '<div class="toolbar">' +
         '<div class="vtabs">' +
@@ -324,20 +318,50 @@
             }).join('') + '</select></label>' +
             '<button type="button" class="btn btn--primary btn--new-quote" data-new-quote>+ New Quote</button>'
           : '') +
-        '<input type="search" id="search" class="toolbar__search" placeholder="Search…" value="' + esc(state.q) + '">' +
+        '<input type="search" id="search" class="toolbar__search" placeholder="Search name, city, ZIP, phone…" value="' + esc(state.q) + '" autocomplete="off">' +
       '</div>' +
       (state.composing ? newQuotePanelHtml() : '') +
-      (shown.length ? '<div class="leads">' + shown.map(row).join('') + '</div>'
-        : '<p class="empty">' + (state.q ? 'Nothing matches.' : state.view === 'archived'
-          ? 'No archived leads.' : 'No quote requests yet.') + '</p>');
+      (state.leads.length
+        ? '<div class="leads">' + state.leads.map(row).join('') + '</div>' +
+          '<p id="search-empty" class="empty" hidden>Nothing matches.</p>'
+        : '<p class="empty">' + (state.view === 'archived' ? 'No archived leads.' : 'No quote requests yet.') + '</p>');
 
-    var search = document.getElementById('search');
-    if (search && state.q) { search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+    applySearchFilter();
     if (state.composing) {
       var cn = root.querySelector('.quote-customer-name');
       if (cn) cn.focus();
     }
     if (state.open && (state.leadTab[state.open] || 'quotes') === 'quotes') { loadQuotes(state.open); }
+  }
+
+  function leadMatches(l, q) {
+    if (!q) return true;
+    var needle = q.toLowerCase().trim();
+    if (!needle) return true;
+    var hay = [l.name, l.phone, l.email, l.city, l.address, l.zip, l.service_label, l.size_label, l.notes, l.admin_notes, l.quoted_amount]
+      .join(' ').toLowerCase();
+    if (hay.indexOf(needle) !== -1) return true;
+    var qDigits = needle.replace(/\D/g, '');
+    if (qDigits.length >= 3) {
+      var phone = String(l.phone || '').replace(/\D/g, '');
+      var zip = String(l.zip || '').replace(/\D/g, '');
+      if ((phone && phone.indexOf(qDigits) !== -1) || (zip && zip.indexOf(qDigits) !== -1)) return true;
+    }
+    return false;
+  }
+
+  function applySearchFilter() {
+    var q = state.q || '';
+    var leads = root.querySelectorAll('.lead');
+    var shown = 0;
+    Array.prototype.forEach.call(leads, function (el) {
+      var lead = state.leads.find(function (l) { return l.id === el.dataset.id; });
+      var match = leadMatches(lead || {}, q);
+      el.hidden = !match;
+      if (match) shown += 1;
+    });
+    var empty = document.getElementById('search-empty');
+    if (empty) empty.hidden = !q.trim() || shown > 0 || !leads.length;
   }
 
   /* ---- quote builder ---- */
@@ -958,7 +982,7 @@
   });
 
   root.addEventListener('input', function (e) {
-    if (e.target.id === 'search') { state.q = e.target.value; render(); }
+    if (e.target.id === 'search') { state.q = e.target.value; applySearchFilter(); }
     if (e.target.matches('.quote-label, .quote-qty, .quote-price')) updateQuoteTotal(e.target.closest('.quote-editor'));
   });
 
