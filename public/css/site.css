@@ -979,3 +979,43 @@ h2 { line-height: 1.18; }
 
 /* The keep-a-copy link, under whatever the quote is currently asking of them. */
 .proposal__download { margin: 1.1rem 0 0; text-align: center; }
+
+/* ------------------------------------------------------------ type-ahead
+   Fifty-seven cities in a dropdown is a scroll, not a choice. Three letters
+   and a tap instead — and it stays a text field, so an address we have not
+   listed can still be typed. */
+.combo { position: relative; }
+.combo__list {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 30;
+  margin: 0.25rem 0 0; padding: 0.25rem; list-style: none;
+  background: var(--oasis-white);
+  border: 1px solid var(--oasis-line); border-radius: var(--radius);
+  box-shadow: var(--oasis-shadow);
+  max-height: 15rem; overflow-y: auto;
+}
+.combo__list li {
+  padding: 0.6rem 0.75rem; border-radius: 8px; cursor: pointer;
+  font-size: var(--step--1); line-height: 1.3; min-height: 44px;
+  display: flex; align-items: center;
+}
+.combo__list li:hover, .combo__list li.is-on {
+  background: rgba(39, 189, 206, 0.14); color: var(--oasis-navy);
+}
+
+/* Bedrooms and bathrooms: a row of taps, not a dropdown over the screen. */
+.field__label {
+  display: block; font-weight: 600; font-size: var(--step--1);
+  letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 0.45rem;
+  color: var(--oasis-navy);
+}
+.counts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.counts__b {
+  min-width: 44px; min-height: 44px; padding: 0 0.7rem;
+  border: 1.5px solid var(--oasis-line); border-radius: 10px;
+  background: var(--oasis-white); color: var(--oasis-navy);
+  font-family: var(--font-body); font-weight: 600; font-size: var(--step--1);
+  cursor: pointer; transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.counts__b:hover { border-color: var(--oasis-gold); }
+.counts__b.is-on { background: var(--oasis-teal); border-color: var(--oasis-teal); color: var(--oasis-cream); }
+.counts__b:focus-visible { outline: 3px solid var(--oasis-sea); outline-offset: 2px; }

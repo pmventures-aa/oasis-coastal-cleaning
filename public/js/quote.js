@@ -82,15 +82,26 @@
         '<p class="hint">A rough guess is honestly fine — nothing is booked on it.</p>' +
       '</div>' +
       '<div class="grid grid--2">' +
-        '<div class="field">' +
-          '<label for="bedrooms">Bedrooms</label>' +
-          '<select id="bedrooms" name="bedrooms">' + numOptions(state.bedrooms, 6, 'Studio') + '</select>' +
-        '</div>' +
-        '<div class="field">' +
-          '<label for="bathrooms">Bathrooms</label>' +
-          '<select id="bathrooms" name="bathrooms">' + numOptions(state.bathrooms, 6, '1') + '</select>' +
-        '</div>' +
+        countPicker('bedrooms', 'Bedrooms', state.bedrooms, ['Studio', '1', '2', '3', '4', '5', '6+']) +
+        countPicker('bathrooms', 'Bathrooms', state.bathrooms, ['1', '1.5', '2', '2.5', '3', '4+']) +
       '</div>';
+  }
+
+  /* Bedrooms and bathrooms are a choice between six things, which is a row of
+     buttons rather than a dropdown that covers the screen and needs three
+     taps. The value rides on a hidden input so collect() is unchanged. */
+  function countPicker(id, label, value, options) {
+    return '<div class="field">' +
+      '<span class="field__label" id="' + id + '-label">' + esc(label) + '</span>' +
+      '<div class="counts" role="group" aria-labelledby="' + id + '-label">' +
+        options.map(function (o) {
+          return '<button type="button" class="counts__b' + (value === o ? ' is-on' : '') +
+            '" data-count-for="' + id + '" data-value="' + esc(o) + '"' +
+            (value === o ? ' aria-pressed="true"' : ' aria-pressed="false"') + '>' + esc(o) + '</button>';
+        }).join('') +
+      '</div>' +
+      '<input type="hidden" id="' + id + '" name="' + id + '" value="' + esc(value || '') + '">' +
+    '</div>';
   }
 
   function numOptions(selected, max, first) {
@@ -179,27 +190,22 @@
   function stepWhere() {
     var days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     return '' +
-      '<div class="field">' +
-        '<label for="city">Which city are you in? <span class="req">*</span></label>' +
-        '<select id="city" name="city" required>' +
-          '<option value="">Choose your city</option>' +
-          D.areas.map(function (a) {
-            return '<optgroup label="' + esc(a.name) + '">' +
-              a.cities.map(function (c) {
-                return '<option value="' + esc(c) + '"' + (state.city === c ? ' selected' : '') + '>' +
-                       esc(c) + '</option>';
-              }).join('') + '</optgroup>';
-          }).join('') +
-          '<option value="Somewhere else"' + (state.city === 'Somewhere else' ? ' selected' : '') +
-            '>Somewhere else nearby</option>' +
-        '</select>' +
-      '</div>' +
       '<div class="grid grid--2">' +
         '<div class="field">' +
-          '<label for="zip">ZIP code</label>' +
+          '<label for="zip">ZIP code <span class="req">*</span></label>' +
           '<input type="text" id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" ' +
-            'maxlength="10" value="' + esc(state.zip || '') + '">' +
+            'maxlength="5" placeholder="33444" value="' + esc(state.zip || '') + '" required>' +
+          '<span class="hint" id="zip-hint">Five digits — it tells us the route.</span>' +
         '</div>' +
+        '<div class="field combo">' +
+          '<label for="city">City <span class="req">*</span></label>' +
+          '<input type="text" id="city" name="city" role="combobox" autocomplete="off" ' +
+            'aria-expanded="false" aria-controls="city-list" aria-autocomplete="list" ' +
+            'placeholder="Start typing" value="' + esc(state.city || '') + '" required>' +
+          '<ul class="combo__list" id="city-list" role="listbox" hidden></ul>' +
+        '</div>' +
+      '</div>' +
+      '<div class="grid grid--2">' +
         '<div class="field">' +
           '<label for="startWhen">When would you like to start?</label>' +
           '<select id="startWhen" name="startWhen">' +
@@ -297,7 +303,11 @@
       ? true : fail('input[name="frequency"]', 'Let us know how often suits you.');
   }
   function vWhere() {
-    return root.querySelector('#city').value ? true : fail('#city', 'Which city are you in?');
+    var zip = (root.querySelector('#zip').value || '').replace(/\D/g, '');
+    if (zip.length !== 5) { return fail('#zip', 'A five-digit ZIP, so we know the route.'); }
+    var city = (root.querySelector('#city').value || '').trim();
+    if (!city) { return fail('#city', 'Which city are you in?'); }
+    return true;
   }
   function vContact() {
     var name = root.querySelector('#name'), phone = root.querySelector('#phone'), email = root.querySelector('#email');
@@ -307,6 +317,106 @@
       return fail('#email', 'That email looks a little off — mind checking it?');
     }
     return true;
+  }
+
+  /* ------------------------------------------------------- where they are
+     Fifty-seven cities in a dropdown is a scroll, not a choice. The ZIP comes
+     first because it is five digits everybody knows by heart and it is what
+     Kristina actually plans a route around; it fills the city in where we
+     recognise it. The city itself is a type-ahead, so "del" is enough, and it
+     stays a plain text field so somewhere we have not listed can still be
+     typed. Nothing here traps anyone. */
+  function allCities() {
+    var out = [];
+    D.areas.forEach(function (a) {
+      a.cities.forEach(function (c) { if (out.indexOf(c) === -1) out.push(c); });
+    });
+    return out;
+  }
+
+  function mountCityCombo() {
+    var zip = root.querySelector('#zip');
+    var city = root.querySelector('#city');
+    var list = root.querySelector('#city-list');
+    var hint = root.querySelector('#zip-hint');
+    if (!zip || !city || !list) { return; }
+
+    var cities = allCities();
+    var active = -1;
+
+    var close = function () {
+      list.hidden = true; active = -1;
+      city.setAttribute('aria-expanded', 'false');
+    };
+
+    var open = function (matches) {
+      if (!matches.length) { close(); return; }
+      list.innerHTML = matches.slice(0, 8).map(function (c, i) {
+        return '<li role="option" id="city-opt-' + i + '" data-city="' + esc(c) + '">' + esc(c) + '</li>';
+      }).join('');
+      list.hidden = false;
+      city.setAttribute('aria-expanded', 'true');
+      active = -1;
+    };
+
+    var match = function (typed) {
+      var q = typed.trim().toLowerCase();
+      if (!q) { return cities.slice(0, 8); }
+      var starts = cities.filter(function (c) { return c.toLowerCase().indexOf(q) === 0; });
+      var contains = cities.filter(function (c) {
+        return c.toLowerCase().indexOf(q) > 0 && starts.indexOf(c) === -1;
+      });
+      return starts.concat(contains);
+    };
+
+    var choose = function (value) {
+      city.value = value;
+      state.city = value;
+      close();
+      city.classList.remove('is-bad');
+    };
+
+    // A recognised ZIP fills the city so there is nothing left to do.
+    zip.addEventListener('input', function () {
+      var digits = zip.value.replace(/\D/g, '').slice(0, 5);
+      if (zip.value !== digits) { zip.value = digits; }
+      state.zip = digits;
+      if (digits.length !== 5) { return; }
+      var known = (D.zipCity || {})[digits];
+      if (known && !city.value.trim()) {
+        choose(known);
+        if (hint) { hint.textContent = 'That is ' + known + ' — change it below if not.'; }
+      } else if (hint && known) {
+        hint.textContent = 'That ZIP is in ' + known + '.';
+      }
+    });
+
+    city.addEventListener('input', function () { open(match(city.value)); });
+    city.addEventListener('focus', function () { if (!city.value.trim()) { open(match('')); } });
+    city.addEventListener('blur', function () { window.setTimeout(close, 150); });
+
+    city.addEventListener('keydown', function (e) {
+      var items = list.querySelectorAll('li');
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (list.hidden) { open(match(city.value)); return; }
+        e.preventDefault();
+        active += (e.key === 'ArrowDown' ? 1 : -1);
+        if (active < 0) { active = items.length - 1; }
+        if (active >= items.length) { active = 0; }
+        for (var i = 0; i < items.length; i++) { items[i].classList.toggle('is-on', i === active); }
+        city.setAttribute('aria-activedescendant', 'city-opt-' + active);
+      } else if (e.key === 'Enter' && !list.hidden && active >= 0) {
+        e.preventDefault();
+        choose(items[active].getAttribute('data-city'));
+      } else if (e.key === 'Escape') {
+        close();
+      }
+    });
+
+    list.addEventListener('mousedown', function (e) {
+      var li = e.target.closest('li[data-city]');
+      if (li) { e.preventDefault(); choose(li.getAttribute('data-city')); }
+    });
   }
 
   /* ------------------------------------------------------------ collecting */
@@ -399,6 +509,7 @@
       '</div>';
 
     if (state.step === total - 1) { mountTurnstile(); }
+    if (step.id === 'where') { mountCityCombo(); }
     var firstField = root.querySelector('input:not([type=hidden]):not([tabindex="-1"]), select, textarea');
     if (firstField && state.step > 0) { firstField.focus({ preventScroll: true }); }
   }
@@ -585,6 +696,22 @@
 
   /* ----------------------------------------------------------------- wiring */
   root.addEventListener('click', function (e) {
+    var count = e.target.closest && e.target.closest('[data-count-for]');
+    if (count) {
+      var group = count.getAttribute('data-count-for');
+      var value = count.getAttribute('data-value');
+      var input = root.querySelector('#' + group);
+      var same = input.value === value;
+      input.value = same ? '' : value;                 // tapping again clears it
+      state[group] = input.value;
+      root.querySelectorAll('[data-count-for="' + group + '"]').forEach(function (b) {
+        var on = !same && b === count;
+        b.classList.toggle('is-on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+      return;
+    }
+
     var btn = e.target.closest('button');
     if (!btn) { return; }
 

@@ -39,15 +39,7 @@
 
   // Keep in sync with functions/_lib/address-suggest.js FL_ZIP_HINTS cities.
   // Applied instantly on ZIP input so City never waits on (or sticks empty from) the API.
-  var FL_ZIP_CITY = {
-    '33060': 'Pompano Beach', '33062': 'Pompano Beach', '33063': 'Margate',
-    '33064': 'Pompano Beach', '33065': 'Coral Springs', '33066': 'Coconut Creek',
-    '33067': 'Coral Springs', '33068': 'North Lauderdale', '33069': 'Pompano Beach',
-    '33071': 'Coral Springs', '33073': 'Coconut Creek', '33076': 'Parkland',
-    '33431': 'Boca Raton', '33432': 'Boca Raton', '33433': 'Boca Raton',
-    '33434': 'Boca Raton', '33441': 'Deerfield Beach', '33442': 'Deerfield Beach',
-    '33486': 'Boca Raton', '33487': 'Boca Raton', '33496': 'Boca Raton', '33498': 'Boca Raton'
-  };
+  var FL_ZIP_CITY = (window.OASIS && window.OASIS.zipCity) || {};
 
   function cityForZip(zip) {
     return FL_ZIP_CITY[String(zip || '').replace(/\D/g, '').slice(0, 5)] || '';

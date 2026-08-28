@@ -378,6 +378,20 @@ window.OASIS = {
      Add a city: drop its name into the right group. Remove one: delete it.
      The service-area page, the quote-form dropdown and the search-engine
      data all read this list. */
+  /* ZIP to city, for the shortcut on the quote form and in the portal. It is
+     a convenience, never the source of truth: whatever it fills in stays
+     editable, and a ZIP that is not here simply means she types the city.
+     Keep in sync with functions/_lib/address-suggest.js. */
+  zipCity: {
+    '33060': 'Pompano Beach', '33062': 'Pompano Beach', '33063': 'Margate',
+    '33064': 'Pompano Beach', '33065': 'Coral Springs', '33066': 'Coconut Creek',
+    '33067': 'Coral Springs', '33068': 'North Lauderdale', '33069': 'Pompano Beach',
+    '33071': 'Coral Springs', '33073': 'Coconut Creek', '33076': 'Parkland',
+    '33431': 'Boca Raton', '33432': 'Boca Raton', '33433': 'Boca Raton',
+    '33434': 'Boca Raton', '33441': 'Deerfield Beach', '33442': 'Deerfield Beach',
+    '33486': 'Boca Raton', '33487': 'Boca Raton', '33496': 'Boca Raton', '33498': 'Boca Raton'
+  },
+
   areas: [
     {
       id: 'palm-beach',
