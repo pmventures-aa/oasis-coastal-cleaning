@@ -210,8 +210,8 @@ body.admin-theme {
 .quote-catalog__panel { display: none; }
 .quote-catalog__panel.is-on { display: grid; gap: 0.4rem; }
 .quote-catalog__row {
-  display: grid; grid-template-columns: 1fr auto auto; gap: 0.45rem;
-  align-items: center; padding: 0.45rem 0.5rem;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.45rem;
+  align-items: center; padding: 0.55rem 0.6rem;
   background: var(--oasis-white); border: 1px solid var(--oasis-line);
   border-radius: 8px;
 }
@@ -219,13 +219,15 @@ body.admin-theme {
   border-color: var(--oasis-teal); background: rgba(2, 89, 95, 0.08);
 }
 .quote-catalog__name {
-  font-size: 0.78rem; font-weight: 600; color: var(--oasis-navy);
-  line-height: 1.25; min-width: 0;
+  font-size: 0.8rem; font-weight: 600; color: var(--oasis-navy);
+  line-height: 1.3; min-width: 0;
+  overflow-wrap: anywhere; word-break: break-word;
 }
 .quote-catalog__price {
   display: inline-flex; align-items: center; gap: 0.15rem;
   background: var(--oasis-cream); border: 1.5px solid var(--oasis-line);
   border-radius: 8px; padding: 0.2rem 0.4rem 0.2rem 0.5rem;
+  flex: none;
 }
 .quote-catalog__dollar {
   font-size: 0.72rem; font-weight: 700; color: var(--oasis-muted);
@@ -237,6 +239,22 @@ body.admin-theme {
 }
 .quote-catalog__price-input:focus { outline: none; }
 .quote-catalog__price:focus-within { border-color: var(--oasis-teal); }
+
+/* Mobile: label on its own row so prices never cover the service name */
+@media (max-width: 560px) {
+  .quote-catalog__row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name name"
+      "price add";
+    align-items: start;
+    gap: 0.4rem 0.55rem;
+  }
+  .quote-catalog__name { grid-area: name; font-size: 0.84rem; }
+  .quote-catalog__price { grid-area: price; }
+  .quote-catalog__row > .btn { grid-area: add; align-self: center; }
+  .quote-catalog__price-input { width: 4.25rem; }
+}
 
 .quote-lines-actions { margin: 0.35rem 0 0.5rem; }
 .quote-actions--sticky {
@@ -552,6 +570,32 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   .toolbar__actions { width: 100%; }
   .toolbar__actions .btn { flex: 1; }
   .btn--new-quote { width: 100%; }
+  .compose__customer .pf { flex-direction: column; align-items: stretch; }
+  .compose__customer .pf__k { min-width: 0; }
+}
+
+/* Florida address typeahead */
+.addr-suggest { position: relative; }
+.addr-suggest__wrap { position: relative; width: 100%; min-width: 0; }
+.addr-suggest__list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 0.2rem);
+  z-index: 20; margin: 0; padding: 0.3rem 0; list-style: none;
+  background: var(--oasis-white); border: 1px solid var(--oasis-line);
+  border-radius: 10px; box-shadow: var(--oasis-shadow); max-height: 14rem;
+  overflow: auto;
+}
+.addr-suggest__list[hidden] { display: none !important; }
+.addr-suggest__item {
+  display: block; width: 100%; border: 0; background: transparent;
+  text-align: left; padding: 0.55rem 0.75rem; font: inherit;
+  font-size: 0.8rem; color: var(--oasis-navy); cursor: pointer;
+}
+.addr-suggest__item:hover,
+.addr-suggest__item.is-active {
+  background: rgba(2, 89, 95, 0.08);
+}
+.addr-suggest__hint {
+  display: block; font-size: 0.68rem; color: var(--oasis-muted); margin-top: 0.2rem;
 }
 
 /* ------------------------------------------------ new quote composer */

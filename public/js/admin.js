@@ -77,26 +77,40 @@
   }
 
   var CATALOG = window.OASIS_ADMIN_CATALOG || { bases: [], addOns: [] };
-  var PRICE_STORE_KEY = 'oasis_admin_addon_prices_v1';
-
-  function loadSavedPrices() {
-    try { return JSON.parse(localStorage.getItem(PRICE_STORE_KEY) || '{}') || {}; }
-    catch (e) { return {}; }
-  }
-
-  function saveAddonPrice(id, dollars) {
-    if (!id) return;
-    var n = Number(dollars);
-    if (!Number.isFinite(n) || n < 0) return;
-    var map = loadSavedPrices();
-    map[id] = Math.round(n * 100) / 100;
-    try { localStorage.setItem(PRICE_STORE_KEY, JSON.stringify(map)); } catch (e) { /* ignore */ }
-  }
+  // Drop legacy per-browser catalog price cache — each job is custom-quoted.
+  try { localStorage.removeItem('oasis_admin_addon_prices_v1'); } catch (e) { /* ignore */ }
 
   function catalogPrice(item) {
-    var saved = loadSavedPrices();
-    if (saved[item.id] != null) return saved[item.id];
-    return item.dollars;
+    return item && item.dollars != null ? item.dollars : '';
+  }
+
+  function splitName(full) {
+    var s = String(full || '').trim().replace(/\s+/g, ' ');
+    if (!s) return { first: '', last: '' };
+    var i = s.indexOf(' ');
+    if (i < 0) return { first: s, last: '' };
+    return { first: s.slice(0, i), last: s.slice(i + 1).trim() };
+  }
+
+  function joinName(first, last) {
+    return [first, last].map(function (x) { return String(x || '').trim(); }).filter(Boolean).join(' ');
+  }
+
+  function setSelectValue(select, value) {
+    if (!select) return;
+    var v = String(value || '');
+    if (!v) { select.value = ''; return; }
+    var found = false;
+    Array.prototype.forEach.call(select.options, function (opt) {
+      if (opt.value === v) found = true;
+    });
+    if (!found) {
+      var opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      select.appendChild(opt);
+    }
+    select.value = v;
   }
 
   function moneyDollars(n) {
@@ -260,8 +274,14 @@
         'add Cloudflare secret <code>RENTCAST_API_KEY</code> → redeploy.</p>'
       : '';
 
+    var nameParts = splitName(l.name);
     var intake =
-      acc('Contact', field('Name', 'name', l.name) + field('Phone', 'phone', l.phone) +
+      acc('Contact',
+        '<label class="pf"><span class="pf__k">First name</span>' +
+          '<input class="pf__v" type="text" data-name-part="first" autocomplete="given-name" value="' + esc(nameParts.first) + '"></label>' +
+        '<label class="pf"><span class="pf__k">Last name</span>' +
+          '<input class="pf__v" type="text" data-name-part="last" autocomplete="family-name" value="' + esc(nameParts.last) + '"></label>' +
+        field('Phone', 'phone', l.phone) +
         field('Email', 'email', l.email) +
         field('Prefers', 'contact_pref', l.contact_pref, { options: ['', 'Text', 'Call', 'Email'] }) +
         field('Best time', 'best_time', l.best_time, { options: ['', 'Morning', 'Afternoon', 'Evening', 'Any time'] }), true) +
@@ -270,7 +290,13 @@
           '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft</button>' +
           '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
         '</div>' + lookupHint +
-        field('Address', 'address', l.address, { placeholder: 'Street address' }) +
+        '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
+          '<div class="addr-suggest__wrap">' +
+            '<input class="pf__v" type="text" data-col="address" data-address-suggest autocomplete="off" ' +
+              'placeholder="Start typing a Florida address" value="' + esc(l.address || '') + '">' +
+            '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
+          '</div>' +
+          '<span class="addr-suggest__hint">Florida addresses only</span></label>' +
         field('City', 'city', l.city, { options: oasisCities() }) +
         field('ZIP', 'zip', l.zip) +
         field('Type', 'property_type', l.property_type, { options: oasisPropertyTypes() }) +
@@ -408,7 +434,7 @@
       if (ln) ln.focus();
     }
     if (state.composing) {
-      var cn = root.querySelector('.quote-customer-name');
+      var cn = root.querySelector('.quote-first-name');
       if (cn) cn.focus();
     }
     if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') { loadQuotes(state.open); }
@@ -544,10 +570,10 @@
       '</div>';
     }).join('');
 
-    return '<details class="quote-catalog">' +
+    return '<details class="quote-catalog" open>' +
       '<summary class="quote-catalog__sum">' +
         '<span class="quote-catalog__sum-title">Add priced items</span>' +
-        '<span class="quote-catalog__sum-meta muted">Set $ then Add · remembered</span>' +
+        '<span class="quote-catalog__sum-meta muted">Set $ for this quote, then Add</span>' +
       '</summary>' +
       '<div class="quote-catalog__body">' +
         '<div class="quote-catalog__tabs" role="tablist">' + tabs + '</div>' +
@@ -566,13 +592,31 @@
       : (standalone ? [{ label: defaultLabel, qty: 1, unit_dollars: '' }] : catalogQuoteLinesFromLead(l));
     if (!lines.length) lines = [{ label: defaultLabel, qty: 1, unit_dollars: '' }];
     var notesVal = quote.notes != null && quote.notes !== '' ? quote.notes : seed.notes;
+    var nameParts = splitName(quote.customer_name || '');
     var customerFields = standalone
       ? '<div class="profile__grid compose__customer">' +
-          '<label class="pf"><span class="pf__k">Customer</span><input class="pf__v quote-customer-name" type="text" placeholder="Full name" value="' +
-            esc(quote.customer_name || '') + '"></label>' +
+          '<label class="pf"><span class="pf__k">First name</span>' +
+            '<input class="pf__v quote-first-name" type="text" autocomplete="given-name" placeholder="First" value="' +
+            esc(nameParts.first) + '"></label>' +
+          '<label class="pf"><span class="pf__k">Last name</span>' +
+            '<input class="pf__v quote-last-name" type="text" autocomplete="family-name" placeholder="Last" value="' +
+            esc(nameParts.last) + '"></label>' +
           '<label class="pf"><span class="pf__k">Email</span><input class="pf__v quote-email" type="email" placeholder="name@email.com" value="' +
             esc(quote.customer_email || '') + '"></label>' +
           '<label class="pf"><span class="pf__k">Phone</span><input class="pf__v quote-phone" type="tel" placeholder="Optional" value=""></label>' +
+          '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
+            '<div class="addr-suggest__wrap">' +
+              '<input class="pf__v quote-address" type="text" data-address-suggest autocomplete="off" ' +
+                'placeholder="Start typing a Florida address">' +
+              '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
+            '</div>' +
+            '<span class="addr-suggest__hint">Florida addresses only</span></label>' +
+          '<label class="pf"><span class="pf__k">City</span><select class="pf__v quote-city">' +
+            oasisCities().map(function (c) {
+              return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
+            }).join('') + '</select></label>' +
+          '<label class="pf"><span class="pf__k">ZIP</span>' +
+            '<input class="pf__v quote-zip" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="33444" maxlength="10"></label>' +
           '<label class="pf"><span class="pf__k">Service</span><input class="pf__v quote-service" type="text" placeholder="e.g. Airbnb turnover" value=""></label>' +
         '</div>'
       : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
@@ -611,7 +655,6 @@
       return;
     }
     var price = String(Math.round(priceNum * 100) / 100);
-    saveAddonPrice(id, price);
 
     var lines = editor.querySelector('.quote-lines');
     var existing = null;
@@ -683,13 +726,23 @@
         '<button type="button" class="btn btn--ghost btn--tiny" data-close-compose-lead>Cancel</button>' +
       '</div>' +
       '<div class="profile__grid compose__customer">' +
-        '<label class="pf"><span class="pf__k">Name *</span><input class="pf__v" type="text" data-lead-field="name" autocomplete="name"></label>' +
+        '<label class="pf"><span class="pf__k">First name *</span><input class="pf__v" type="text" data-lead-field="first_name" autocomplete="given-name"></label>' +
+        '<label class="pf"><span class="pf__k">Last name</span><input class="pf__v" type="text" data-lead-field="last_name" autocomplete="family-name"></label>' +
         '<label class="pf"><span class="pf__k">Phone *</span><input class="pf__v" type="tel" data-lead-field="phone" autocomplete="tel"></label>' +
         '<label class="pf"><span class="pf__k">Email</span><input class="pf__v" type="email" data-lead-field="email" autocomplete="email"></label>' +
+        '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
+          '<div class="addr-suggest__wrap">' +
+            '<input class="pf__v" type="text" data-lead-field="address" data-address-suggest autocomplete="off" ' +
+              'placeholder="Start typing a Florida address">' +
+            '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
+          '</div>' +
+          '<span class="addr-suggest__hint">Florida addresses only</span></label>' +
         '<label class="pf"><span class="pf__k">City</span><select class="pf__v" data-lead-field="city">' +
           oasisCities().map(function (c) {
             return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
           }).join('') + '</select></label>' +
+        '<label class="pf"><span class="pf__k">ZIP</span>' +
+          '<input class="pf__v" type="text" data-lead-field="zip" inputmode="numeric" autocomplete="postal-code" placeholder="33444" maxlength="10"></label>' +
         '<label class="pf pf--wide"><span class="pf__k">Service</span><input class="pf__v" type="text" data-lead-field="service" placeholder="e.g. Home cleaning, Airbnb turnover"></label>' +
         '<label class="pf pf--wide"><span class="pf__k">Notes</span><textarea class="pf__v" data-lead-field="notes" rows="2" placeholder="What they asked for on the call"></textarea></label>' +
       '</div>' +
@@ -708,10 +761,12 @@
       return el ? String(el.value || '').trim() : '';
     }
     var payload = {
-      name: get('name'),
+      name: joinName(get('first_name'), get('last_name')),
       phone: get('phone'),
       email: get('email'),
+      address: get('address'),
       city: get('city'),
+      zip: get('zip'),
       service_label: get('service') || 'Phone inquiry',
       notes: get('notes')
     };
@@ -968,9 +1023,15 @@
       customer_email: editor.querySelector('.quote-email').value
     };
     if (editor.dataset.standalone) {
-      payload.customer_name = editor.querySelector('.quote-customer-name').value.trim();
-      payload.phone = editor.querySelector('.quote-phone').value.trim();
-      payload.service_label = editor.querySelector('.quote-service').value.trim();
+      var firstEl = editor.querySelector('.quote-first-name');
+      var lastEl = editor.querySelector('.quote-last-name');
+      payload.customer_name = joinName(firstEl && firstEl.value, lastEl && lastEl.value);
+      payload.phone = (editor.querySelector('.quote-phone') || {}).value || '';
+      payload.phone = String(payload.phone).trim();
+      payload.service_label = ((editor.querySelector('.quote-service') || {}).value || '').trim();
+      payload.address = ((editor.querySelector('.quote-address') || {}).value || '').trim();
+      payload.city = ((editor.querySelector('.quote-city') || {}).value || '').trim();
+      payload.zip = ((editor.querySelector('.quote-zip') || {}).value || '').trim();
       delete payload.lead_id;
       delete payload.id;
     }
@@ -1198,27 +1259,169 @@
     if (e.target.matches('select[data-col]')) saveField(e.target);
   });
 
+  var addressSuggestTimer = null;
+  var addressSuggestSeq = 0;
+
+  function addressSuggestScope(input) {
+    return input.closest('.compose__customer, .compose, .quote-editor, .profile, .acc__in, .lead') || root;
+  }
+
+  function addressSuggestList(input) {
+    var wrap = input.closest('.addr-suggest__wrap') || input.parentElement;
+    return wrap ? wrap.querySelector('.addr-suggest__list') : null;
+  }
+
+  function hideAddressSuggestions(input) {
+    var list = addressSuggestList(input);
+    if (list) {
+      list.hidden = true;
+      list.innerHTML = '';
+      list._suggestions = null;
+    }
+  }
+
+  function fillAddressSuggestion(input, item) {
+    var scope = addressSuggestScope(input);
+    input.value = item.address || '';
+    var cityEl = scope.querySelector('[data-col="city"], .quote-city, [data-lead-field="city"]');
+    var zipEl = scope.querySelector('[data-col="zip"], .quote-zip, [data-lead-field="zip"]');
+    if (cityEl) {
+      if (cityEl.tagName === 'SELECT') setSelectValue(cityEl, item.city || '');
+      else cityEl.value = item.city || '';
+    }
+    if (zipEl) zipEl.value = item.zip || '';
+    hideAddressSuggestions(input);
+    if (input.hasAttribute('data-col')) saveField(input);
+    if (cityEl && cityEl.hasAttribute('data-col')) saveField(cityEl);
+    if (zipEl && zipEl.hasAttribute('data-col')) saveField(zipEl);
+  }
+
+  function renderAddressSuggestions(input, suggestions) {
+    var list = addressSuggestList(input);
+    if (!list) return;
+    if (!suggestions.length) {
+      list.hidden = true;
+      list.innerHTML = '';
+      return;
+    }
+    list.innerHTML = suggestions.map(function (s, i) {
+      return '<li><button type="button" class="addr-suggest__item' + (i === 0 ? ' is-active' : '') +
+        '" data-address-pick="' + i + '">' + esc(s.label) + '</button></li>';
+    }).join('');
+    list.hidden = false;
+    list._suggestions = suggestions;
+  }
+
+  function runAddressSuggest(input) {
+    var q = String(input.value || '').trim();
+    if (q.length < 3) {
+      hideAddressSuggestions(input);
+      return;
+    }
+    var seq = ++addressSuggestSeq;
+    api('/api/admin/address-suggest?q=' + encodeURIComponent(q)).then(function (r) {
+      if (seq !== addressSuggestSeq) return;
+      if (!r.ok) {
+        hideAddressSuggestions(input);
+        return;
+      }
+      renderAddressSuggestions(input, r.body.suggestions || []);
+    });
+  }
+
+  function saveNameParts(card) {
+    if (!card) return;
+    var first = card.querySelector('[data-name-part="first"]');
+    var last = card.querySelector('[data-name-part="last"]');
+    if (!first && !last) return;
+    var name = joinName(first && first.value, last && last.value);
+    var payload = { id: card.dataset.id, name: name };
+    api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify(payload) }).then(function (r) {
+      var saved = card.querySelector('[data-saved]');
+      if (!r.ok) {
+        if (saved) {
+          saved.hidden = false;
+          saved.textContent = r.body.error || 'Save failed';
+          saved.classList.add('saved--err');
+          setTimeout(function () {
+            saved.hidden = true;
+            saved.textContent = 'Saved';
+            saved.classList.remove('saved--err');
+          }, 2500);
+        }
+        return;
+      }
+      if (saved) { saved.hidden = false; setTimeout(function () { saved.hidden = true; }, 1500); }
+      state.leads.forEach(function (l) {
+        if (l.id === card.dataset.id) {
+          l.name = name;
+          var nameEl = card.querySelector('.lead__name');
+          if (nameEl) nameEl.textContent = name || '—';
+        }
+      });
+    });
+  }
+
   root.addEventListener('input', function (e) {
     if (e.target.id === 'search') { state.q = e.target.value; applySearchFilter(); }
     if (e.target.matches('.quote-label, .quote-qty, .quote-price')) updateQuoteTotal(e.target.closest('.quote-editor'));
+    if (e.target.matches('[data-address-suggest]')) {
+      clearTimeout(addressSuggestTimer);
+      var suggestInput = e.target;
+      addressSuggestTimer = setTimeout(function () { runAddressSuggest(suggestInput); }, 280);
+    }
+  });
+
+  root.addEventListener('keydown', function (e) {
+    if (!e.target.matches('[data-address-suggest]')) return;
+    var list = addressSuggestList(e.target);
+    if (!list || list.hidden) return;
+    var items = list.querySelectorAll('.addr-suggest__item');
+    if (!items.length) return;
+    var active = list.querySelector('.addr-suggest__item.is-active');
+    var idx = Array.prototype.indexOf.call(items, active);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      idx = Math.min(items.length - 1, Math.max(0, idx) + 1);
+      Array.prototype.forEach.call(items, function (el, i) { el.classList.toggle('is-active', i === idx); });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      idx = Math.max(0, idx - 1);
+      Array.prototype.forEach.call(items, function (el, i) { el.classList.toggle('is-active', i === idx); });
+    } else if (e.key === 'Enter' && active) {
+      e.preventDefault();
+      var pick = Number(active.getAttribute('data-address-pick'));
+      var suggestions = list._suggestions || [];
+      if (suggestions[pick]) fillAddressSuggestion(e.target, suggestions[pick]);
+    } else if (e.key === 'Escape') {
+      hideAddressSuggestions(e.target);
+    }
+  });
+
+  root.addEventListener('mousedown', function (e) {
+    var pickBtn = e.target.closest('[data-address-pick]');
+    if (!pickBtn) return;
+    e.preventDefault();
+    var list = pickBtn.closest('.addr-suggest__list');
+    var wrap = pickBtn.closest('.addr-suggest__wrap');
+    var input = wrap && wrap.querySelector('[data-address-suggest]');
+    var suggestions = (list && list._suggestions) || [];
+    var pick = Number(pickBtn.getAttribute('data-address-pick'));
+    if (input && suggestions[pick]) fillAddressSuggestion(input, suggestions[pick]);
   });
 
   root.addEventListener('blur', function (e) {
     if (e.target.matches('input[data-col], textarea[data-col]')) saveField(e.target);
-    if (e.target.matches('.quote-price')) {
-      var line = e.target.closest('.quote-line');
-      var catalogId = line && line.getAttribute('data-catalog-id');
-      if (catalogId) saveAddonPrice(catalogId, e.target.value.replace(/[^0-9.]/g, ''));
-    }
-    if (e.target.matches('[data-catalog-price-input]')) {
-      var crow = e.target.closest('[data-catalog-row]');
-      if (crow) saveAddonPrice(crow.getAttribute('data-catalog-id'), e.target.value.replace(/[^0-9.]/g, ''));
+    if (e.target.matches('[data-name-part]')) saveNameParts(e.target.closest('.lead'));
+    if (e.target.matches('[data-address-suggest]')) {
+      var input = e.target;
+      setTimeout(function () { hideAddressSuggestions(input); }, 150);
     }
   }, true);
 
   function saveField(el) {
     var card = el.closest('.lead');
-    if (!card) return;
+    if (!card || !el.dataset.col) return;
     var payload = { id: card.dataset.id };
     payload[el.dataset.col] = el.value;
     api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify(payload) }).then(function (r) {

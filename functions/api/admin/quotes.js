@@ -60,17 +60,24 @@ export async function onRequestPost({ request, env }) {
 
   if (!leadId) {
     if (!customerName) return json({ error: 'Customer name is required for a new quote.' }, 400);
+    const address = clean(body.address, 200);
+    const city = clean(body.city, 80);
+    const zip = clean(body.zip, 12);
     leadId = newId();
     await env.DB.prepare(
       `INSERT INTO leads (
-        id, created_at, updated_at, name, phone, email, service, service_label, status, source_page
-      ) VALUES (?, ?, ?, ?, ?, ?, 'custom', ?, 'new', 'admin-new-quote')`
+        id, created_at, updated_at, name, phone, email, service, service_label,
+        address, city, zip, status, source_page
+      ) VALUES (?, ?, ?, ?, ?, ?, 'custom', ?, ?, ?, ?, 'new', 'admin-new-quote')`
     ).bind(
       leadId, now, now,
       customerName,
       phone || '—',
       customerEmail || '',
-      serviceLabel
+      serviceLabel,
+      address,
+      city,
+      zip
     ).run();
     lead = { id: leadId, name: customerName, email: customerEmail };
   } else {

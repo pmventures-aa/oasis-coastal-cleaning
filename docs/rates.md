@@ -19,8 +19,8 @@ Her revised figures, August 2026:
 
 These floors (plus per-add-on starting prices) also power the tap-to-add chips in
 the admin quote composer (`public/js/admin-catalog.js`). That file is only loaded
-on `/admin`, not the public site. She can still edit any price after tapping;
-the last price she used for each chip is remembered in her browser.
+on `/admin`, not the public site. She edits the $ on each row for that quote —
+prices are not remembered between jobs.
 
 These are floors, not quotes. What moves a real number up:
 

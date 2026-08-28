@@ -1,7 +1,7 @@
 /* ==========================================================================
-   Admin-only quote catalog — default starting prices for the composer.
-   Loaded only on /admin. Each row has an editable $ field; Add uses that
-   custom amount. Last price per item is remembered in this browser.
+   Admin-only quote catalog — starting prices for the composer.
+   Loaded only on /admin. Each row has an editable $ for THIS quote.
+   Prices are never remembered across jobs — she custom-quotes every visit.
    ========================================================================== */
 window.OASIS_ADMIN_CATALOG = {
   /* Quick base services — floors from docs/rates.md */
