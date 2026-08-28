@@ -549,6 +549,8 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   .vtabs { width: 100%; }
   .vtabs button { flex: 1; text-align: center; }
   .toolbar__select select { width: 100%; max-width: none; }
+  .toolbar__actions { width: 100%; }
+  .toolbar__actions .btn { flex: 1; }
   .btn--new-quote { width: 100%; }
 }
 
@@ -584,3 +586,34 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .compose__title { margin: 0; font-size: var(--step-0); color: var(--oasis-navy); }
 .compose__sub { margin: 0.2rem 0 0; font-size: var(--step--1); }
 .compose__customer { margin-bottom: 0.75rem; }
+
+/* admin notices + profile headline */
+.admin-banner {
+  background: #FBEEDA; color: #7A551C; border: 1px solid rgba(122, 85, 28, 0.2);
+  border-radius: var(--radius); padding: 0.7rem 1rem; margin-bottom: 1rem;
+  font-size: var(--step--1); line-height: 1.45;
+}
+.admin-banner code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em;
+  background: rgba(122, 85, 28, 0.1); padding: 0.1em 0.35em; border-radius: 4px;
+}
+.profile__headline {
+  display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.65rem 0 0;
+}
+.profile__next { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--oasis-line); }
+.saved--err { color: #8E3524 !important; }
+
+.toolbar__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.toolbar__filter {
+  cursor: pointer; font-family: var(--font-body); font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.04em; padding: 0.5em 1em; border-radius: var(--radius-pill);
+  border: 1.5px solid var(--oasis-line); background: var(--oasis-white); color: var(--oasis-navy);
+}
+.toolbar__filter.is-on { background: var(--oasis-gold); color: var(--oasis-navy); border-color: var(--oasis-gold); }
+.btn--new-lead { font-weight: 700; }
+
+.quote-link {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  margin: 0.5rem 0 0.35rem; font-size: var(--step--1);
+}
+.quote-link a { font-weight: 600; }

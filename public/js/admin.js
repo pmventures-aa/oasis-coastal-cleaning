@@ -19,11 +19,62 @@
   };
 
   var state = {
-    view: 'active', filter: '', open: null, leadTab: {},
-    leads: [], counts: {}, q: '', quotes: {}, composing: false,
+    view: 'active', filter: '', followup: false, open: null, leadTab: {},
+    leads: [], counts: {}, q: '', quotes: {}, composing: false, composingLead: false,
     focusQuoteEditor: null,
-    propertyLookupConfigured: null
+    propertyLookupConfigured: null, emailConfigured: true
   };
+
+  var OASIS = window.OASIS || {};
+
+  function oasisCities() {
+    var cities = [''];
+    (OASIS.areas || []).forEach(function (g) {
+      (g.cities || []).forEach(function (c) { if (cities.indexOf(c) === -1) cities.push(c); });
+    });
+    if (cities.indexOf('Somewhere else') === -1) cities.push('Somewhere else');
+    return cities;
+  }
+
+  function oasisPropertyTypes() {
+    return [''].concat(OASIS.propertyTypes || []);
+  }
+
+  function oasisFrequencies() {
+    return [''].concat((OASIS.frequencies || [])
+      .filter(function (f) { return f.active !== false; })
+      .map(function (f) { return f.label; }));
+  }
+
+  function findCatalogByLabel(label) {
+    var needle = String(label || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!needle) return null;
+    var all = (CATALOG.bases || []).concat(CATALOG.addOns || []);
+    for (var i = 0; i < all.length; i++) {
+      var item = all[i];
+      var l = item.label.toLowerCase();
+      var short = l.split('(')[0].trim();
+      if (l === needle || short === needle || l.indexOf(needle) === 0 || needle.indexOf(short) === 0) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
 
   var CATALOG = window.OASIS_ADMIN_CATALOG || { bases: [], addOns: [] };
   var PRICE_STORE_KEY = 'oasis_admin_addon_prices_v1';
@@ -191,8 +242,17 @@
   function detail(l) {
     var addOns = list(l.add_ons), conds = list(l.conditions), days = list(l.preferred_days);
     var tel = digits(l.phone);
+    var hasPhone = tel.length >= 10;
     // Profile first — confirm contact & property, then build a branded quote.
     var tab = state.leadTab[l.id] || 'intake';
+
+    var followFlag = l.followup && l.followup !== 'none'
+      ? '<span class="pill pill--flag">' + (l.followup === 'visit' ? 'Wants a visit' : 'Wants a call') + '</span>' : '';
+    var quoteBadge = '';
+    if (l.latest_quote_status && l.latest_quote_status !== 'draft') {
+      var ql = QUOTE_STATUS_LABELS[l.latest_quote_status] || l.latest_quote_status;
+      quoteBadge = '<span class="pill pill--quoted">' + esc(ql) + '</span>';
+    }
 
     var lookupHint = state.propertyLookupConfigured === false
       ? '<p class="profile__lookup-setup muted">Property lookup needs a free RentCast key: ' +
@@ -211,15 +271,18 @@
           '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
         '</div>' + lookupHint +
         field('Address', 'address', l.address, { placeholder: 'Street address' }) +
-        field('City', 'city', l.city) + field('ZIP', 'zip', l.zip) +
-        field('Type', 'property_type', l.property_type) + field('Size', 'size_label', l.size_label) +
+        field('City', 'city', l.city, { options: oasisCities() }) +
+        field('ZIP', 'zip', l.zip) +
+        field('Type', 'property_type', l.property_type, { options: oasisPropertyTypes() }) +
+        field('Size', 'size_label', l.size_label) +
         field('Bedrooms', 'bedrooms', l.bedrooms) + field('Bathrooms', 'bathrooms', l.bathrooms) +
         field('Getting in', 'access', l.access, { placeholder: 'Lockbox, gate code' }), true) +
       acc('Request & Notes',
         '<div class="profile__grid">' + readOnly('Service', l.service_label || l.service) +
-        field('Frequency', 'frequency', l.frequency) +
+        field('Frequency', 'frequency', l.frequency, { options: oasisFrequencies() }) +
         readOnly('First visit', l.first_visit ? 'Yes — deeper clean' : 'No') +
-        readOnly('Start', l.start_when) + readOnly('Days', days.join(', ')) + '</div>' +
+        readOnly('Start', l.start_when) + readOnly('Days', days.join(', ')) +
+        field('Follow-up', 'followup', l.followup || 'none', { options: ['none', 'call', 'visit'] }) + '</div>' +
         (addOns.length ? '<div class="chips"><span class="chips__k">Add-ons</span>' +
           addOns.map(function (a) { return '<span class="chip">' + esc(a) + '</span>'; }).join('') + '</div>' : '') +
         (conds.length ? '<div class="chips"><span class="chips__k">About home</span>' +
@@ -240,9 +303,12 @@
     if (l.size_label) propBits.push(l.size_label);
 
     return '<div class="profile">' +
+      '<div class="profile__headline">' + followFlag + quoteBadge + '</div>' +
       '<div class="profile__bar">' +
-        '<a class="btn btn--ghost" href="tel:+1' + tel + '">Call</a>' +
-        '<a class="btn btn--ghost" href="sms:+1' + tel + '">Text</a>' +
+        (hasPhone
+          ? '<a class="btn btn--ghost" href="tel:+1' + tel + '">Call</a>' +
+            '<a class="btn btn--ghost" href="sms:+1' + tel + '">Text</a>'
+          : '') +
         '<a class="btn btn--ghost" href="mailto:' + esc(l.email) + '">Email</a>' +
         '<span class="profile__spacer"></span>' +
         '<label class="pf pf--inline"><span class="pf__k">Status</span><select class="pf__v" data-col="status">' +
@@ -282,11 +348,15 @@
   function row(l) {
     var flag = l.followup && l.followup !== 'none'
       ? '<span class="pill pill--flag">' + (l.followup === 'visit' ? 'Wants a visit' : 'Wants a call') + '</span>' : '';
+    var qBadge = '';
+    if (l.latest_quote_status && l.latest_quote_status !== 'draft') {
+      qBadge = '<span class="pill pill--quoted">' + esc(QUOTE_STATUS_LABELS[l.latest_quote_status] || l.latest_quote_status) + '</span>';
+    }
     var open = state.open === l.id;
     return '<article class="lead' + (open ? ' is-open' : '') + '" data-id="' + esc(l.id) + '">' +
       '<button type="button" class="lead__head" data-toggle aria-expanded="' + open + '">' +
         '<span class="lead__chev" aria-hidden="true"></span>' +
-        '<span class="lead__name">' + esc(l.name) + '</span>' + pill(l.status) + flag +
+        '<span class="lead__name">' + esc(l.name) + '</span>' + pill(l.status) + flag + qBadge +
         '<span class="lead__meta">' + esc(l.service_label || l.service) + (l.city ? ' · ' + esc(l.city) : '') + '</span>' +
         (l.quoted_amount ? '<span class="lead__quote">' + esc(l.quoted_amount) + '</span>' : '') +
         '<span class="lead__when">' + esc(when(l.created_at)) + '</span></button>' +
@@ -299,6 +369,9 @@
     var activeTotal = STATUSES.reduce(function (n, s) { return n + (counts[s] || 0); }, 0);
 
     root.innerHTML =
+      (!state.emailConfigured
+        ? '<div class="admin-banner" role="status">Email is not configured yet — save drafts and use <strong>Copy link</strong> to text quotes. Add <code>RESEND_API_KEY</code> in Cloudflare to send from here.</div>'
+        : '') +
       '<div class="toolbar">' +
         '<div class="vtabs">' +
           '<button type="button" data-view="active"' + (state.view === 'active' ? ' class="is-on"' : '') +
@@ -313,10 +386,16 @@
               return '<option value="' + s + '"' + (state.filter === s ? ' selected' : '') + '>' +
                 s.charAt(0).toUpperCase() + s.slice(1) + ' (' + (counts[s] || 0) + ')</option>';
             }).join('') + '</select></label>' +
-            '<button type="button" class="btn btn--primary btn--new-quote" data-new-quote>+ New Quote</button>'
+            '<button type="button" class="toolbar__filter' + (state.followup ? ' is-on' : '') +
+              '" data-followup-filter>Follow-ups</button>' +
+            '<div class="toolbar__actions">' +
+              '<button type="button" class="btn btn--ghost btn--new-lead" data-new-lead>+ New Lead</button>' +
+              '<button type="button" class="btn btn--primary btn--new-quote" data-new-quote>+ New Quote</button>' +
+            '</div>'
           : '') +
         '<input type="search" id="search" class="toolbar__search" placeholder="Search name, city, ZIP, phone…" value="' + esc(state.q) + '" autocomplete="off">' +
       '</div>' +
+      (state.composingLead ? newLeadPanelHtml() : '') +
       (state.composing ? newQuotePanelHtml() : '') +
       (state.leads.length
         ? '<div class="leads">' + state.leads.map(row).join('') + '</div>' +
@@ -324,6 +403,10 @@
         : '<p class="empty">' + (state.view === 'archived' ? 'No archived leads.' : 'No quote requests yet.') + '</p>');
 
     applySearchFilter();
+    if (state.composingLead) {
+      var ln = root.querySelector('[data-lead-field="name"]');
+      if (ln) ln.focus();
+    }
     if (state.composing) {
       var cn = root.querySelector('.quote-customer-name');
       if (cn) cn.focus();
@@ -374,7 +457,29 @@
     if (l.bathrooms) beds.push(l.bathrooms + ' bath');
     if (beds.length) noteBits.push(beds.join(' / '));
     if (l.property_type) noteBits.push(l.property_type);
+    var conds = list(l.conditions);
+    if (conds.length) noteBits.push('Home: ' + conds.join(', '));
     return { label: label, notes: noteBits.join('\n') };
+  }
+
+  function catalogQuoteLinesFromLead(l) {
+    if (!l) return [];
+    var seed = quoteSeedFromLead(l);
+    var lines = [{ label: seed.label, qty: 1, unit_dollars: '' }];
+    list(l.add_ons).forEach(function (name) {
+      var item = findCatalogByLabel(name);
+      if (item) {
+        lines.push({
+          catalog_id: item.id,
+          label: item.label,
+          qty: 1,
+          unit_dollars: String(catalogPrice(item))
+        });
+      } else {
+        lines.push({ label: name, qty: 1, unit_dollars: '' });
+      }
+    });
+    return lines;
   }
 
   function quoteLineHtml(line) {
@@ -457,7 +562,9 @@
     var seed = standalone ? { label: 'Cleaning service', notes: '' } : quoteSeedFromLead(l);
     var defaultLabel = seed.label;
     var lines = (quote.line_items && quote.line_items.length)
-      ? quote.line_items : [{ label: defaultLabel, qty: 1, unit_dollars: '' }];
+      ? quote.line_items
+      : (standalone ? [{ label: defaultLabel, qty: 1, unit_dollars: '' }] : catalogQuoteLinesFromLead(l));
+    if (!lines.length) lines = [{ label: defaultLabel, qty: 1, unit_dollars: '' }];
     var notesVal = quote.notes != null && quote.notes !== '' ? quote.notes : seed.notes;
     var customerFields = standalone
       ? '<div class="profile__grid compose__customer">' +
@@ -566,6 +673,66 @@
     '</section>';
   }
 
+  function newLeadPanelHtml() {
+    return '<section class="compose compose--lead" aria-labelledby="compose-lead-title">' +
+      '<div class="compose__head">' +
+        '<div class="compose__titles">' +
+          '<h2 id="compose-lead-title" class="compose__title">New Lead</h2>' +
+          '<p class="compose__sub muted">Log a phone call or walk-in — name and phone required.</p>' +
+        '</div>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-close-compose-lead>Cancel</button>' +
+      '</div>' +
+      '<div class="profile__grid compose__customer">' +
+        '<label class="pf"><span class="pf__k">Name *</span><input class="pf__v" type="text" data-lead-field="name" autocomplete="name"></label>' +
+        '<label class="pf"><span class="pf__k">Phone *</span><input class="pf__v" type="tel" data-lead-field="phone" autocomplete="tel"></label>' +
+        '<label class="pf"><span class="pf__k">Email</span><input class="pf__v" type="email" data-lead-field="email" autocomplete="email"></label>' +
+        '<label class="pf"><span class="pf__k">City</span><select class="pf__v" data-lead-field="city">' +
+          oasisCities().map(function (c) {
+            return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
+          }).join('') + '</select></label>' +
+        '<label class="pf pf--wide"><span class="pf__k">Service</span><input class="pf__v" type="text" data-lead-field="service" placeholder="e.g. Home cleaning, Airbnb turnover"></label>' +
+        '<label class="pf pf--wide"><span class="pf__k">Notes</span><textarea class="pf__v" data-lead-field="notes" rows="2" placeholder="What they asked for on the call"></textarea></label>' +
+      '</div>' +
+      '<div class="quote-actions">' +
+        '<button type="button" class="btn btn--primary" data-save-lead>Save lead</button>' +
+      '</div>' +
+      '<div class="compose-lead__msg form-status" role="alert" hidden></div>' +
+    '</section>';
+  }
+
+  function saveNewLead() {
+    var panel = root.querySelector('.compose--lead');
+    if (!panel) return;
+    function get(field) {
+      var el = panel.querySelector('[data-lead-field="' + field + '"]');
+      return el ? String(el.value || '').trim() : '';
+    }
+    var payload = {
+      name: get('name'),
+      phone: get('phone'),
+      email: get('email'),
+      city: get('city'),
+      service_label: get('service') || 'Phone inquiry',
+      notes: get('notes')
+    };
+    api('/api/admin/leads', { method: 'POST', body: JSON.stringify(payload) })
+      .then(function (r) {
+        var msg = panel.querySelector('.compose-lead__msg');
+        if (!r.ok) {
+          if (msg) {
+            msg.hidden = false;
+            msg.className = 'compose-lead__msg form-status form-status--err';
+            msg.textContent = r.body.error || 'Could not save lead.';
+          }
+          return;
+        }
+        state.composingLead = false;
+        state.open = r.body.lead.id;
+        state.leadTab[r.body.lead.id] = 'intake';
+        load();
+      });
+  }
+
   function calcLineTotal(lines) {
     return (lines || []).reduce(function (sum, line) {
       var qty = Math.max(1, parseInt(line.qty, 10) || 1);
@@ -618,6 +785,7 @@
     var isArchived = !!q.archived_at;
     var canResend = !isArchived && (q.status === 'sent' || q.status === 'declined');
     var to = q.customer_email || '';
+    var proposalUrl = (typeof location !== 'undefined' ? location.origin : '') + '/proposal?t=' + q.token;
     var acts = '';
     if (canResend) {
       acts += '<button type="button" class="btn btn--primary btn--tiny" data-quote-action="resend" data-quote-id="' +
@@ -638,7 +806,12 @@
         (isArchived ? ' · Archived' : '') +
         '<span class="muted" style="margin-left:.5rem;font-weight:400">' + esc(when(q.created_at)) + '</span></summary>' +
       '<div class="acc__in quote-card-mini">' + quotePill(q.status) +
-        (q.status !== 'draft' ? '<span class="quote-link"><a href="/proposal?t=' + esc(q.token) + '" target="_blank" rel="noopener">Customer Link</a></span>' : '') +
+        (q.status !== 'draft' && q.token
+          ? '<span class="quote-link">' +
+              '<a href="/proposal?t=' + esc(q.token) + '" target="_blank" rel="noopener">Customer link</a>' +
+              '<button type="button" class="btn btn--ghost btn--tiny" data-copy-link data-link="' + esc(proposalUrl) + '">Copy link</button>' +
+            '</span>'
+          : '') +
         (to ? '<p class="quote-card-mini__track muted">To ' + esc(to) + '</p>' : '') +
         (summary ? '<p class="quote-card-mini__track muted">' + esc(summary) + '</p>' : '') +
         quoteTimeline(q) +
@@ -884,7 +1057,10 @@
     if (msg && !window.confirm(msg)) return;
     api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify({ id: id, action: action }) })
       .then(function (r) {
-        if (!r.ok) return;
+        if (!r.ok) {
+          window.alert(r.body.error || 'That action failed.');
+          return;
+        }
         state.open = null;
         load();
       });
@@ -899,17 +1075,52 @@
     if (!qid) return;
     if (action === 'delete' && !window.confirm('Delete this quote permanently?')) return;
     api('/api/admin/quotes', { method: 'PATCH', body: JSON.stringify({ id: qid, action: action }) })
-      .then(function (r) { if (r.ok && leadId) loadQuotes(leadId); });
+      .then(function (r) {
+        if (!r.ok) {
+          window.alert(r.body.error || 'That action failed.');
+          return;
+        }
+        if (leadId) loadQuotes(leadId);
+      });
   }
 
   root.addEventListener('click', function (e) {
     if (e.target.matches('[data-view]')) {
       state.view = e.target.dataset.view;
-      state.filter = ''; state.open = null; state.composing = false;
+      state.filter = ''; state.followup = false; state.open = null;
+      state.composing = false; state.composingLead = false;
       load(); return;
     }
+    if (e.target.matches('[data-new-lead]')) {
+      state.composingLead = true; state.composing = false; state.open = null;
+      render(); return;
+    }
+    if (e.target.matches('[data-close-compose-lead]')) {
+      state.composingLead = false;
+      render(); return;
+    }
+    if (e.target.matches('[data-save-lead]')) {
+      saveNewLead();
+      return;
+    }
+    if (e.target.matches('[data-followup-filter]')) {
+      state.followup = !state.followup;
+      state.open = null;
+      load();
+      return;
+    }
+    if (e.target.matches('[data-copy-link]')) {
+      var link = e.target.getAttribute('data-link') || '';
+      if (!link) return;
+      copyText(link).then(function () {
+        var orig = e.target.textContent;
+        e.target.textContent = 'Copied!';
+        setTimeout(function () { e.target.textContent = orig; }, 1600);
+      });
+      return;
+    }
     if (e.target.matches('[data-new-quote]')) {
-      state.composing = true; state.open = null;
+      state.composing = true; state.composingLead = false; state.open = null;
       render(); return;
     }
     if (e.target.matches('[data-close-compose]')) {
@@ -1011,14 +1222,29 @@
     var payload = { id: card.dataset.id };
     payload[el.dataset.col] = el.value;
     api('/api/admin/leads', { method: 'PATCH', body: JSON.stringify(payload) }).then(function (r) {
-      if (!r.ok) return;
       var saved = card.querySelector('[data-saved]');
+      if (!r.ok) {
+        if (saved) {
+          saved.hidden = false;
+          saved.textContent = r.body.error || 'Save failed';
+          saved.classList.add('saved--err');
+          setTimeout(function () {
+            saved.hidden = true;
+            saved.textContent = 'Saved';
+            saved.classList.remove('saved--err');
+          }, 2500);
+        }
+        return;
+      }
       if (saved) { saved.hidden = false; setTimeout(function () { saved.hidden = true; }, 1500); }
       state.leads.forEach(function (l) { if (l.id === card.dataset.id) l[el.dataset.col] = el.value; });
       if (el.dataset.col === 'status') {
         var head = card.querySelector('.lead__head .pill');
         head.className = 'pill pill--' + el.value;
         head.textContent = el.value.charAt(0).toUpperCase() + el.value.slice(1);
+      }
+      if (el.dataset.col === 'followup') {
+        render();
       }
     });
   }
@@ -1034,9 +1260,11 @@
       if (!status.signedIn) { showSignIn(''); return; }
       if (!status.databaseConfigured) { showSetup(status); return; }
       state.propertyLookupConfigured = !!status.propertyLookupConfigured;
+      state.emailConfigured = status.emailConfigured !== false;
 
       var qs = '?archived=' + (state.view === 'archived' ? '1' : '0');
       if (state.filter && state.view === 'active') qs += '&status=' + encodeURIComponent(state.filter);
+      if (state.followup && state.view === 'active') qs += '&followup=1';
 
       api('/api/admin/leads' + qs).then(function (r) {
         if (r.status === 401) { showSignIn(''); return; }
@@ -1051,6 +1279,19 @@
       });
     });
   }
+
+  var lastRefresh = 0;
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || signout.hidden) return;
+    if (Date.now() - lastRefresh < 12000) return;
+    lastRefresh = Date.now();
+    var openId = state.open;
+    var tab = openId && state.leadTab[openId];
+    load();
+    if (openId && tab === 'quotes') {
+      setTimeout(function () { loadQuotes(openId); }, 300);
+    }
+  });
 
   load();
 })();

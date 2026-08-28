@@ -10,7 +10,7 @@ export async function onRequestGet({ request, env }) {
   return json({
     authConfigured: authConfigured(env),
     databaseConfigured: Boolean(env.DB),
-    emailConfigured: Boolean(env.RESEND_API_KEY),
+    emailConfigured: Boolean(env.RESEND_API_KEY || env.BREVO_API_KEY || env.NOTIFY_WEBHOOK_URL),
     propertyLookupConfigured: Boolean(env.RENTCAST_API_KEY),
     signedIn: await isSignedIn(request, env)
   });
