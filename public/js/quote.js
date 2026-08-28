@@ -84,10 +84,21 @@ var state = { step: 0, leadId: null };
         '</select>' +
         '<p class="hint">A rough guess is honestly fine — nothing is booked on it.</p>' +
       '</div>' +
-      '<div class="grid grid--2">' +
-        countPicker('bedrooms', 'Bedrooms', state.bedrooms, ['Studio', '1', '2', '3', '4', '5', '6+']) +
-        countPicker('bathrooms', 'Bathrooms', state.bathrooms, ['1', '1.5', '2', '2.5', '3', '4+']) +
-      '</div>';
+      spaceFieldsHtml(s);
+  }
+
+  /* An office does not have bedrooms. What a service asks about its space is
+     listed per service in js/data.js, and a service that is not listed is
+     asked nothing beyond its size — which is right for laundry, where the
+     answer is hampers, and organizing, where it is hours. */
+  function spaceFieldsHtml(service) {
+    var fields = (D.spaceFields || {})[service.id];
+    if (!fields || !fields.length) { return ''; }
+    return '<div class="grid grid--2">' +
+      fields.map(function (f) {
+        return countPicker(f.key, f.label, state[f.key], f.options);
+      }).join('') +
+    '</div>';
   }
 
   /* Bedrooms and bathrooms are a choice between six things, which is a row of
@@ -142,6 +153,13 @@ var state = { step: 0, leadId: null };
            '</label>';
   }
 
+  /* "Around the house" is the wrong phrase for an office. Services name their
+     own exceptions in js/data.js; everything else keeps the group's name. */
+  function groupLabel(service, name) {
+    var map = (D.groupLabels || {})[service.id] || {};
+    return map[name] || name;
+  }
+
   function stepAddOns() {
     var s = currentService();
     var mine = D.addOns.filter(function (x) { return x.services.indexOf(s.id) !== -1; });
@@ -158,11 +176,11 @@ var state = { step: 0, leadId: null };
       g.items.push(x);
     });
 
-    return '<p class="step-lead">Tick anything you would like included — or none at all. ' +
+    return '<p class="step-lead">Tick anything you would like included, or none at all. ' +
              esc(D.bundleNote) + '</p>' +
       groups.map(function (g) {
         return '<div class="addon-group">' +
-                 '<p class="addon-group__name">' + esc(g.name) + '</p>' +
+                 '<p class="addon-group__name">' + esc(groupLabel(s, g.name)) + '</p>' +
                  '<div class="addon-grid">' +
                    g.items.map(function (x) {
                      var on = (state.addOns || []).indexOf(x.id) !== -1;

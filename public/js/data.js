@@ -314,6 +314,43 @@ window.OASIS = {
 
      No prices here — these are the things a customer can ask for, and what
      each of them costs is decided when Kristina quotes the job. */
+  /* What a wizard asks about the space, per service. A quote form that asks an
+     office how many bedrooms it has does not sound like someone who cleans
+     offices. Anything not listed here is asked nothing beyond its size, which
+     is right for laundry and organizing.
+
+     Each entry is a list of {key, label, options}. Add a service, add a line. */
+  spaceFields: {
+    home: [
+      { key: 'bedrooms',  label: 'Bedrooms',  options: ['Studio', '1', '2', '3', '4', '5', '6+'] },
+      { key: 'bathrooms', label: 'Bathrooms', options: ['1', '1.5', '2', '2.5', '3', '4+'] }
+    ],
+    movein: [
+      { key: 'bedrooms',  label: 'Bedrooms',  options: ['Studio', '1', '2', '3', '4', '5', '6+'] },
+      { key: 'bathrooms', label: 'Bathrooms', options: ['1', '1.5', '2', '2.5', '3', '4+'] }
+    ],
+    turnover: [
+      { key: 'bedrooms',  label: 'Bedrooms',  options: ['Studio', '1', '2', '3', '4', '5+'] },
+      { key: 'bathrooms', label: 'Bathrooms', options: ['1', '1.5', '2', '2.5', '3+'] }
+    ],
+    office: [
+      { key: 'bedrooms',  label: 'Rooms or offices', options: ['1', '2', '3', '4', '5', '6', '7+'] },
+      { key: 'bathrooms', label: 'Restrooms',        options: ['1', '2', '3', '4+'] }
+    ],
+    postconstruction: [
+      { key: 'bedrooms',  label: 'Rooms affected', options: ['1', '2', '3', '4', '5+'] },
+      { key: 'bathrooms', label: 'Bathrooms',      options: ['0', '1', '2', '3+'] }
+    ]
+  },
+
+  /* An office does not have an "around the house". Only the differences are
+     listed; anything absent keeps the group's own name. */
+  groupLabels: {
+    office:           { 'Around the house': 'Around the office' },
+    postconstruction: { 'Around the house': 'Around the site' },
+    turnover:         { 'Around the house': 'Around the property' }
+  },
+
   addOns: [
     { id: 'refrigerator', label: 'Refrigerator',        note: 'Inside — shelves out, wiped down and replaced',
       group: 'Kitchen',        services: ['home', 'office', 'movein', 'turnover'] },
@@ -352,7 +389,7 @@ window.OASIS = {
      More add-ons in one visit means less setup and travel per item, so
      bundling genuinely costs less. No percentage is published — the saving
      shows up in the quote Kristina sends. */
-  bundleNote: 'Ask for two or more and they come down. The saving shows up in your quote.',
+  bundleNote: 'Kristina prices them with the rest of the job, so you get one number rather than a list of charges.',
 
   /* ------------------------------------------------------------- conditions
      Not things to buy — things about the home that change how long a visit

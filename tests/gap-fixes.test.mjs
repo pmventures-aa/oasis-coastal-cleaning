@@ -144,3 +144,46 @@ test('every cadence has a label and a short form', () => {
 });
 
 console.log('\n' + n + ' assertions passed (cadence)');
+
+/* ---- the wizard asks questions that fit the service ---------------------- */
+test('an office is never asked how many bedrooms it has', () => {
+  const w = {};
+  new Function('window', readFileSync(new URL('../public/js/data.js', import.meta.url), 'utf8'))(w);
+  const D = w.OASIS;
+
+  const office = D.spaceFields.office.map((f) => f.label.toLowerCase());
+  assert.ok(!office.some((l) => l.includes('bedroom')), 'office asks: ' + office.join(', '));
+  assert.deepEqual(D.groupLabels.office['Around the house'], 'Around the office');
+
+  // Homes still get the plain words.
+  assert.ok(D.spaceFields.home.some((f) => f.label === 'Bedrooms'));
+
+  // Every service that asks anything asks for real options, and every service
+  // named in groupLabels or spaceFields actually exists.
+  const ids = new Set(D.services.map((s) => s.id));
+  for (const [id, fields] of Object.entries(D.spaceFields)) {
+    assert.ok(ids.has(id), id + ' has space fields but is not a service');
+    fields.forEach((f) => {
+      assert.ok(f.key && f.label && Array.isArray(f.options) && f.options.length,
+        id + '.' + f.key + ' is incomplete');
+    });
+  }
+  for (const id of Object.keys(D.groupLabels)) {
+    assert.ok(ids.has(id), id + ' has group labels but is not a service');
+  }
+
+  // Services with no entry are asked nothing beyond their size, which is right
+  // for laundry (hampers) and organizing (hours).
+  assert.equal(D.spaceFields.laundry, undefined);
+  assert.equal(D.spaceFields.organizing, undefined);
+});
+
+test('nothing on the customer side promises a discount', () => {
+  const w = {};
+  new Function('window', readFileSync(new URL('../public/js/data.js', import.meta.url), 'utf8'))(w);
+  const note = w.OASIS.bundleNote;
+  assert.ok(!/discount|come down|saving|% off|cheaper|less each/i.test(note),
+    'bundleNote promises a price: ' + note);
+});
+
+console.log('\n' + n + ' assertions passed (service-aware wizard)');
