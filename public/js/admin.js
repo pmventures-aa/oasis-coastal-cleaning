@@ -600,7 +600,8 @@
     var cadence = line.cadence || 'onetime';
     var recurring = cadence !== 'onetime';
 
-    return '<div class="qline' + (recurring ? ' is-recurring' : '') + '"' +
+    return '<div class="qline' + (recurring ? ' is-recurring' : '') +
+        (line.optional ? ' is-optional' : '') + '"' +
         (line.catalog_id ? ' data-catalog-id="' + esc(line.catalog_id) + '"' : '') + '>' +
       '<div class="qline__main">' +
         '<label class="qline__f qline__f--label"><span>What it is</span>' +
@@ -623,6 +624,11 @@
                 esc(c.label) + '</option>';
             }).join('') +
           '</select></label>' +
+        '<label class="qline__f qline__f--optional"><span>Charge for it?</span>' +
+          '<span class="qline__opt">' +
+            '<input type="checkbox" class="quote-optional"' + (line.optional ? ' checked' : '') + '>' +
+            '<span>Optional \u2014 leave off the total</span>' +
+          '</span></label>' +
         '<button type="button" class="qline__remove" data-remove-line ' +
           'aria-label="Remove this line">Remove</button>' +
       '</div></div>';
@@ -936,8 +942,9 @@
       });
   }
 
-  function calcLineTotal(lines) {
+  function calcLineTotal(lines, includeOptional) {
     return (lines || []).reduce(function (sum, line) {
+      if (line.optional && !includeOptional) return sum;
       var qty = Math.max(1, parseInt(line.qty, 10) || 1);
       var unit = line.unit_price != null ? line.unit_price : parseDollars(line.unit_dollars);
       return sum + qty * unit;
@@ -1655,7 +1662,8 @@
           label: row.querySelector('.quote-label').value,
           qty: row.querySelector('.quote-qty').value,
           unit_dollars: row.querySelector('.quote-price').value,
-          cadence: (row.querySelector('.quote-cadence') || {}).value || 'onetime'
+          cadence: (row.querySelector('.quote-cadence') || {}).value || 'onetime',
+          optional: !!(row.querySelector('.quote-optional') || {}).checked
         };
       }),
       notes: editor.querySelector('.quote-notes').value,
@@ -1961,6 +1969,14 @@
     if (e.target.matches('.quote-cadence')) {
       var qline = e.target.closest('.qline');
       if (qline) qline.classList.toggle('is-recurring', e.target.value !== 'onetime');
+    }
+    // Ticking "optional" takes the line straight out of the total, so the
+    // number she is looking at has to move the moment she ticks it.
+    if (e.target.matches('.quote-optional')) {
+      var qrow = e.target.closest('.qline');
+      if (qrow) qrow.classList.toggle('is-optional', e.target.checked);
+      var qed = e.target.closest('.quote-editor');
+      if (qed) updateQuoteTotal(qed);
     }
     if (e.target.id === 'status-filter') { state.filter = e.target.value; state.open = null; load(); }
     if (e.target.matches('select[data-col]')) saveField(e.target);

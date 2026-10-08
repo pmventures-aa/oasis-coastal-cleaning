@@ -123,6 +123,44 @@ function lineItems(doc, items) {
   }
 }
 
+/* The optional offer: quoted, priced, and visibly not part of the total.
+   It sits after the totals so the eye reaches the number they are accepting
+   first, and reads as a separate decision rather than another charge. */
+function laterOn(doc, items) {
+  if (!items.length) return;
+  doc.ensure(60 + items.length * 30);
+  doc.y -= 10;
+
+  doc.text('Afterwards, if you would like', MARGIN.left, doc.y,
+    { size: 11, bold: true, color: COLORS.navy });
+  doc.y -= 14;
+  doc.text('Optional, and not included in the total above.', MARGIN.left, doc.y,
+    { size: 9, color: COLORS.muted });
+  doc.y -= 16;
+
+  for (const item of items) {
+    const every = isRecurring(item.cadence) ? cadenceById(item.cadence).short : 'per visit';
+    const nameLines = wrapText(item.label || '', 10.5, W.item, true);
+    doc.ensure(nameLines.length * 14 + 16);
+    const rowTop = doc.y;
+    nameLines.forEach((ln, i) => {
+      doc.text(ln, COL.item, doc.y, { size: 10.5, bold: true, color: COLORS.navy });
+      if (i < nameLines.length - 1) doc.y -= 13;
+    });
+    doc.text(formatMoney(item.unit_price != null ? item.unit_price : item.total),
+      COL.amount, rowTop, { size: 10.5, bold: true, color: COLORS.teal, align: 'right', width: W.amount });
+    doc.y -= 12;
+    doc.text(every, COL.item, doc.y, { size: 8.5, bold: true, color: COLORS.teal });
+    if (item.description) {
+      for (const ln of wrapText(item.description, 9, W.item)) {
+        doc.y -= 12;
+        doc.text(ln, COL.item, doc.y, { size: 9, color: COLORS.muted });
+      }
+    }
+    doc.y -= 14;
+  }
+}
+
 function totals(doc, quote) {
   doc.ensure(90);
   const right = MARGIN.left + CONTENT_W;
@@ -178,7 +216,11 @@ export function buildQuotePdf({ quote, lead = {}, business, logo, settings = {},
   });
 
   const first = String(quote.customer_name || lead.name || '').split(' ')[0];
-  const items = quote.line_items || [];
+  const allItems = quote.line_items || [];
+  const items = allItems.filter((it) => !it.optional);
+  const optionalItems = allItems.filter((it) => it.optional);
+  // The hero's rhythm describes what is being charged, so an optional
+  // recurring offer must not relabel a one-off clean as a repeating visit.
   const repeating = items.find((it) => isRecurring(it.cadence));
   const rhythm = repeating ? cadenceById(repeating.cadence).short : '';
 
@@ -198,6 +240,7 @@ export function buildQuotePdf({ quote, lead = {}, business, logo, settings = {},
 
   lineItems(doc, items);
   totals(doc, quote);
+  laterOn(doc, optionalItems);
 
   if (quote.expires_at) {
     doc.text('Valid through ' + formatDate(quote.expires_at), MARGIN.left, doc.y,

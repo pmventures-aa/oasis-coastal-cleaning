@@ -163,6 +163,15 @@ export async function onRequestPost({ request, env, params }) {
     .filter((id) => allowed.has(id));
   const requestedAddons = resolveSelectedAddons(requestedIds);
 
+  /* Optional lines are indexed against the optional lines of this quote only,
+     so a stale or made-up index cannot select something that was never
+     offered, and cannot reach a line that was priced into the total. */
+  const optionalLines = (quote.line_items || []).filter((it) => it.optional);
+  const chosenOptional = (Array.isArray(body.later_on) ? body.later_on : [])
+    .map((i) => optionalLines[Number(i)])
+    .filter(Boolean)
+    .map((it) => ({ label: it.label, unit_price: it.unit_price, cadence: it.cadence }));
+
   // The one event worth identifying in detail.
   const trail = acceptanceTrail(request);
   await env.DB.prepare(
@@ -183,7 +192,8 @@ export async function onRequestPost({ request, env, params }) {
     ...trail,
     ...(requestedAddons.length
       ? { add_ons: requestedAddons.map((a) => ({ id: a.id, label: a.label })) }
-      : {})
+      : {}),
+    ...(chosenOptional.length ? { later_on: chosenOptional } : {})
   });
 
   await env.DB.prepare(

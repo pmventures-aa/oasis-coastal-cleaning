@@ -98,11 +98,51 @@
       '</div></div>';
   }
 
+  function selectedLaterOn() {
+    return Array.prototype.map.call(
+      root.querySelectorAll('input[name="later"]:checked'),
+      function (el) { return parseInt(el.value, 10); }
+    ).filter(function (n) { return !isNaN(n); });
+  }
+
   function selectedAddons() {
     return Array.prototype.map.call(
       root.querySelectorAll('input[name="addon"]:checked'),
       function (el) { return el.value; }
     );
+  }
+
+  /* Presented as a separate decision, after the one they came for. Priced,
+     so it is a real offer rather than a sales line, and tickable, so saying
+     yes costs one tap. Left unticked it simply does not apply. */
+  function laterOnHtml(lines, live) {
+    if (!lines.length) return '';
+    var CAD = { weekly: 'a week', biweekly: 'two weeks', monthly: 'a month', quarterly: 'a quarter' };
+    return '<section class="later">' +
+      '<div class="later__head">' +
+        '<h2 class="later__title">Afterwards, if you would like</h2>' +
+        '<p class="later__lead">Entirely optional, and nothing to decide today \u2014 ' +
+          'it is not part of the amount above.</p>' +
+      '</div>' +
+      lines.map(function (it, i) {
+        var every = CAD[it.cadence];
+        var price = money(it.unit_price != null ? it.unit_price : it.total);
+        var inner =
+          '<span class="later__box" aria-hidden="true"></span>' +
+          '<span class="later__text">' +
+            '<span class="later__name">' + esc(it.label) + '</span>' +
+            (it.description ? '<span class="later__note">' + esc(it.description) + '</span>' : '') +
+          '</span>' +
+          '<span class="later__price">' + esc(price) +
+            (every ? '<small>every ' + esc(every) + '</small>' : '<small>per visit</small>') +
+          '</span>';
+        return live
+          ? '<label class="later__row">' +
+              '<input type="checkbox" name="later" value="' + esc(String(i)) + '">' + inner +
+            '</label>'
+          : '<div class="later__row is-static">' + inner + '</div>';
+      }).join('') +
+    '</section>';
   }
 
   function renderQuote(data) {
@@ -115,7 +155,13 @@
     // once — so each line says which it is.
     var CADENCE = { weekly: 'Weekly', biweekly: 'Every two weeks',
                     monthly: 'Monthly', quarterly: 'Quarterly' };
-    var rows = items.map(function (it) {
+    /* An optional line is quoted but not charged — the recurring clean she
+       offers for after the deep clean. It must not sit in the table of what
+       they are accepting, or the amounts stop adding up to the total. */
+    var priced = items.filter(function (it) { return !it.optional; });
+    var laterOn = items.filter(function (it) { return it.optional; });
+
+    var rows = priced.map(function (it) {
       var cad = CADENCE[it.cadence];
       return '<tr>' +
         '<td><strong>' + esc(it.label) + '</strong>' +
@@ -141,6 +187,7 @@
          right beside it, because that is where the hesitation is. Declining
          stays entirely available and stops shouting. */
       actions =
+        laterOnHtml(laterOn, true) +
         addonsHtml(addons) +
         declinePanelHtml() +
         '<section class="yes">' +
@@ -162,7 +209,8 @@
       actions = '<div class="proposal__done proposal__done--ok">' +
         '<p class="proposal__done-k">You are booked in</p>' +
         '<p>Thank you, ' + esc(first) + '. Kristina has this and will text you shortly to agree a first date. ' +
-        'Anything you need before then, her number is below.</p></div>';
+        'Anything you need before then, her number is below.</p></div>' +
+        laterOnHtml(laterOn, false);
     } else if (status === 'declined') {
       actions = '<div class="proposal__done">You declined this quote. Reply to Kristina if you would like a revised one.</div>';
     } else if (status === 'expired') {
@@ -171,7 +219,10 @@
     actions += download;
 
     var first = (q.customer_name || '').split(' ')[0] || 'there';
-    var recurring = items.filter(function (it) { return CADENCE[it.cadence]; });
+    // Only the lines they are actually accepting set the rhythm. Reading the
+    // optional recurring offer here relabelled a one-off deep clean as a
+    // repeating visit while still showing the one-off price.
+    var recurring = priced.filter(function (it) { return CADENCE[it.cadence]; });
     var rhythm = recurring.length ? CADENCE[recurring[0].cadence].toLowerCase() : '';
 
     root.innerHTML =
@@ -251,9 +302,19 @@
       });
     });
 
+    /* Ticking the optional offer should feel like a choice being made, the
+       same way an extra does. It deliberately does not touch the total — the
+       price beside it is what it costs, later. */
+    Array.prototype.forEach.call(root.querySelectorAll('input[name="later"]'), function (box) {
+      box.addEventListener('change', function () {
+        var card = box.closest('.later__row');
+        if (card) card.classList.toggle('is-on', box.checked);
+      });
+    });
+
     if (acceptBtn) {
       acceptBtn.addEventListener('click', function () {
-        respond('accept', acceptBtn, { add_ons: selectedAddons() });
+        respond('accept', acceptBtn, { add_ons: selectedAddons(), later_on: selectedLaterOn() });
       });
     }
     if (declineBtn && declinePanel) {

@@ -82,10 +82,21 @@ export function normalizeLineItems(raw) {
 
     const cadence = cadenceById(String(row.cadence || '').trim()).id;
 
-    return { label, description, qty, unit_price: unitPrice, total, cadence };
+    /* An optional line is quoted but not charged: the recurring clean she
+       offers for afterwards is a price the customer can say yes to later, not
+       part of the number they are accepting now. Keeping it on the quote and
+       out of the total is the whole point — added to the total it would read
+       as one bigger bill. */
+    const optional = row.optional === true || row.optional === 1 || row.optional === 'on';
+
+    return { label, description, qty, unit_price: unitPrice, total, cadence, optional };
   });
 
-  const subtotal = items.reduce((sum, it) => sum + it.total, 0);
+  if (items.every((it) => it.optional)) {
+    throw new Error('A quote needs at least one line that is not optional.');
+  }
+
+  const subtotal = items.reduce((sum, it) => sum + (it.optional ? 0 : it.total), 0);
   return { items, subtotal, tax: 0, total: subtotal };
 }
 

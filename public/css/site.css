@@ -1261,3 +1261,59 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
   display: inline-flex; align-items: center; min-height: 44px;
 }
 .landing-links__sep { color: var(--oasis-muted); }
+
+/* ---------------------------------------------------------- afterwards
+   The optional offer on a quote: priced, tickable, and visibly separate
+   from the amount being accepted. Sand rather than white so it reads as
+   an aside, not another row of the bill. */
+.later {
+  margin: 1.5rem 0 0; padding: 1.1rem; border-radius: var(--radius);
+  background: var(--oasis-sand); border: 1px solid rgba(10, 46, 68, 0.08);
+}
+.later__title {
+  margin: 0 0 0.2rem; font-size: var(--step-0); color: var(--oasis-navy);
+}
+.later__lead {
+  margin: 0 0 0.9rem; font-size: var(--step--1); line-height: 1.55;
+  color: var(--oasis-muted); max-width: 52ch;
+}
+.later__row {
+  position: relative; display: grid; gap: 0.7rem; align-items: center;
+  grid-template-columns: auto 1fr auto; padding: 0.8rem 0.9rem;
+  background: #fff; border: 2px solid rgba(10, 46, 68, 0.12);
+  border-radius: var(--radius); cursor: pointer;
+}
+.later__row + .later__row { margin-top: 0.5rem; }
+.later__row.is-static { cursor: default; grid-template-columns: 1fr auto; }
+.later__row.is-static .later__box { display: none; }
+.later__row:not(.is-static):hover { border-color: var(--oasis-sea); }
+.later__row input { position: absolute; opacity: 0; width: 0; height: 0; }
+.later__box {
+  width: 22px; height: 22px; border-radius: 6px; flex: none;
+  border: 2px solid rgba(10, 46, 68, 0.3); background: #fff;
+}
+.later__row.is-on { border-color: var(--oasis-teal); box-shadow: 0 0 0 3px rgba(39, 189, 206, 0.16); }
+.later__row.is-on .later__box { background: var(--oasis-teal); border-color: var(--oasis-teal); }
+.later__row.is-on .later__box::after {
+  content: ''; display: block; width: 6px; height: 11px; margin: 1px auto 0;
+  border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg);
+}
+.later__row input:focus-visible + .later__box { outline: 3px solid var(--oasis-sea); outline-offset: 2px; }
+.later__text { display: grid; gap: 0.15rem; min-width: 0; }
+.later__name { font-weight: 700; font-size: 0.95rem; color: var(--oasis-navy); line-height: 1.3; }
+.later__note { font-size: 0.8rem; line-height: 1.45; color: var(--oasis-muted); }
+.later__price {
+  text-align: right; font-weight: 800; font-size: 1.05rem;
+  color: var(--oasis-teal); white-space: nowrap;
+}
+.later__price small {
+  display: block; font-weight: 600; font-size: 0.68rem;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  color: var(--oasis-muted);
+}
+@media (max-width: 24rem) {
+  .later__row { grid-template-columns: auto 1fr; }
+  .later__price { grid-column: 2; text-align: left; }
+  .later__row.is-static { grid-template-columns: 1fr; }
+  .later__row.is-static .later__price { grid-column: 1; }
+}
