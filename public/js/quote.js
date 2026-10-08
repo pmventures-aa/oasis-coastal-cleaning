@@ -194,17 +194,22 @@ var state = { step: 0, leadId: null };
                    }).join('') +
                  '</div></div>';
       }).join('') +
+      /* These tick the same way the add-ons above do and sit in the same
+         step, but they were plain rows with no card around them — half the
+         tap target and a different species on the same screen. */
       (conds.length
         ? '<div class="addon-group"><p class="addon-group__name">About the home</p>' +
+          '<div class="addon-grid">' +
           conds.map(function (x) {
             var on = (state.conditions || []).indexOf(x.id) !== -1;
-            return '<label class="checkrow">' +
+            return '<label class="checkrow addon">' +
                      '<input type="checkbox" name="conditions" value="' + esc(x.id) + '"' +
                        (on ? ' checked' : '') + '>' +
-                     '<span>' + esc(x.label) +
-                       (x.note ? '<small class="muted" style="display:block">' + esc(x.note) + '</small>' : '') +
+                     '<span class="addon__body">' +
+                       '<span class="addon__label">' + esc(x.label) + '</span>' +
+                       (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
                      '</span></label>';
-          }).join('') + '</div>'
+          }).join('') + '</div></div>'
         : '');
   }
 

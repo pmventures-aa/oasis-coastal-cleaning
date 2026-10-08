@@ -585,8 +585,11 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
 .daypick__day { position: relative; }
 .daypick__day input { position: absolute; opacity: 0; pointer-events: none; }
 .daypick__day span {
-  display: block; cursor: pointer; min-width: 3.4rem; text-align: center;
-  padding: 0.6rem 0.75rem; border-radius: var(--radius-pill);
+  /* Six of these sit side by side on a phone, so each one needs the same
+     44px floor every other control on the form has. */
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; min-width: 3.4rem; min-height: 44px; text-align: center;
+  padding: 0.5rem 0.85rem; border-radius: var(--radius-pill);
   border: 1.5px solid var(--oasis-line); background: var(--oasis-white);
   font-size: var(--step--1); font-weight: 600;
   transition: border-color .15s ease, background .15s ease;
