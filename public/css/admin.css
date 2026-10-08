@@ -545,12 +545,13 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.35rem 1.5rem; align-items: start;
   }
-  /* Things that are not a label-and-a-box span the full width. */
-  .acc__in > .profile__lookup,
-  .acc__in > .profile__lookup-setup,
-  .acc__in > .acc,
-  .acc__in > p,
-  .acc__in > .lookup-hint { grid-column: 1 / -1; }
+  /* Everything spans by default and only a label-and-a-box opts into a
+     column. Listing the exceptions instead meant anything not on the list got
+     silently halved — which is what happened to the whole quote editor, a
+     full-width composite that happens to live inside an accordion. */
+  .acc__in > * { grid-column: 1 / -1; }
+  .acc__in > .pf { grid-column: auto; }
+  .acc__in > .pf--wide { grid-column: 1 / -1; }
 }
 
 .profile__foot {
@@ -945,7 +946,7 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   width: 100%; padding: 0.55rem 0.65rem; font: inherit; font-size: 0.9rem;
   line-height: 1.45; color: var(--oasis-navy); background: #fff;
   border: 1px solid rgba(10, 46, 68, 0.18); border-radius: var(--radius);
-  resize: vertical; min-height: 3.2rem;
+  resize: vertical; min-height: 5.25rem;
 }
 .qline__desc textarea:focus {
   outline: none; border-color: var(--oasis-teal);
@@ -1039,4 +1040,39 @@ input[type="number"].set__input { max-width: 9rem; }
   .settings { max-width: none; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
   .settings > .set-group:last-of-type { grid-column: 1 / -1; }
   .settings__save { grid-column: 1 / -1; }
+}
+
+/* Once the editor has room, a quote line stops being three stacked bands.
+   The name/qty/amount keep the top row; what it includes sits beside how
+   often it happens, which roughly halves the height of every line and makes
+   a three-line quote readable without scrolling. */
+@media (min-width: 900px) {
+  .qline {
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    column-gap: 1.1rem; align-items: start;
+  }
+  .qline__main { grid-column: 1 / -1; }
+  /* The button stays beside the field it fills; putting it underneath made
+     the row taller than the stacked layout it replaced. */
+  .qline__desc { margin-top: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  /* Cadence and the optional tick sit side by side; Remove tucks under them.
+     Stacked, this column was 208px against the description's 82 and set the
+     height of the whole row on its own. */
+  .qline__meta {
+    display: grid; gap: 0.5rem; margin-top: 0; align-content: start;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .qline__remove { grid-column: 1 / -1; }
+  .qline__f--cadence, .qline__f--optional { max-width: none; flex: none; }
+  .qline__remove { justify-self: start; }
+}
+
+/* The fill button is a convenience, not the point of the row. It was sand —
+   heavier than the field it fills, three times over on a three-line quote. */
+.qline__fill {
+  background: var(--oasis-white); color: var(--oasis-muted);
+  font-weight: 600; font-size: 0.76rem;
+}
+.qline__fill:hover {
+  background: var(--oasis-cream); border-color: var(--oasis-teal); color: var(--oasis-teal);
 }

@@ -562,6 +562,7 @@
       if (cn) cn.focus();
     }
     if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') { loadQuotes(state.open); }
+    growAllDesc();
   }
 
   function leadMatches(l, q) {
@@ -595,21 +596,24 @@
   }
 
   /* ---- quote builder ---- */
+  /** The "Standard note" from Settings, which had no effect anywhere. */
+  function standardNote() {
+    if (state.settings && state.settings.quote_note != null) return state.settings.quote_note;
+    return state.standardNote || '';
+  }
+
   function quoteSeedFromLead(l) {
     if (!l) return { label: 'Cleaning service', notes: '' };
     var label = l.service_label || 'Cleaning visit';
     if (l.size_label) label += ' — ' + l.size_label;
-    var noteBits = [];
-    var place = [l.address, l.city, l.zip].filter(Boolean).join(', ');
-    if (place) noteBits.push(place);
-    var beds = [];
-    if (l.bedrooms) beds.push(l.bedrooms + ' bed');
-    if (l.bathrooms) beds.push(l.bathrooms + ' bath');
-    if (beds.length) noteBits.push(beds.join(' / '));
-    if (l.property_type) noteBits.push(l.property_type);
-    var conds = list(l.conditions);
-    if (conds.length) noteBits.push('Home: ' + conds.join(', '));
-    return { label: label, notes: noteBits.join('\n') };
+    /* The note box is the customer's "A note from Kristina". It used to be
+       pre-filled with their own address, bed and bath counts and property
+       type — internal job data, handed back to them as a personal message.
+       Any of that she wants on the quote belongs in a line description; the
+       property itself is already on the lead and in the panel above this
+       editor. The standard note she set in Settings goes here instead —
+       until now nothing ever read it. */
+    return { label: label, notes: standardNote() };
   }
 
   function catalogQuoteLinesFromLead(l) {
@@ -698,6 +702,20 @@
      line description. Built from the same catalogue the tick boxes come from,
      so adding an add-on to the site adds it here too and the two can never
      tell the customer different things. */
+  /* The description is what the customer reads, so she should be able to see
+     all of it. The add-on sentence runs to six lines on a phone, and the box
+     was showing three and scrolling the rest out of sight. Capped so one long
+     line cannot push everything else off the screen. */
+  function growDesc(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight + 2, 200) + 'px';
+  }
+
+  function growAllDesc() {
+    Array.prototype.forEach.call(root.querySelectorAll('.quote-description'), growDesc);
+  }
+
   function everyAddonSentence() {
     var byGroup = {};
     var order = [];
@@ -781,7 +799,9 @@
     quote = quote || {};
     opts = opts || {};
     var standalone = opts.standalone;
-    var seed = standalone ? { label: 'Cleaning service', notes: '' } : quoteSeedFromLead(l);
+    var seed = standalone
+      ? { label: 'Cleaning service', notes: standardNote() }
+      : quoteSeedFromLead(l);
     var defaultLabel = seed.label;
     var lines = (quote.line_items && quote.line_items.length)
       ? quote.line_items
@@ -1303,6 +1323,7 @@
         return;
       }
       state.settings = r.body.settings;
+      state.standardNote = r.body.settings.quote_note || '';
       state.settingsFields = r.body.fields;
       state.health = r.body.health || {};
       state.schema = r.body.schema || {};
@@ -2158,11 +2179,13 @@
       if (box) {
         var sentence = everyAddonSentence();
         var current = box.value.trim();
+        // Grown after the value changes, below.
         // Never silently wipe what she has written, and never paste the list
         // twice because she tapped twice.
         if (current.indexOf(sentence) === -1) {
           box.value = current ? current + ' ' + sentence : sentence;
         }
+        growDesc(box);
         box.focus();
       }
       return;
@@ -2402,6 +2425,7 @@
     /* Type the digits, get the number. Reformatting on every keystroke would
        fight the caret mid-string, so it only reshapes while she is typing at
        the end — which is how a phone number is actually entered. */
+    if (e.target.matches('.quote-description')) { growDesc(e.target); }
     if (e.target.matches('[data-phone-field]')) {
       var el = e.target;
       var atEnd = el.selectionStart === el.value.length;
@@ -2541,6 +2565,14 @@
       state.propertyLookupConfigured = !!status.propertyLookupConfigured;
       state.emailConfigured = status.emailConfigured !== false;
       loadPipelineCounts();
+      /* The quote editor seeds its note from Settings, so fetch that one
+         value early. Kept apart from state.settings, which the Settings
+         screen uses to tell "still loading" from "loaded and empty". */
+      if (state.standardNote == null) {
+        api('/api/admin/settings').then(function (r) {
+          if (r.ok && r.body.settings) { state.standardNote = r.body.settings.quote_note || ''; }
+        });
+      }
 
       var qs = '?archived=' + (state.view === 'archived' ? '1' : '0');
       if (state.filter && state.view === 'active') qs += '&status=' + encodeURIComponent(state.filter);
