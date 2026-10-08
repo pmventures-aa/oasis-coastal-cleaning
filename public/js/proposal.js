@@ -18,6 +18,22 @@
     return;
   }
 
+  var BIZ = (window.OASIS && window.OASIS.business) || {};
+  var digits = function (v) { return String(v == null ? '' : v).replace(/\D/g, ''); };
+
+  /* Every one of these states told the customer to contact Kristina and then
+     gave them nothing to tap — the number is in the page footer, which is not
+     where somebody who has just declined is looking. */
+  function reachHer(lead) {
+    if (!BIZ.phone) return '';
+    var d = digits(BIZ.phone);
+    return '<p class="done__lead">' + esc(lead) + '</p>' +
+      '<p class="done__acts">' +
+        '<a class="btn btn--primary" href="sms:+1' + esc(d) + '">Text ' + esc(BIZ.phone) + '</a>' +
+        '<a class="btn btn--ghost" href="tel:+1' + esc(d) + '">Call instead</a>' +
+      '</p>';
+  }
+
   var esc = function (s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -205,6 +221,12 @@
         '<a class="btn btn--ghost btn--tiny" href="/api/proposal/' + encodeURIComponent(token) + '/pdf">' +
         'Download a PDF copy</a></p>';
 
+    /* Declared here because the accepted block below reads it. It used to be
+       declared after that block: `var` hoists the name but not the value, so
+       every customer who said yes was thanked by name with no name —
+       "Thank you, ." on the one page that matters most. */
+    var first = (q.customer_name || '').split(' ')[0] || 'there';
+
     var actions = '';
     if (status === 'sent') {
       /* Saying yes is one big button with the reasons not to worry sitting
@@ -234,17 +256,24 @@
       actions = '<div class="proposal__done proposal__done--ok">' +
         '<p class="proposal__done-k">You are booked in</p>' +
         '<p>Thank you, ' + esc(first) + '. Kristina has this and will text you shortly to agree a first date. ' +
-        'Anything you need before then, her number is below.</p></div>' +
+        'Anything you need before then:</p>' + reachHer('') + '</div>' +
         includedHtml(included) +
         laterOnHtml(laterOn, false);
     } else if (status === 'declined') {
-      actions = '<div class="proposal__done">You declined this quote. Reply to Kristina if you would like a revised one.</div>';
+      actions = '<div class="proposal__done">' +
+        '<p class="proposal__done-k">Thanks for letting her know</p>' +
+        reachHer('Nothing further to do. If the timing or the number was the problem, ' +
+          'say so and Kristina will happily send a revised quote — there is no awkwardness in it.') +
+      '</div>';
     } else if (status === 'expired') {
-      actions = '<div class="proposal__done">This quote has expired. Contact Kristina for an updated quote.</div>';
+      actions = '<div class="proposal__done">' +
+        '<p class="proposal__done-k">This quote has expired</p>' +
+        reachHer('Quotes hold for a couple of weeks so the price stays honest. ' +
+          'Ask and she will send an up-to-date one for the same work.') +
+      '</div>';
     }
     actions += download;
 
-    var first = (q.customer_name || '').split(' ')[0] || 'there';
     // Only the lines they are actually accepting set the rhythm. Reading the
     // optional recurring offer here relabelled a one-off deep clean as a
     // repeating visit while still showing the one-off price.

@@ -1391,3 +1391,9 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
   border-top: 1px solid rgba(10, 46, 68, 0.12);
   font-size: 0.84rem; line-height: 1.5; color: var(--oasis-muted);
 }
+
+/* The closing states (accepted / declined / expired) all tell the customer to
+   get in touch, so they all offer a way to. */
+.done__lead { margin: 0 0 0.9rem; line-height: 1.6; }
+.done__lead:empty { display: none; margin: 0; }
+.done__acts { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; }
