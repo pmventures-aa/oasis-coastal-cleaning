@@ -136,9 +136,13 @@ function ctaButton(label, url) {
  * title band, the caller's content rows, an optional CTA, then the footer.
  * contentHtml is one or more <tr>...</tr> rows.
  */
-function shell(env, { preheaderText, title, subtitle, contentHtml, cta }) {
+function shell(env, { preheaderText, title, subtitle, contentHtml, cta, internal = true }) {
   const base = siteBase(env);
-  const logo = `${base}/logo/logo-primary-800.png`;
+  /* Was logo-primary-800.png: 1,058,929 bytes in the header of every email,
+     to be downloaded on whatever connection the customer happens to have.
+     This is the same mark at 60KB, and a JPEG rather than a PNG because
+     every mail client on earth renders one. */
+  const logo = `${base}/print/logo-quote.jpg`;
   const year = new Date().getFullYear();
 
   return (
@@ -194,8 +198,13 @@ function shell(env, { preheaderText, title, subtitle, contentHtml, cta }) {
 
     `</table>` +
 
-    `<p style="margin:16px 0 0;font-family:${FONT_BODY};font-size:11px;color:${C.muted}">` +
-    `This is an automated notification from your website.</p>` +
+    /* Kristina's own alerts say where they came from. A customer holding a
+       quote does not need telling that "your website" sent it — it is not
+       their website, and it reads like a machine wrote the quote. */
+    (internal
+      ? `<p style="margin:16px 0 0;font-family:${FONT_BODY};font-size:11px;color:${C.muted}">` +
+        `This is an automated notification from your website.</p>`
+      : '') +
 
     `</td></tr></table></body></html>`
   );
@@ -241,6 +250,38 @@ const money = (n) => (Number.isFinite(+n) ? '$' + Math.round(+n).toLocaleString(
 
 /** Quote amounts are stored in cents — always use formatMoney for those. */
 const cents = formatMoney;
+
+/** The optional offer, priced and plainly outside the total. */
+function laterOnBlock(items) {
+  const optional = (items || []).filter((it) => it.optional);
+  if (!optional.length) return '';
+  const CAD = { weekly: 'a week', biweekly: 'two weeks', monthly: 'a month', quarterly: 'a quarter' };
+  const rows = optional.map((it) => {
+    const every = CAD[it.cadence] ? `every ${CAD[it.cadence]}` : 'per visit';
+    const price = emailAmount(it.unit_price != null ? it.unit_price : it.total);
+    return (
+      `<tr><td style="padding:8px 14px 8px 0;font-family:${FONT_BODY};font-size:14px;line-height:1.5;color:${C.ink};vertical-align:top">` +
+      `<strong>${escapeHtml(it.label)}</strong>` +
+      (it.description ? `<br><span style="color:${C.muted};font-size:12px">${escapeHtml(it.description)}</span>` : '') +
+      `</td>` +
+      `<td style="padding:8px 0;font-family:${FONT_BODY};font-size:14px;font-weight:700;color:${C.gold};text-align:right;vertical-align:top;white-space:nowrap">` +
+      `${escapeHtml(price)}<br><span style="font-size:10px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:${C.muted}">${escapeHtml(every)}</span></td></tr>`
+    );
+  }).join('');
+
+  return (
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ` +
+    `style="border-collapse:collapse;margin-top:18px;background:${C.cream};border-radius:10px">` +
+    `<tr><td style="padding:14px 16px 4px">` +
+    `<p style="margin:0;font-family:${FONT_BODY};font-size:11px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:${C.gold}">` +
+    `Afterwards, if you would like</p>` +
+    `<p style="margin:4px 0 0;font-family:${FONT_BODY};font-size:12px;line-height:1.5;color:${C.muted}">` +
+    `Optional. Not part of the total above, and nothing to decide today.</p>` +
+    `</td></tr>` +
+    `<tr><td style="padding:4px 16px 14px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">` +
+    rows + `</table></td></tr></table>`
+  );
+}
 
 /**
  * Build the "new quote request" email from a stored lead record.
@@ -369,9 +410,20 @@ export function buildFollowupEmail(env, { name, kindLabel, id }) {
 }
 
 /** Line-item table for customer-facing quote emails (amounts in cents). */
-function lineItemsTable(items, { moneyFn = cents } = {}) {
-  if (!items || !items.length) return '';
-  const rows = items.map((it, i) => {
+/* A line priced at nothing is one she is throwing in; "$0.00" in an email
+   reads as a mistake. The document and the web page both say Included. */
+const emailAmount = (c) => (Number(c) === 0 ? 'Included' : cents(c));
+
+/**
+ * The charged lines only. An optional line — the recurring visit offered for
+ * afterwards — used to sit in this table with its price in the Amount column
+ * while the total below excluded it, so the customer was shown three figures
+ * that summed to $400 under a total of $250 and no way to tell why.
+ */
+function lineItemsTable(items, { moneyFn = emailAmount } = {}) {
+  const charged = (items || []).filter((it) => !it.optional);
+  if (!charged.length) return '';
+  const rows = charged.map((it, i) => {
     const border = i === 0 ? '' : `border-top:1px solid ${C.line};`;
     const desc = it.description
       ? `<br><span style="font-weight:400;color:${C.muted};font-size:12px">${escapeHtml(it.description)}</span>`
@@ -438,6 +490,7 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
     eyebrow('Your quote') +
     lineItemsTable(items) +
     totalsBlock(quote.subtotal, quote.total) +
+    laterOnBlock(items) +
     (expiry
       ? `<p style="margin:14px 0 0;font-family:${FONT_BODY};font-size:12px;color:${C.muted}">Valid through ${escapeHtml(expiry)}</p>`
       : '') +
@@ -452,7 +505,8 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
     title: 'Your cleaning quote',
     subtitle: service,
     contentHtml: intro + quoteBody,
-    cta: { label: 'View and accept quote', url: proposalUrl }
+    cta: { label: 'View and accept quote', url: proposalUrl },
+    internal: false
   });
 
   const customerText = textShell(env, {
