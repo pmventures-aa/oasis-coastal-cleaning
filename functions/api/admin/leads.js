@@ -6,6 +6,7 @@
 import { formatPhone } from '../../_lib/format.js';
 import { json, clean, newId } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
+import { linkLead } from '../../_lib/customers.js';
 
 const STATUSES = ['new', 'contacted', 'quoted', 'booked', 'closed'];
 
@@ -132,7 +133,14 @@ export async function onRequestPost({ request, env }) {
     ).run();
 
     const row = await env.DB.prepare('SELECT * FROM leads WHERE id = ?').bind(id).first();
-    return json({ lead: row }, 201);
+    /* A job phoned in is a job: it belongs to a customer at an address just
+       as much as one typed into the website does. Only /api/quote did this,
+       so anything taken on the phone left the Clients screen with no record
+       of the address she had just written down. */
+    try { await linkLead(env.DB, row); }
+    catch (err) { console.error('Could not link phone lead to a customer:', err && err.message || err); }
+    const linked = await env.DB.prepare('SELECT * FROM leads WHERE id = ?').bind(id).first();
+    return json({ lead: linked || row }, 201);
   } catch (err) {
     return json({ error: 'Could not save lead.', detail: String(err && err.message || err) }, 503);
   }

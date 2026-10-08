@@ -644,6 +644,9 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   margin-bottom: 1rem;
   box-shadow: var(--oasis-shadow);
   overflow: hidden;
+  /* The top bar is sticky, so scrolling to the composer used to tuck its
+     heading underneath it. */
+  scroll-margin-top: 4.5rem;
 }
 .compose::before {
   content: '';
@@ -1013,8 +1016,63 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 /* Cards in a row should end level, with the buttons on the same line. */
 .ccards { align-items: stretch; }
 .ccard { display: flex; flex-direction: column; }
-.ccard__props { flex: 1 1 auto; }
-.ccard__acts { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+/* The address list used to be the growing element, so in a short card its
+   rows spread themselves down a column of empty space. The gap belongs
+   above the buttons, not inside the addresses. */
+.ccard__props { flex: 0 0 auto; align-content: start; }
+.ccard__acts { margin-top: auto; padding-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+/* ----------------------------------------------------- client profile */
+/* The head is the control that opens the profile, so it has to look and
+   behave like a button without looking like a form control. */
+.ccard__head {
+  width: 100%; appearance: none; background: none; border: 0; padding: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  display: flex; align-items: center; gap: 0.6rem;
+}
+.ccard__head:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: 3px; border-radius: 8px; }
+.ccard__h { margin: 0; font: inherit; }
+.ccard__headin { display: grid; flex: 1 1 auto; min-width: 0; }
+.ccard__name { display: block; }
+.ccard__second { display: block; }
+.ccard__icon {
+  flex: none; width: 0.45rem; height: 0.45rem;
+  border-right: 2px solid var(--oasis-muted); border-bottom: 2px solid var(--oasis-muted);
+  transform: rotate(-45deg); transition: transform 0.15s;
+}
+.ccard.is-open .ccard__icon { transform: rotate(45deg); }
+.ccard.is-open { border-color: rgba(2, 89, 95, 0.35); box-shadow: 0 2px 10px rgba(9, 64, 69, 0.08); }
+.ccard__head:hover .ccard__name { color: var(--oasis-teal); }
+
+/* An address we only know from a request, not yet saved as a property. */
+.ccard__unsaved {
+  margin-left: 0.4rem; font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--oasis-gold);
+  white-space: nowrap;
+}
+
+.cprofile { margin-top: 0.3rem; border-top: 1px solid rgba(9, 64, 69, 0.08); padding-top: 0.7rem; }
+.cprofile__notes {
+  margin: 0; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap;
+  background: var(--oasis-sand); border-radius: 10px; padding: 0.6rem 0.7rem;
+}
+.cprofile__none { margin: 0; font-size: 0.82rem; }
+
+.cwork { list-style: none; margin: 0 0 0.6rem; padding: 0; display: grid; gap: 0.35rem; }
+.cwork__row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem;
+  padding: 0.45rem 0.55rem; border-radius: 10px; background: var(--oasis-sand);
+}
+.cwork__open {
+  appearance: none; background: none; border: 0; padding: 0; font: inherit;
+  font-weight: 700; font-size: 0.86rem; color: var(--oasis-teal);
+  text-align: left; cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px; text-decoration-color: rgba(2, 89, 95, 0.3);
+}
+.cwork__open:hover { text-decoration-color: currentColor; }
+.cwork__open:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: 2px; border-radius: 4px; }
+.cwork__when { font-size: 0.76rem; margin-left: auto; white-space: nowrap; }
+.cwork__meta { flex-basis: 100%; font-size: 0.76rem; }
 
 /* Settings are a form, not an inline edit, so the fields look like fields.
    They used to borrow .pf__v, which is transparent on purpose, and only the

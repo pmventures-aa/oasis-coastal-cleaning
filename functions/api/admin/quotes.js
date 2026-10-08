@@ -5,6 +5,7 @@
  */
 import { json, clean, newId } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
+import { linkLead } from '../../_lib/customers.js';
 import {
   newToken, normalizeLineItems, quoteFromRow, defaultExpiry, logQuoteEvent, attachQuoteEvents
 } from '../../_lib/quotes.js';
@@ -85,6 +86,15 @@ export async function onRequestPost({ request, env }) {
       clean(body.property_type, 80) || null
     ).run();
     lead = { id: leadId, name: customerName, email: customerEmail };
+    /* Same reason as the phone path: a quote written from scratch is still
+       for a person at an address, and the Clients screen is where she looks
+       for them afterwards. */
+    try {
+      const fresh = await env.DB.prepare('SELECT * FROM leads WHERE id = ?').bind(leadId).first();
+      if (fresh) await linkLead(env.DB, fresh);
+    } catch (err) {
+      console.error('Could not link new-quote lead to a customer:', err && err.message || err);
+    }
   } else {
     lead = await env.DB.prepare('SELECT id, name, email FROM leads WHERE id = ?').bind(leadId).first();
     if (!lead) return json({ error: 'Lead not found.' }, 404);

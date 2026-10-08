@@ -96,4 +96,36 @@ await t('a database without the tables carries on regardless', async () => {
   assert.deepEqual(out, { customerId: null, propertyId: null }, 'no throw, no link, no lost lead');
 });
 
+await t('a job taken on the phone gets a customer and an address too', async () => {
+  const db = makeDb();
+  /* The shape /api/admin/leads writes: a name, a formatted phone, usually no
+     email, and the address she wrote down while they were talking. */
+  await linkLead(db, { id:'L1', name:'Cody', phone:'(561) 201-7123', email:'',
+    address:'12 Ocean Ave', city:'Lake Worth', zip:'33460' });
+  assert.equal(db.customers.length, 1, 'a phoned-in job is somebody');
+  assert.equal(db.properties.length, 1, 'and that somebody has the address she wrote down');
+  assert.equal(db.properties[0].address, '12 Ocean Ave');
+  assert.equal(db.leads[0].customer_id, db.customers[0].id);
+});
+
+await t('the same caller ringing back twice is still one client', async () => {
+  const db = makeDb();
+  await linkLead(db, { id:'L1', name:'Cody', phone:'(561) 201-7123', email:'', address:'12 Ocean Ave', city:'Lake Worth' });
+  await linkLead(db, { id:'L2', name:'Cody J', phone:'561-201-7123', email:'', address:'12 Ocean Ave.', city:'Lake Worth' });
+  assert.equal(db.customers.length, 1);
+  assert.equal(db.properties.length, 1, 'and one address, not two');
+});
+
+await t('every route that writes a lead also links it', async () => {
+  /* The portal wrote leads from three places and only one of them created a
+     customer, so anything taken on the phone or started from New Quote never
+     reached the Clients screen. */
+  const fs = await import('node:fs/promises');
+  for (const f of ['functions/api/quote.js', 'functions/api/admin/leads.js', 'functions/api/admin/quotes.js']) {
+    const src = await fs.readFile(new URL('../' + f, import.meta.url), 'utf8');
+    if (!/INSERT INTO leads/i.test(src)) continue;
+    assert.match(src, /linkLead\s*\(/, f + ' inserts a lead without linking it to a customer');
+  }
+});
+
 console.log('\n' + n + ' customer-model cases passed');

@@ -65,9 +65,33 @@ export async function onRequestGet({ request, env }) {
       (byCustomer[p.customer_id] = byCustomer[p.customer_id] || []).push(p);
     });
 
+    /* The screen is meant to answer "who is this and what have we done for
+       them", and the answer lives in their requests. Counts alone sent her
+       back to the Requests tab to find out what the two quotes were for.
+       The address comes too: a client whose request has an address but no
+       property row read as "no addresses recorded", which is not true. */
+    const work = await env.DB.prepare(
+      `SELECT l.id, l.customer_id, l.property_id, l.created_at, l.status,
+              l.service_label, l.service, l.address, l.city, l.zip, l.frequency,
+              (SELECT COUNT(*) FROM quotes q WHERE q.lead_id = l.id) AS quote_count,
+              (SELECT MAX(q.total) FROM quotes q WHERE q.lead_id = l.id AND q.accepted_at IS NOT NULL) AS accepted_total
+         FROM leads l
+        WHERE l.customer_id IN (${marks}) AND l.archived_at IS NULL
+        ORDER BY l.created_at DESC`
+    ).bind(...ids).all();
+
+    const workBy = {};
+    (work.results || []).forEach((l) => {
+      (workBy[l.customer_id] = workBy[l.customer_id] || []).push(l);
+    });
+
     return json({
       ok: true,
-      customers: customers.map((c) => ({ ...c, properties: byCustomer[c.id] || [] }))
+      customers: customers.map((c) => ({
+        ...c,
+        properties: byCustomer[c.id] || [],
+        requests: workBy[c.id] || []
+      }))
     });
   } catch (err) {
     return json({ error: 'Could not load customers.', detail: String(err && err.message || err) }, 503);

@@ -41,17 +41,23 @@
     leads: [], counts: {}, q: '', quotes: {}, composing: false, composingLead: false,
     focusQuoteEditor: null, editingQuote: {}, settings: null, settingsFields: [], health: {},
     pipeline: null, pipelineCounts: {}, clients: null, schema: null,
-    propertyLookupConfigured: null, emailConfigured: true
+    propertyLookupConfigured: null, emailConfigured: true,
+    openClient: null, composeFor: null
   };
 
   var OASIS = window.OASIS || {};
 
-  function oasisCities() {
+  function oasisCities(keep) {
     var cities = [''];
     (OASIS.areas || []).forEach(function (g) {
       (g.cities || []).forEach(function (c) { if (cities.indexOf(c) === -1) cities.push(c); });
     });
     if (cities.indexOf('Somewhere else') === -1) cities.push('Somewhere else');
+    /* A city we already hold — "Lake Worth" where the list says "Lake Worth
+       Beach", or a town outside the service area — is not in the list, and a
+       select silently drops a value it has no option for. That is how a
+       prefilled address lost its city on the way into the form. */
+    if (keep && cities.indexOf(keep) === -1) { cities.splice(1, 0, keep); }
     return cities;
   }
 
@@ -453,7 +459,7 @@
           '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft from this address</button>' +
           '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
         '</div>' + lookupHint +
-        field('City', 'city', l.city, { options: oasisCities() }) +
+        field('City', 'city', l.city, { options: oasisCities(l.city) }) +
         field('Type', 'property_type', l.property_type, { options: oasisPropertyTypes() }) +
         field('Size', 'size_label', l.size_label) +
         field('Bedrooms', 'bedrooms', l.bedrooms) + field('Bathrooms', 'bathrooms', l.bathrooms) +
@@ -850,6 +856,10 @@
     quote = quote || {};
     opts = opts || {};
     var standalone = opts.standalone;
+    /* Prefill for a quote started from a client card: she already has the
+       person on screen, so retyping their name and address is work for
+       nothing. Empty for the plain New Quote button. */
+    var pre = opts.prefill || {};
     var seed = standalone
       ? { label: 'Cleaning service', notes: standardNote() }
       : quoteSeedFromLead(l);
@@ -871,22 +881,26 @@
             esc(nameParts.last) + '"></label>' +
           '<label class="pf"><span class="pf__k">Email</span><input class="pf__v quote-email" type="email" placeholder="name@email.com" value="' +
             esc(quote.customer_email || '') + '"></label>' +
-          '<label class="pf"><span class="pf__k">Phone</span><input class="pf__v quote-phone" type="tel" placeholder="Optional" value=""></label>' +
+          '<label class="pf"><span class="pf__k">Phone</span><input class="pf__v quote-phone" type="tel" placeholder="Optional" value="' +
+            esc(pre.phone || '') + '"></label>' +
         '</div>' +
         '<p class="cgroup__k">Where the job is</p>' +
         '<div class="profile__grid compose__customer">' +
           '<label class="pf"><span class="pf__k">ZIP</span>' +
-            '<input class="pf__v quote-zip" type="text" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="5-digit ZIP" maxlength="10"></label>' +
+            '<input class="pf__v quote-zip" type="text" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="5-digit ZIP" maxlength="10" value="' +
+              esc(pre.zip || '') + '"></label>' +
           '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
             '<div class="addr-suggest__wrap">' +
-              '<input class="pf__v quote-address" type="text" data-address-suggest autocomplete="off" disabled ' +
-                'placeholder="Enter ZIP first">' +
+              '<input class="pf__v quote-address" type="text" data-address-suggest autocomplete="off"' +
+                (pre.zip ? '' : ' disabled') + ' placeholder="' + (pre.zip ? 'Street address' : 'Enter ZIP first') +
+                '" value="' + esc(pre.address || '') + '">' +
               '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
             '</div>' +
             '<span class="addr-suggest__hint">ZIP first, then street — suggestions stay in that ZIP</span></label>' +
           '<label class="pf"><span class="pf__k">City</span><select class="pf__v quote-city">' +
-            oasisCities().map(function (c) {
-              return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
+            oasisCities(pre.city).map(function (c) {
+              return '<option value="' + esc(c) + '"' +
+                (pre.city && c === pre.city ? ' selected' : '') + '>' + esc(c || '—') + '</option>';
             }).join('') + '</select></label>' +
           '<label class="pf"><span class="pf__k">Service</span><input class="pf__v quote-service" type="text" placeholder="What the job is" value=""></label>' +
         '</div>' +
@@ -900,13 +914,13 @@
           '<p class="profile__lookup-msg" data-compose-lookup-msg hidden></p>' +
           '<div class="profile__grid">' +
             '<label class="pf"><span class="pf__k">Bedrooms</span>' +
-              '<input class="pf__v quote-bedrooms" type="text" inputmode="numeric" placeholder="—"></label>' +
+              '<input class="pf__v quote-bedrooms" type="text" inputmode="numeric" placeholder="—" value="' + esc(pre.bedrooms || '') + '"></label>' +
             '<label class="pf"><span class="pf__k">Bathrooms</span>' +
-              '<input class="pf__v quote-bathrooms" type="text" inputmode="decimal" placeholder="—"></label>' +
+              '<input class="pf__v quote-bathrooms" type="text" inputmode="decimal" placeholder="—" value="' + esc(pre.bathrooms || '') + '"></label>' +
             '<label class="pf"><span class="pf__k">Size</span>' +
-              '<input class="pf__v quote-size" type="text" placeholder="e.g. 1,850 sq ft"></label>' +
+              '<input class="pf__v quote-size" type="text" placeholder="e.g. 1,850 sq ft" value="' + esc(pre.size_label || '') + '"></label>' +
             '<label class="pf"><span class="pf__k">Property</span>' +
-              '<input class="pf__v quote-property-type" type="text" placeholder="House, condo, office"></label>' +
+              '<input class="pf__v quote-property-type" type="text" placeholder="House, condo, office" value="' + esc(pre.property_type || '') + '"></label>' +
           '</div>' +
         '</div>'
       : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
@@ -1018,15 +1032,31 @@
   }
 
   function newQuotePanelHtml() {
+    var c = state.composeFor;
+    /* Started from a client card: their name, their number and the address
+       we already hold are in the form before she types anything. The first
+       address is used, and she can change it — a client with six rentals
+       picks the right one in the field. */
+    var place = c ? clientPlaces(c)[0] || {} : {};
+    var pre = c ? {
+      phone: FMT.formatPhone(c.phone) || c.phone || '', address: place.address || '', city: place.city || '',
+      zip: place.zip || '', bedrooms: place.bedrooms || '', bathrooms: place.bathrooms || '',
+      size_label: place.size_label || '', property_type: place.property_type || ''
+    } : {};
+    var quote = c ? { customer_name: c.name || c.company || '', customer_email: c.email || '' } : {};
+
     return '<section class="compose" aria-labelledby="compose-title">' +
       '<div class="compose__head">' +
         '<div class="compose__titles">' +
-          '<h2 id="compose-title" class="compose__title">New Quote</h2>' +
-          '<p class="compose__sub muted">Price and send now — also saves a customer card.</p>' +
+          '<h2 id="compose-title" class="compose__title">' +
+            (c ? 'New quote for ' + esc(c.company || c.name) : 'New Quote') + '</h2>' +
+          '<p class="compose__sub muted">' +
+            (c ? 'Their details are filled in. Change anything that is not right for this job.'
+               : 'Price and send now — also saves a customer card.') + '</p>' +
         '</div>' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-close-compose>Cancel</button>' +
       '</div>' +
-      quoteEditorHtml(null, {}, { standalone: true }) +
+      quoteEditorHtml(null, quote, { standalone: true, prefill: pre }) +
     '</section>';
   }
 
@@ -1506,34 +1536,131 @@
     }).join('') + '</p>';
   }
 
+  /* Every address we know for this client. Property rows are the real
+     record, but a request carries an address too — and until the portal
+     started linking phoned-in jobs, those never became property rows. A
+     client whose request plainly had an address was reading "No addresses
+     recorded yet", so any address only a request knows about is shown as
+     well, marked for what it is. */
+  function clientPlaces(c) {
+    var out = (c.properties || []).map(function (p) {
+      return {
+        id: p.id, label: p.label, address: p.address, city: p.city, zip: p.zip,
+        bedrooms: p.bedrooms, bathrooms: p.bathrooms, size_label: p.size_label,
+        property_type: p.property_type, saved: true
+      };
+    });
+    var key = function (v) {
+      return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    };
+    var seen = {};
+    out.forEach(function (p) { if (key(p.address)) seen[key(p.address)] = true; });
+    (c.requests || []).forEach(function (l) {
+      var k = key(l.address);
+      if (!l.address || seen[k]) return;
+      seen[k] = true;
+      out.push({ address: l.address, city: l.city, zip: l.zip, saved: false });
+    });
+    return out;
+  }
+
+  function placeLine(p) {
+    return [p.label, p.address, [p.city, p.zip].filter(Boolean).join(' ')]
+      .filter(Boolean).join(' · ');
+  }
+
+  function placeSize(p) {
+    return [p.bedrooms && p.bedrooms + ' bed', p.bathrooms && p.bathrooms + ' bath',
+            p.size_label, p.property_type].filter(Boolean).join(' · ');
+  }
+
+  function clientPlacesHtml(places) {
+    if (!places.length) {
+      return '<p class="muted ccard__props-empty">No address yet. Add one, or it arrives with their next request.</p>';
+    }
+    return '<ul class="ccard__props">' + places.map(function (p) {
+      var size = placeSize(p);
+      return '<li><strong>' + esc(placeLine(p) || 'Address not filled in yet') + '</strong>' +
+        (size ? '<span class="muted"> — ' + esc(size) + '</span>' : '') +
+        (p.saved ? '' : '<span class="ccard__unsaved">from a request</span>') +
+      '</li>';
+    }).join('') + '</ul>';
+  }
+
+  /* What has actually happened for this person, newest first. This is the
+     thing the screen was missing: a tile with two counts on it and no way
+     to see what they were for. */
+  function clientWorkHtml(c) {
+    var reqs = c.requests || [];
+    if (!reqs.length) {
+      return '<p class="muted cprofile__none">Nothing requested yet.</p>';
+    }
+    return '<ul class="cwork">' + reqs.slice(0, 12).map(function (l) {
+      var qc = Number(l.quote_count || 0);
+      var bits = [];
+      if (l.frequency) bits.push(l.frequency);
+      if (qc) bits.push(qc === 1 ? '1 quote' : qc + ' quotes');
+      if (l.accepted_total) bits.push(money(l.accepted_total) + ' accepted');
+      return '<li class="cwork__row">' +
+        '<button type="button" class="cwork__open" data-open-request="' + esc(l.id) + '">' +
+          esc(l.service_label || l.service || 'Request') + '</button>' +
+        pill(l.status || 'new') +
+        '<span class="cwork__when muted">' + esc(when(l.created_at)) + '</span>' +
+        (bits.length ? '<span class="cwork__meta muted">' + esc(bits.join(' · ')) + '</span>' : '') +
+      '</li>';
+    }).join('') + '</ul>' +
+    (reqs.length > 12 ? '<p class="muted cprofile__none">and ' + (reqs.length - 12) + ' older</p>' : '');
+  }
+
   function clientCard(c) {
-    var props = c.properties || [];
+    var places = clientPlaces(c);
     var name = c.company ? c.company : c.name;
     var second = c.company && c.name && c.company !== c.name ? c.name : '';
+    var open = state.openClient === c.id;
 
-    return '<article class="ccard" data-customer-id="' + esc(c.id) + '">' +
-      '<div class="ccard__head">' +
-        '<div><h3 class="ccard__name">' + esc(name) + '</h3>' +
-          (second ? '<p class="muted ccard__second">' + esc(second) + '</p>' : '') + '</div>' +
-        '<span class="ccard__count">' + props.length +
-          (props.length === 1 ? ' address' : ' addresses') + '</span>' +
-      '</div>' +
+    return '<article class="ccard' + (open ? ' is-open' : '') + '" data-customer-id="' + esc(c.id) + '">' +
+      /* The name stays a heading so the list is still navigable by heading,
+         and the button inside it is what opens the profile. */
+      '<h3 class="ccard__h">' +
+        '<button type="button" class="ccard__head" data-open-client="' + esc(c.id) + '" ' +
+          'aria-expanded="' + (open ? 'true' : 'false') + '">' +
+          '<span class="ccard__icon" aria-hidden="true"></span>' +
+          '<span class="ccard__headin">' +
+            '<span class="ccard__name">' + esc(name) + '</span>' +
+            (second ? '<span class="muted ccard__second">' + esc(second) + '</span>' : '') +
+          '</span>' +
+          '<span class="ccard__count">' + (places.length || 'No') +
+            (places.length === 1 ? ' address' : ' addresses') +
+            '</span>' +
+        '</button>' +
+      '</h3>' +
+
       '<p class="ccard__reach">' +
         (c.phone ? '<a href="' + esc(FMT.telHref(c.phone)) + '">' + esc(FMT.formatPhone(c.phone)) + '</a>' : '') +
         (c.phone && c.email ? '<span class="muted"> · </span>' : '') +
         (c.email ? '<a href="mailto:' + esc(c.email) + '">' + esc(c.email) + '</a>' : '') +
+        (c.best_time ? '<span class="muted"> · best ' + esc(c.best_time) + '</span>' : '') +
       '</p>' +
-      (props.length
-        ? '<ul class="ccard__props">' + props.map(function (p) {
-            var line = [p.label, p.address, p.city].filter(Boolean).join(' · ');
-            var size = [p.bedrooms && p.bedrooms + ' bed', p.bathrooms && p.bathrooms + ' bath', p.size_label]
-              .filter(Boolean).join(' · ');
-            return '<li><strong>' + esc(line || 'Address not filled in yet') + '</strong>' +
-              (size ? '<span class="muted"> — ' + esc(size) + '</span>' : '') + '</li>';
-          }).join('') + '</ul>'
-        : '<p class="muted ccard__props-empty">No addresses recorded yet.</p>') +
+
+      clientPlacesHtml(open ? places : places.slice(0, 2)) +
+      (!open && places.length > 2
+        ? '<p class="muted ccard__props-empty">and ' + (places.length - 2) + ' more</p>' : '') +
       statsRow(c) +
+
+      (open
+        ? '<div class="cprofile">' +
+            '<p class="cgroup__k">Their work</p>' +
+            clientWorkHtml(c) +
+            (c.notes ? '<p class="cgroup__k">Notes</p><p class="cprofile__notes">' + esc(c.notes) + '</p>' : '') +
+            '<p class="cgroup__k">Since</p>' +
+            '<p class="muted cprofile__none">First seen ' + esc(fullDate(c.created_at)) + '.' +
+              (c.last_paid_at ? ' Last payment ' + esc(when(c.last_paid_at)) + '.' : '') + '</p>' +
+          '</div>'
+        : '') +
+
       '<div class="ccard__acts">' +
+        '<button type="button" class="btn btn--primary btn--tiny" data-quote-client="' + esc(c.id) + '">' +
+          'Start a quote</button>' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-client-work="' + esc(c.name || '') + '">' +
           'See their requests</button>' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-add-property="' + esc(c.id) + '">' +
@@ -2002,6 +2129,7 @@
     if (!editor.dataset.standalone) return false;
     var leadId = r.body.lead_id || (r.body.quote && r.body.quote.lead_id);
     state.composing = false;
+    state.composeFor = null;
     if (leadId) {
       state.open = leadId;
       state.leadTab[leadId] = 'quotes';
@@ -2057,6 +2185,7 @@
           if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Send failed.', false); return; }
           if (editor.dataset.standalone) {
             state.composing = false;
+            state.composeFor = null;
             state.open = leadId;
             state.leadTab[leadId] = 'quotes';
             load();
@@ -2160,7 +2289,7 @@
     if (hit.matches('[data-view]')) {
       state.view = hit.dataset.view;
       state.filter = ''; state.followup = false; state.open = null;
-      state.composing = false; state.composingLead = false;
+      state.composing = false; state.composingLead = false; state.composeFor = null;
       if (state.view === 'settings') { render(); loadSettings(); return; }
       if (state.view === 'clients') { loadClients(); return; }
       if (STAGE_FOR_VIEW[state.view]) { loadPipeline(state.view); return; }
@@ -2196,10 +2325,12 @@
     }
     if (hit.matches('[data-new-quote]')) {
       state.composing = true; state.composingLead = false; state.open = null;
+      state.composeFor = null;
       render(); return;
     }
     if (hit.matches('[data-close-compose]')) {
       state.composing = false;
+      state.composeFor = null;
       render(); return;
     }
     if (hit.matches('[data-start-quote]')) {
@@ -2264,6 +2395,40 @@
       var row = hit.closest('.qline');
       var editor = hit.closest('.quote-editor');
       if (editor.querySelectorAll('.qline').length > 1) { row.remove(); updateQuoteTotal(editor); }
+      return;
+    }
+    if (hit.matches('[data-open-client]')) {
+      var cid = hit.getAttribute('data-open-client');
+      state.openClient = state.openClient === cid ? null : cid;
+      render();
+      return;
+    }
+    /* "Start a quote" from the person it is for. Before this the only way in
+       was the New Quote button on another tab, which starts empty — so she
+       retyped a name, a phone and an address the screen was already showing. */
+    if (hit.matches('[data-quote-client]')) {
+      var qc = (state.clients && state.clients.customers || []).filter(function (c) {
+        return c.id === hit.getAttribute('data-quote-client');
+      })[0];
+      if (!qc) return;
+      state.composeFor = qc;
+      state.composing = true;
+      state.composingLead = false;
+      state.open = null;
+      state.view = 'active';
+      render();
+      var panel = document.querySelector('.compose');
+      if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    /* A request listed under a client opens where requests live, rather than
+       being rebuilt a second time inside the client profile. */
+    if (hit.matches('[data-open-request]')) {
+      state.clientQ = '';
+      state.q = '';
+      state.view = 'active';
+      state.open = hit.getAttribute('data-open-request');
+      load();
       return;
     }
     /* Takes her to the requests list filtered to this person, rather than
