@@ -362,18 +362,60 @@
     '<p class="note" style="margin-top:1.5rem">' + esc(D.bundleNote) + '</p>';
   }
 
+  /* Most people open this page to answer one question — "do you come to my
+     town?" — and then read 60-odd names looking for it. The box answers it
+     for them; without JS the full lists are still there. */
   function renderAreas(el) {
     el.className = 'stack';
-    el.innerHTML = D.areas.map(function (a) {
-      return '<section class="card area-card" id="' + esc(a.id) + '">' +
-               '<span class="county">' + esc(a.county) + '</span>' +
-               '<h3>' + esc(a.name) + '</h3>' +
-               '<p>' + esc(a.note) + '</p>' +
-               '<ul class="arealist">' +
-                 a.cities.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') +
-               '</ul>' +
-             '</section>';
-    }).join('');
+    el.innerHTML =
+      '<form class="townfind" role="search" onsubmit="return false">' +
+        '<label for="townfind">Find your town</label>' +
+        '<input id="townfind" type="search" autocomplete="off" ' +
+          'placeholder="Start typing — Delray, Jupiter, Weston&hellip;">' +
+        '<p class="townfind__said" role="status" aria-live="polite"></p>' +
+      '</form>' +
+      D.areas.map(function (a) {
+        /* Two groups are named after their own county, and printing the
+           county above the name read like a rendering bug. */
+        var sameName = String(a.county).toLowerCase() === String(a.name).toLowerCase();
+        return '<section class="card area-card" id="' + esc(a.id) + '">' +
+                 (sameName ? '' : '<span class="county">' + esc(a.county) + '</span>') +
+                 '<h3>' + esc(a.name) + '</h3>' +
+                 '<p>' + esc(a.note) + '</p>' +
+                 '<ul class="arealist">' +
+                   a.cities.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') +
+                 '</ul>' +
+               '</section>';
+      }).join('');
+
+    var box = el.querySelector('#townfind');
+    var said = el.querySelector('.townfind__said');
+    var cards = [].slice.call(el.querySelectorAll('.area-card'));
+
+    function filter() {
+      var q = box.value.trim().toLowerCase();
+      var found = 0, where = '';
+      cards.forEach(function (card) {
+        var hits = 0;
+        [].slice.call(card.querySelectorAll('.arealist li')).forEach(function (li) {
+          var on = !q || li.textContent.toLowerCase().indexOf(q) !== -1;
+          li.hidden = !on;
+          li.classList.toggle('is-hit', !!q && on);
+          if (on) { hits++; }
+        });
+        card.hidden = !!q && hits === 0;
+        if (q && hits) { found += hits; where = card.querySelector('h3').textContent; }
+      });
+      el.classList.toggle('is-filtered', !!q);
+      if (!q) { said.textContent = ''; said.className = 'townfind__said'; return; }
+      said.className = 'townfind__said ' + (found ? 'is-yes' : 'is-no');
+      said.textContent = found
+        ? (found === 1 ? 'Yes — we clean there. It is in ' + where + '.'
+                       : 'Yes — ' + found + ' towns on the list match. They are the ones left below.')
+        : 'That one is not on the list. Routes shift as the schedule fills, so ask anyway — the worst answer is not yet.';
+    }
+
+    box.addEventListener('input', filter);
   }
 
   function renderAreaSummary(el) {

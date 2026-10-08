@@ -246,6 +246,39 @@ body { padding-bottom: 4.75rem; }
 }
 .area-card p { margin: 0.4rem 0 0; color: var(--oasis-muted); font-size: var(--step--1); }
 
+/* ------------------------------------------------------- find your town */
+.townfind {
+  background: var(--oasis-white); border: 1px solid rgba(2, 89, 95, 0.14);
+  border-radius: var(--radius); padding: clamp(1rem, 2.2vw, 1.35rem);
+  box-shadow: 0 1px 2px rgba(10, 40, 45, 0.05);
+}
+.townfind label {
+  display: block; font-size: 0.7rem; font-weight: 700;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  color: var(--oasis-teal); margin-bottom: 0.5rem;
+}
+.townfind input[type="search"] {
+  width: 100%; font: inherit; font-size: var(--step-0); color: var(--oasis-ink);
+  background: var(--oasis-cream); border: 1px solid rgba(2, 89, 95, 0.22);
+  border-radius: calc(var(--radius) * 0.6); padding: 0.7rem 0.9rem;
+  min-height: 48px; -webkit-appearance: none; appearance: none;
+}
+.townfind input[type="search"]::placeholder { color: var(--oasis-muted); }
+.townfind input[type="search"]:focus-visible {
+  outline: 2px solid var(--oasis-gold); outline-offset: 2px;
+  border-color: var(--oasis-teal); background: var(--oasis-white);
+}
+.townfind__said { margin: 0.7rem 0 0; font-size: var(--step--1); line-height: 1.5; }
+.townfind__said:empty { display: none; }
+.townfind__said.is-yes { color: var(--oasis-teal); font-weight: 600; }
+.townfind__said.is-no { color: var(--oasis-ink); }
+
+/* While filtering, the surviving names are the point — make them readable
+   as a short list rather than three sparse columns. */
+.is-filtered .arealist { columns: 1; }
+.arealist li.is-hit { font-weight: 600; color: var(--oasis-teal); }
+.arealist li.is-hit::before { background: var(--oasis-gold); }
+
 /* ---------------------------------------------------------------------- faq */
 .faq details {
   border-bottom: 1px solid var(--oasis-line); padding: 0.35rem 0;
