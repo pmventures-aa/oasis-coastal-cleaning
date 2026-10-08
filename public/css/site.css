@@ -1189,8 +1189,13 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
   margin: clamp(1.4rem, 4vw, 2rem) clamp(1.25rem, 4vw, 2.25rem) 0.6rem;
   font-size: 0.78rem; letter-spacing: var(--tracking-caps); color: var(--oasis-teal);
 }
+/* Everything that belongs to the bill sits in the same column. The two
+   asides were built after this list and never joined it, so they ran flush
+   to the card edge with their rounded corners cut off by it, while the
+   table they explain was inset. */
 .proposal__table-wrap, .proposal__totals, .proposal__valid,
-.proposal__note, .proposal__terms, .proposal__done, .proposal__download {
+.proposal__note, .proposal__terms, .proposal__done, .proposal__download,
+.asked, .later {
   margin-left: clamp(1.25rem, 4vw, 2.25rem);
   margin-right: clamp(1.25rem, 4vw, 2.25rem);
 }
@@ -1353,7 +1358,9 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
    from the amount being accepted. Sand rather than white so it reads as
    an aside, not another row of the bill. */
 .later {
-  margin: 1.5rem 0 0; padding: 1.1rem; border-radius: var(--radius);
+  /* margin-top only — the left and right insets come from the shared rule
+     that puts everything belonging to the bill in one column. */
+  margin-top: 1.5rem; padding: 1.1rem; border-radius: var(--radius);
   background: var(--oasis-sand); border: 1px solid rgba(10, 46, 68, 0.08);
 }
 .later__title {
@@ -1371,6 +1378,8 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
 }
 .later__row + .later__row { margin-top: 0.5rem; }
 .later__row.is-static { cursor: default; grid-template-columns: 1fr auto; }
+.later__ask { margin: 0.8rem 0 0; font-size: var(--step--1); line-height: 1.5; color: var(--oasis-navy); }
+.later__ask a { font-weight: 700; color: var(--oasis-teal); }
 .later__row.is-static .later__box { display: none; }
 .later__row:not(.is-static):hover { border-color: var(--oasis-sea); }
 .later__row input { position: absolute; opacity: 0; width: 0; height: 0; }
@@ -1408,7 +1417,7 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
    What they ticked in the wizard, said back to them. Without this the same
    items reappeared under the extras and read as a second charge. */
 .asked {
-  margin: 1.25rem 0 0; padding: 0.95rem 1.05rem;
+  margin-top: 1.25rem; padding: 0.95rem 1.05rem;
   background: rgba(39, 189, 206, 0.07);
   border: 1px solid rgba(39, 189, 206, 0.28);
   border-radius: var(--radius);

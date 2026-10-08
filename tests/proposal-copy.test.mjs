@@ -41,3 +41,22 @@ test('every closing state offers a way to reach her', async (t) => {
     assert.match(src, /href="tel:\+1'/);
   });
 });
+
+test('the banner does not contradict the state of the quote', async (t) => {
+  await t.test('an accepted quote stops offering itself', () => {
+    /* "Hi Maria — here is your quote" sat above "You are booked in". */
+    const banner = src.slice(src.indexOf('proposal__hello'), src.indexOf('proposal__for'));
+    assert.match(banner, /status === 'accepted'/, 'the greeting reads the status');
+    assert.match(banner, /you are booked in/);
+    assert.match(banner, /here is your quote/);
+  });
+
+  await t.test('the optional offer can still be asked for after accepting', () => {
+    /* The tick box is gone once the quote is answered, so without a way to
+       reach her the panel described something unorderable. */
+    const later = src.slice(src.indexOf('function laterOnHtml'), src.indexOf('function renderQuote'));
+    assert.match(later, /later__ask/);
+    assert.match(later, /!live/, 'it appears only when the row is no longer tickable');
+    assert.match(later, /sms:\+1/, 'and it is a tap, not an instruction to find the number');
+  });
+});

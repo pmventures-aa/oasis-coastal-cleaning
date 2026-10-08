@@ -180,6 +180,12 @@
             '</label>'
           : '<div class="later__row is-static">' + inner + '</div>';
       }).join('') +
+      /* Once the quote is accepted the tick box is gone, and without this the
+         panel described something the customer had no way to ask for. */
+      (!live && BIZ.phone
+        ? '<p class="later__ask">Changed your mind about this? ' +
+            '<a href="sms:+1' + esc(digits(BIZ.phone)) + '">Text Kristina</a> and she will set it up.</p>'
+        : '') +
     '</section>';
   }
 
@@ -287,7 +293,10 @@
            a table header first. */
         '<div class="proposal__banner">' +
           '<img src="/logo/logo-260.webp" width="120" height="120" alt="Oasis Coastal Cleaning" class="proposal__logo">' +
-          '<p class="proposal__hello">Hi ' + esc(first) + ' — here is your quote</p>' +
+          '<p class="proposal__hello">Hi ' + esc(first) + ' — ' +
+            (status === 'accepted' ? 'you are booked in'
+              : status === 'sent' ? 'here is your quote'
+              : 'your quote') + '</p>' +
           '<p class="proposal__for">' +
             esc(q.service_label || 'Cleaning') + (q.city ? ' in ' + esc(q.city) : '') +
           '</p>' +
