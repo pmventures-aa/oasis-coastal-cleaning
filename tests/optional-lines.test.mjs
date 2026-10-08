@@ -68,3 +68,35 @@ test('optional lines stay out of the total', async (t) => {
     assert.equal(q.items[0].optional, false);
   });
 });
+
+/* The add-on sentence is what the customer reads to understand what $250
+   buys, so it has to survive storage intact. */
+test('the add-on description', async (t) => {
+  const SENTENCE = 'Every add-on included — refrigerator, oven, microwave, dishes, cabinet cleaning; ' +
+    'bed making, laundry, trash removal, dusting blinds, wall washing; interior window, ' +
+    'exterior window; closet organization, cabinet organization.';
+
+  await t.test('fits well inside the stored limit, so nothing is cut off', () => {
+    assert.ok(SENTENCE.length < 400, `${SENTENCE.length} chars`);
+    const q = normalizeLineItems([{ ...DEEP, description: SENTENCE }]);
+    assert.equal(q.items[0].description, SENTENCE, 'stored whole');
+  });
+
+  await t.test('names all fourteen add-ons', () => {
+    for (const a of ['refrigerator', 'oven', 'microwave', 'dishes', 'cabinet cleaning',
+                     'bed making', 'laundry', 'trash removal', 'dusting blinds', 'wall washing',
+                     'interior window', 'exterior window', 'closet organization', 'cabinet organization']) {
+      assert.ok(SENTENCE.includes(a), `missing: ${a}`);
+    }
+  });
+
+  await t.test('an over-long description is cut rather than rejected', () => {
+    const q = normalizeLineItems([{ ...DEEP, description: 'x'.repeat(900) }]);
+    assert.equal(q.items[0].description.length, 400);
+  });
+
+  await t.test('no description is simply empty, never the string undefined', () => {
+    const q = normalizeLineItems([DEEP]);
+    assert.equal(q.items[0].description, '');
+  });
+});

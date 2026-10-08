@@ -616,6 +616,14 @@
             esc(price) + '">' +
           '</span></label>' +
       '</div>' +
+      '<div class="qline__desc">' +
+        '<label class="qline__f"><span>What it includes <i>(the customer reads this)</i></span>' +
+          '<textarea class="quote-description" rows="2" ' +
+            'placeholder="Anything worth spelling out — what is covered, what is not.">' +
+            esc(line.description || '') + '</textarea></label>' +
+        '<button type="button" class="qline__fill" data-fill-addons>' +
+          'Include every add-on</button>' +
+      '</div>' +
       '<div class="qline__meta">' +
         '<label class="qline__f qline__f--cadence"><span>How often</span>' +
           '<select class="quote-cadence">' +
@@ -632,6 +640,26 @@
         '<button type="button" class="qline__remove" data-remove-line ' +
           'aria-label="Remove this line">Remove</button>' +
       '</div></div>';
+  }
+
+  /* The add-on list the customer is shown, written out as a sentence for the
+     line description. Built from the same catalogue the tick boxes come from,
+     so adding an add-on to the site adds it here too and the two can never
+     tell the customer different things. */
+  function everyAddonSentence() {
+    var byGroup = {};
+    var order = [];
+    (CATALOG.addOns || []).forEach(function (a) {
+      var g = a.group || 'Included';
+      if (!byGroup[g]) { byGroup[g] = []; order.push(g); }
+      // The catalogue labels carry a parenthetical for the admin's benefit
+      // ("Oven (inside)"); the customer wants the plain thing.
+      byGroup[g].push(a.label.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase());
+    });
+    if (!order.length) return '';
+    return 'Every add-on included \u2014 ' + order.map(function (g) {
+      return byGroup[g].join(', ');
+    }).join('; ') + '.';
   }
 
   function catalogSections() {
@@ -1660,6 +1688,7 @@
       line_items: Array.prototype.map.call(editor.querySelectorAll('.qline'), function (row) {
         return {
           label: row.querySelector('.quote-label').value,
+          description: (row.querySelector('.quote-description') || {}).value || '',
           qty: row.querySelector('.quote-qty').value,
           unit_dollars: row.querySelector('.quote-price').value,
           cadence: (row.querySelector('.quote-cadence') || {}).value || 'onetime',
@@ -1950,6 +1979,21 @@
     }
     if (e.target.matches('[data-run-setup]')) { runSetup(e.target); return; }
     if (e.target.matches('[data-save-settings]')) { saveSettingsFromForm(); return; }
+    if (e.target.matches('[data-fill-addons]')) {
+      var frow = e.target.closest('.qline');
+      var box = frow && frow.querySelector('.quote-description');
+      if (box) {
+        var sentence = everyAddonSentence();
+        var current = box.value.trim();
+        // Never silently wipe what she has written, and never paste the list
+        // twice because she tapped twice.
+        if (current.indexOf(sentence) === -1) {
+          box.value = current ? current + ' ' + sentence : sentence;
+        }
+        box.focus();
+      }
+      return;
+    }
     if (e.target.matches('[data-save-quote]')) saveQuote(e.target.closest('.quote-editor'));
     if (e.target.matches('[data-send-quote]')) {
       var ed = e.target.closest('.quote-editor');
