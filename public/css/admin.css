@@ -1166,3 +1166,24 @@ select.pf__v:focus {
 }
 /* The status picker sits inline in a lead header, where it stays compact. */
 .pf--inline select.pf__v { min-height: 38px; }
+
+/* ------------------------------------------------------------- sign in */
+.signin { max-width: 24rem; margin: 3rem auto; }
+.signin h2 { margin: 0 0 0.3rem; }
+.signin > p { margin: 0; color: var(--oasis-muted); }
+.signin__field { margin-top: 1.3rem; }
+.signin__field label {
+  display: block; margin-bottom: 0.35rem;
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--oasis-muted);
+}
+.signin__input { min-height: 48px; font-size: 1rem; }
+
+/* The optional phone-call extras: present, folded, never in the way. */
+.acc--extras { margin: 0.2rem 0 0.4rem; }
+.acc--extras > .acc__sum { font-size: 0.82rem; color: var(--oasis-teal); }
+.ask__k { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; justify-content: space-between; }
+.ask__from {
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em;
+  text-transform: none; color: var(--oasis-muted);
+}

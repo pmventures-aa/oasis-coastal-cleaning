@@ -93,6 +93,20 @@ export async function onRequestPost({ request, env }) {
   const serviceLabel = clean(body.service_label, 120) || clean(body.service, 80) || 'Phone inquiry';
   const notes = clean(body.notes, 2000);
 
+  /* A lead taken on the phone used to keep eight fields while one from the
+     website kept eighteen — so the same job, asked about by telephone,
+     arrived as a thinner record and she had to ring back for the rest. The
+     columns were all there; nothing was writing them. */
+  const bedrooms = clean(body.bedrooms, 20);
+  const bathrooms = clean(body.bathrooms, 20);
+  const sizeLabel = clean(body.size_label, 140);
+  const propertyType = clean(body.property_type, 80);
+  const frequency = clean(body.frequency, 60);
+  const startWhen = clean(body.start_when, 80);
+  const bestTime = clean(body.best_time, 80);
+  const contactPref = clean(body.contact_pref, 40);
+  const access = clean(body.access, 200);
+
   if (!name) return json({ error: 'First name is required.' }, 400);
   const phoneDigits = phone.replace(/\D/g, '');
   if (phoneDigits.length < 10) return json({ error: 'A valid phone number is required.' }, 400);
@@ -104,11 +118,17 @@ export async function onRequestPost({ request, env }) {
     await env.DB.prepare(
       `INSERT INTO leads (
         id, created_at, updated_at, name, phone, email, service, service_label,
-        address, city, zip, notes, status, source_page
-      ) VALUES (?, ?, ?, ?, ?, ?, 'phone', ?, ?, ?, ?, ?, 'new', 'admin-phone')`
+        address, city, zip, notes,
+        bedrooms, bathrooms, size_label, property_type,
+        frequency, start_when, best_time, contact_pref, access,
+        status, source_page
+      ) VALUES (?, ?, ?, ?, ?, ?, 'phone', ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', 'admin-phone')`
     ).bind(
-      id, now, now, name, phone, email || '', serviceLabel,
-      address, city, zip, notes
+      id, now, now, name, formatPhone(phone), email || '', serviceLabel,
+      address, city, zip, notes,
+      bedrooms, bathrooms, sizeLabel, propertyType,
+      frequency, startWhen, bestTime, contactPref, access
     ).run();
 
     const row = await env.DB.prepare('SELECT * FROM leads WHERE id = ?').bind(id).first();

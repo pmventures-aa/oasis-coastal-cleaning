@@ -231,8 +231,12 @@
     signout.hidden = true;
     root.innerHTML =
       '<div class="card signin"><h2>Sign in</h2><p>Your requests, quotes and clients.</p>' +
-      '<div class="field" style="margin-top:1.2rem"><label for="pw">Password</label>' +
-      '<input type="password" id="pw" autocomplete="current-password"></div>' +
+      /* This had no class, and site.css styles input[type=text|email|tel]
+         by name — password is not on that list, so the one field on the
+         first screen she sees every day was a raw browser default: 21px
+         tall against a 44px button. */
+      '<div class="field signin__field"><label for="pw">Password</label>' +
+      '<input type="password" id="pw" class="set__input signin__input" autocomplete="current-password"></div>' +
       '<div id="signin-err" class="form-status form-status--err" role="alert"' +
       (msg ? '' : ' hidden') + '>' + esc(msg || '') + '</div>' +
       '<p style="margin-top:1.2rem"><button type="button" id="go" class="btn btn--primary btn--block">Sign in</button></p></div>';
@@ -323,6 +327,27 @@
      anything. This lived inside a collapsed "Request & Notes" accordion —
      the add-ons they ticked and the message they wrote are the whole basis
      for the quote, and she was a click and a scroll away from both. */
+  /* Where the request came from. It has been stored on every lead since the
+     form went up and shown nowhere, so there was no way to tell a request
+     that came off the home page from one off the vacation-rentals landing —
+     or from the phone. */
+  function cameFrom(l) {
+    var src = String(l.source_page || '').trim();
+    if (!src) return '';
+    if (src === 'admin-phone') return 'Taken on the phone';
+    if (src === 'admin-new-quote') return 'Started from a new quote';
+    var path = src;
+    try { path = new URL(src).pathname; } catch (e) { /* already a path */ }
+    path = path.replace(/\/$/, '') || '/';
+    var PAGES = {
+      '/': 'the home page', '/quote': 'the quote form', '/services': 'the services page',
+      '/pricing': 'the pricing page', '/contact': 'the contact page', '/about': 'the about page',
+      '/faq': 'the FAQ', '/service-areas': 'the service areas page',
+      '/corporate-cleaning': 'the offices page', '/airbnb-cleaning': 'the vacation rentals page'
+    };
+    return 'Came from ' + (PAGES[path] || path);
+  }
+
   function requestSummary(l, addOns, conds, days) {
     var bits = [];
     if (l.service_label || l.service) bits.push(esc(l.service_label || l.service));
@@ -332,10 +357,12 @@
     if (l.first_visit) bits.push('first visit — deeper clean');
 
     var note = String(l.notes || '').trim();
-    if (!bits.length && !addOns.length && !conds.length && !note) return '';
+    if (!bits.length && !addOns.length && !conds.length && !note && !cameFrom(l)) return '';
 
+    var from = cameFrom(l);
     return '<section class="ask">' +
-      '<p class="ask__k">What they asked for</p>' +
+      '<p class="ask__k">What they asked for' +
+        (from ? '<span class="ask__from">' + esc(from) + '</span>' : '') + '</p>' +
       (bits.length ? '<p class="ask__line">' + bits.join(' &middot; ') + '</p>' : '') +
       (addOns.length
         ? '<div class="ask__chips">' + addOns.map(function (a) {
@@ -988,11 +1015,15 @@
         '</div>' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-close-compose-lead>Cancel</button>' +
       '</div>' +
+      '<p class="cgroup__k">Who is calling</p>' +
       '<div class="profile__grid compose__customer">' +
         '<label class="pf"><span class="pf__k">First name *</span><input class="pf__v" type="text" data-lead-field="first_name" autocomplete="given-name"></label>' +
         '<label class="pf"><span class="pf__k">Last name</span><input class="pf__v" type="text" data-lead-field="last_name" autocomplete="family-name"></label>' +
         '<label class="pf"><span class="pf__k">Phone *</span><input class="pf__v" type="tel" data-lead-field="phone" autocomplete="tel"></label>' +
         '<label class="pf"><span class="pf__k">Email</span><input class="pf__v" type="email" data-lead-field="email" autocomplete="email"></label>' +
+      '</div>' +
+      '<p class="cgroup__k">Where the job is</p>' +
+      '<div class="profile__grid compose__customer">' +
         '<label class="pf"><span class="pf__k">ZIP</span>' +
           '<input class="pf__v" type="text" data-lead-field="zip" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="5-digit ZIP" maxlength="10"></label>' +
         '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
@@ -1007,7 +1038,44 @@
             return '<option value="' + esc(c) + '">' + esc(c || '—') + '</option>';
           }).join('') + '</select></label>' +
         '<label class="pf pf--wide"><span class="pf__k">Service</span><input class="pf__v" type="text" data-lead-field="service" placeholder="What the job is"></label>' +
-        '<label class="pf pf--wide"><span class="pf__k">Notes</span><textarea class="pf__v" data-lead-field="notes" rows="2" placeholder="What they asked for on the call"></textarea></label>' +
+      '</div>' +
+
+      /* The website asks eighteen things; this asked eight, so a job phoned
+         in arrived thinner than the same job typed in and she had to ring
+         back for the rest. These are the ones worth having while they are
+         still on the line — all optional, none of them in the way. */
+      '<details class="acc acc--extras"><summary class="acc__sum">' +
+        '<span class="acc__icon" aria-hidden="true"></span>While you have them on the phone' +
+      '</summary><div class="acc__in">' +
+        '<label class="pf"><span class="pf__k">Bedrooms</span>' +
+          '<input class="pf__v" type="text" inputmode="numeric" data-lead-field="bedrooms" placeholder="—"></label>' +
+        '<label class="pf"><span class="pf__k">Bathrooms</span>' +
+          '<input class="pf__v" type="text" inputmode="decimal" data-lead-field="bathrooms" placeholder="—"></label>' +
+        '<label class="pf"><span class="pf__k">Size</span>' +
+          '<input class="pf__v" type="text" data-lead-field="size_label" placeholder="e.g. 1,850 sq ft"></label>' +
+        '<label class="pf"><span class="pf__k">Property</span>' +
+          '<input class="pf__v" type="text" data-lead-field="property_type" placeholder="House, condo, office"></label>' +
+        '<label class="pf"><span class="pf__k">How often</span><select class="pf__v" data-lead-field="frequency">' +
+          [''].concat(oasisFrequencies()).map(function (f) {
+            return '<option value="' + esc(f) + '">' + esc(f || '—') + '</option>';
+          }).join('') + '</select></label>' +
+        '<label class="pf"><span class="pf__k">Start when</span>' +
+          '<input class="pf__v" type="text" data-lead-field="start_when" placeholder="e.g. next week"></label>' +
+        '<label class="pf"><span class="pf__k">Best time</span><select class="pf__v" data-lead-field="best_time">' +
+          ['', 'Morning', 'Afternoon', 'Evening', 'Any time'].map(function (o) {
+            return '<option value="' + esc(o) + '">' + esc(o || '—') + '</option>';
+          }).join('') + '</select></label>' +
+        '<label class="pf"><span class="pf__k">Prefers</span><select class="pf__v" data-lead-field="contact_pref">' +
+          ['', 'Text', 'Call', 'Email'].map(function (o) {
+            return '<option value="' + esc(o) + '">' + esc(o || '—') + '</option>';
+          }).join('') + '</select></label>' +
+        '<label class="pf pf--wide"><span class="pf__k">Getting in</span>' +
+          '<input class="pf__v" type="text" data-lead-field="access" placeholder="Lockbox, gate code"></label>' +
+      '</div></details>' +
+
+      '<p class="cgroup__k">What they said</p>' +
+      '<div class="profile__grid compose__customer">' +
+        '<label class="pf pf--wide pf--note"><span class="pf__k">Notes</span><textarea class="pf__v" data-lead-field="notes" rows="3" placeholder="What they asked for on the call"></textarea></label>' +
       '</div>' +
       '<div class="quote-actions">' +
         '<button type="button" class="btn btn--primary" data-save-lead>Save lead</button>' +
@@ -1031,7 +1099,18 @@
       city: get('city'),
       zip: get('zip'),
       service_label: get('service') || 'Phone inquiry',
-      notes: get('notes')
+      notes: get('notes'),
+      // The optional block. Empty strings are harmless; the endpoint cleans
+      // them and stores nothing where she had nothing to tell it.
+      bedrooms: get('bedrooms'),
+      bathrooms: get('bathrooms'),
+      size_label: get('size_label'),
+      property_type: get('property_type'),
+      frequency: get('frequency'),
+      start_when: get('start_when'),
+      best_time: get('best_time'),
+      contact_pref: get('contact_pref'),
+      access: get('access')
     };
     api('/api/admin/leads', { method: 'POST', body: JSON.stringify(payload) })
       .then(function (r) {
