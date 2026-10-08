@@ -277,6 +277,11 @@
         '<textarea class="pf__v" data-col="' + col + '" rows="3" placeholder="' + esc(opts.placeholder || '') + '">' +
         esc(value || '') + '</textarea></label>';
     }
+    if (opts && opts.phone) {
+      return '<label class="pf"><span class="pf__k">' + esc(l) + '</span>' +
+        '<input class="pf__v" type="tel" inputmode="tel" autocomplete="tel" data-phone-field ' +
+        'data-col="' + col + '" value="' + esc(value == null ? '' : value) + '"></label>';
+    }
     return '<label class="pf"><span class="pf__k">' + esc(l) + '</span>' +
       '<input class="pf__v" type="text" data-col="' + col + '" value="' + esc(value || '') + '" placeholder="' +
       esc(opts.placeholder || '') + '"></label>';
@@ -302,6 +307,36 @@
     return '<div class="profile__foot">' +
       '<button type="button" class="btn btn--ghost" data-lead-action="archive">Archive</button>' +
       '<button type="button" class="btn btn--danger" data-lead-action="delete">Delete Permanently</button></div>';
+  }
+
+  /* What the customer asked for, where she can see it without opening
+     anything. This lived inside a collapsed "Request & Notes" accordion —
+     the add-ons they ticked and the message they wrote are the whole basis
+     for the quote, and she was a click and a scroll away from both. */
+  function requestSummary(l, addOns, conds, days) {
+    var bits = [];
+    if (l.service_label || l.service) bits.push(esc(l.service_label || l.service));
+    if (l.frequency) bits.push(esc(l.frequency));
+    if (l.start_when) bits.push('starts ' + esc(l.start_when));
+    if (days.length) bits.push(esc(days.join(', ')));
+    if (l.first_visit) bits.push('first visit — deeper clean');
+
+    var note = String(l.notes || '').trim();
+    if (!bits.length && !addOns.length && !conds.length && !note) return '';
+
+    return '<section class="ask">' +
+      '<p class="ask__k">What they asked for</p>' +
+      (bits.length ? '<p class="ask__line">' + bits.join(' &middot; ') + '</p>' : '') +
+      (addOns.length
+        ? '<div class="ask__chips">' + addOns.map(function (a) {
+            return '<span class="chip chip--ask">' + esc(a) + '</span>'; }).join('') + '</div>'
+        : '') +
+      (conds.length
+        ? '<div class="ask__chips">' + conds.map(function (c) {
+            return '<span class="chip chip--warn">' + esc(c) + '</span>'; }).join('') + '</div>'
+        : '') +
+      (note ? '<blockquote class="ask__note">' + esc(note) + '</blockquote>' : '') +
+    '</section>';
   }
 
   function detail(l) {
@@ -332,15 +367,13 @@
           '<input class="pf__v" type="text" data-name-part="first" autocomplete="given-name" value="' + esc(nameParts.first) + '"></label>' +
         '<label class="pf"><span class="pf__k">Last name</span>' +
           '<input class="pf__v" type="text" data-name-part="last" autocomplete="family-name" value="' + esc(nameParts.last) + '"></label>' +
-        field('Phone', 'phone', l.phone) +
+        /* Every read-only view formats this; the one place she actually types
+           it showed 5612017123. */
+        field('Phone', 'phone', FMT.formatPhone(l.phone) || l.phone, { phone: true }) +
         field('Email', 'email', l.email) +
         field('Prefers', 'contact_pref', l.contact_pref, { options: ['', 'Text', 'Call', 'Email'] }) +
         field('Best time', 'best_time', l.best_time, { options: ['', 'Morning', 'Afternoon', 'Evening', 'Any time'] }), true) +
       acc('Property',
-        '<div class="profile__lookup">' +
-          '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft</button>' +
-          '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
-        '</div>' + lookupHint +
         '<label class="pf"><span class="pf__k">ZIP</span>' +
           '<input class="pf__v" type="text" data-col="zip" data-zip-lookup inputmode="numeric" autocomplete="postal-code" ' +
             'placeholder="5-digit ZIP" maxlength="10" value="' + esc(l.zip || '') + '"></label>' +
@@ -352,6 +385,13 @@
             '<ul class="addr-suggest__list" hidden role="listbox"></ul>' +
           '</div>' +
           '<span class="addr-suggest__hint">ZIP first, then street — suggestions stay in that ZIP</span></label>' +
+        /* The lookup reads the address, so it belongs under the address
+           rather than above it, where it invited a click there was nothing
+           to answer yet. */
+        '<div class="profile__lookup">' +
+          '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft from this address</button>' +
+          '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
+        '</div>' + lookupHint +
         field('City', 'city', l.city, { options: oasisCities() }) +
         field('Type', 'property_type', l.property_type, { options: oasisPropertyTypes() }) +
         field('Size', 'size_label', l.size_label) +
@@ -398,6 +438,8 @@
           }).join('') + '</select></label>' +
         '<span class="saved" data-saved hidden>Saved</span></div>' +
       '<p class="profile__lookup-msg muted" data-lookup-msg hidden style="margin:0 0 .65rem"></p>' +
+
+      requestSummary(l, addOns, conds, days) +
 
       '<div class="ptabs" role="tablist">' +
         '<button type="button" class="ptabs__btn' + (tab === 'intake' ? ' is-on' : '') + '" data-ptab="intake" role="tab">Profile</button>' +
@@ -1870,8 +1912,16 @@
   }
 
   root.addEventListener('click', function (e) {
-    if (e.target.matches('[data-view]')) {
-      state.view = e.target.dataset.view;
+    /* A click on a button lands on whatever is under the pointer — the span
+       holding the customer's name, the <b> holding a count — not on the
+       button itself. Every branch below asked e.target.matches(...), so
+       clicking the name of a lead did nothing and only the padding around it
+       opened the card. Resolve the control that was actually pressed once,
+       and let the branches ask about that. */
+    var hit = e.target.closest('button, a, [data-toggle], [role="tab"]') || e.target;
+
+    if (hit.matches('[data-view]')) {
+      state.view = hit.dataset.view;
       state.filter = ''; state.followup = false; state.open = null;
       state.composing = false; state.composingLead = false;
       if (state.view === 'settings') { render(); loadSettings(); return; }
@@ -1879,110 +1929,110 @@
       if (STAGE_FOR_VIEW[state.view]) { loadPipeline(state.view); return; }
       load(); return;
     }
-    if (e.target.matches('[data-new-lead]')) {
+    if (hit.matches('[data-new-lead]')) {
       state.composingLead = true; state.composing = false; state.open = null;
       render(); return;
     }
-    if (e.target.matches('[data-close-compose-lead]')) {
+    if (hit.matches('[data-close-compose-lead]')) {
       state.composingLead = false;
       render(); return;
     }
-    if (e.target.matches('[data-save-lead]')) {
+    if (hit.matches('[data-save-lead]')) {
       saveNewLead();
       return;
     }
-    if (e.target.matches('[data-followup-filter]')) {
+    if (hit.matches('[data-followup-filter]')) {
       state.followup = !state.followup;
       state.open = null;
       load();
       return;
     }
-    if (e.target.matches('[data-copy-link]')) {
-      var link = e.target.getAttribute('data-link') || '';
+    if (hit.matches('[data-copy-link]')) {
+      var link = hit.getAttribute('data-link') || '';
       if (!link) return;
       copyText(link).then(function () {
-        var orig = e.target.textContent;
-        e.target.textContent = 'Copied!';
-        setTimeout(function () { e.target.textContent = orig; }, 1600);
+        var orig = hit.textContent;
+        hit.textContent = 'Copied!';
+        setTimeout(function () { hit.textContent = orig; }, 1600);
       });
       return;
     }
-    if (e.target.matches('[data-new-quote]')) {
+    if (hit.matches('[data-new-quote]')) {
       state.composing = true; state.composingLead = false; state.open = null;
       render(); return;
     }
-    if (e.target.matches('[data-close-compose]')) {
+    if (hit.matches('[data-close-compose]')) {
       state.composing = false;
       render(); return;
     }
-    if (e.target.matches('[data-start-quote]')) {
-      var startCard = e.target.closest('.lead');
+    if (hit.matches('[data-start-quote]')) {
+      var startCard = hit.closest('.lead');
       if (startCard) openQuoteTab(startCard.dataset.id);
       return;
     }
-    if (e.target.matches('[data-property-lookup]')) {
-      lookupProperty(e.target);
+    if (hit.matches('[data-property-lookup]')) {
+      lookupProperty(hit);
       return;
     }
-    if (e.target.matches('[data-compose-lookup]')) {
-      lookupForComposer(e.target);
+    if (hit.matches('[data-compose-lookup]')) {
+      lookupForComposer(hit);
       return;
     }
-    if (e.target.matches('[data-ptab-jump]')) {
-      var jumpCard = e.target.closest('.lead');
+    if (hit.matches('[data-ptab-jump]')) {
+      var jumpCard = hit.closest('.lead');
       if (jumpCard) {
-        state.leadTab[jumpCard.dataset.id] = e.target.getAttribute('data-ptab-jump') || 'intake';
+        state.leadTab[jumpCard.dataset.id] = hit.getAttribute('data-ptab-jump') || 'intake';
         render();
       }
       return;
     }
-    if (e.target.matches('[data-ptab]')) {
-      var card = e.target.closest('.lead');
-      state.leadTab[card.dataset.id] = e.target.dataset.ptab;
+    if (hit.matches('[data-ptab]')) {
+      var card = hit.closest('.lead');
+      state.leadTab[card.dataset.id] = hit.dataset.ptab;
       render();
-      if (e.target.dataset.ptab === 'quotes') loadQuotes(card.dataset.id);
+      if (hit.dataset.ptab === 'quotes') loadQuotes(card.dataset.id);
       return;
     }
-    if (e.target.matches('[data-toggle]')) {
-      var c = e.target.closest('.lead');
+    if (hit.matches('[data-toggle]')) {
+      var c = hit.closest('.lead');
       state.open = state.open === c.dataset.id ? null : c.dataset.id;
       render();
       if (state.open && (state.leadTab[state.open] || 'intake') === 'quotes') loadQuotes(state.open);
       return;
     }
-    if (e.target.matches('[data-lead-action]')) {
-      leadAction(e.target.closest('.lead'), e.target.dataset.leadAction);
+    if (hit.matches('[data-lead-action]')) {
+      leadAction(hit.closest('.lead'), hit.dataset.leadAction);
       return;
     }
-    if (e.target.matches('[data-quote-action]')) {
-      quoteAction(e.target, e.target.dataset.quoteAction);
+    if (hit.matches('[data-quote-action]')) {
+      quoteAction(hit, hit.dataset.quoteAction);
       return;
     }
-    if (e.target.matches('[data-add-line]')) {
-      var ed = e.target.closest('.quote-editor');
+    if (hit.matches('[data-add-line]')) {
+      var ed = hit.closest('.quote-editor');
       ed.querySelector('.quote-lines').insertAdjacentHTML('beforeend', quoteLineHtml({}));
       updateQuoteTotal(ed); return;
     }
-    var catalogTab = e.target.closest('[data-catalog-tab]');
+    var catalogTab = hit.closest('[data-catalog-tab]');
     if (catalogTab) {
       switchCatalogTab(catalogTab);
       return;
     }
-    var catalogBtn = e.target.closest('[data-add-catalog]');
+    var catalogBtn = hit.closest('[data-add-catalog]');
     if (catalogBtn) {
       addCatalogItem(catalogBtn.closest('.quote-editor'), catalogBtn);
       return;
     }
-    if (e.target.matches('[data-remove-line]')) {
-      var row = e.target.closest('.qline');
-      var editor = e.target.closest('.quote-editor');
+    if (hit.matches('[data-remove-line]')) {
+      var row = hit.closest('.qline');
+      var editor = hit.closest('.quote-editor');
       if (editor.querySelectorAll('.qline').length > 1) { row.remove(); updateQuoteTotal(editor); }
       return;
     }
-    if (e.target.matches('[data-run-setup]')) { runSetup(e.target); return; }
-    if (e.target.matches('[data-save-settings]')) { saveSettingsFromForm(); return; }
-    if (e.target.matches('[data-fill-addons]')) {
-      var frow = e.target.closest('.qline');
+    if (hit.matches('[data-run-setup]')) { runSetup(hit); return; }
+    if (hit.matches('[data-save-settings]')) { saveSettingsFromForm(); return; }
+    if (hit.matches('[data-fill-addons]')) {
+      var frow = hit.closest('.qline');
       var box = frow && frow.querySelector('.quote-description');
       if (box) {
         var sentence = everyAddonSentence();
@@ -1996,9 +2046,9 @@
       }
       return;
     }
-    if (e.target.matches('[data-save-quote]')) saveQuote(e.target.closest('.quote-editor'));
-    if (e.target.matches('[data-send-quote]')) {
-      var ed = e.target.closest('.quote-editor');
+    if (hit.matches('[data-save-quote]')) saveQuote(hit.closest('.quote-editor'));
+    if (hit.matches('[data-send-quote]')) {
+      var ed = hit.closest('.quote-editor');
       // Say which of the two things is about to happen. Resending a revision
       // is a different promise from sending a quote for the first time.
       var revising = ed && ed.dataset.alreadyOut === '1';
@@ -2221,6 +2271,21 @@
 
   root.addEventListener('input', function (e) {
     if (e.target.id === 'search') { state.q = e.target.value; applySearchFilter(); }
+    /* Type the digits, get the number. Reformatting on every keystroke would
+       fight the caret mid-string, so it only reshapes while she is typing at
+       the end — which is how a phone number is actually entered. */
+    if (e.target.matches('[data-phone-field]')) {
+      var el = e.target;
+      var atEnd = el.selectionStart === el.value.length;
+      var digits = el.value.replace(/\D/g, '');
+      if (atEnd && digits.length >= 10) {
+        var pretty = FMT.formatPhone(digits);
+        if (pretty && pretty !== el.value) {
+          el.value = pretty;
+          el.setSelectionRange(pretty.length, pretty.length);
+        }
+      }
+    }
     if (e.target.matches('.quote-label, .quote-qty, .quote-price')) updateQuoteTotal(e.target.closest('.quote-editor'));
     if (e.target.matches('[data-address-suggest]')) {
       clearTimeout(addressSuggestTimer);

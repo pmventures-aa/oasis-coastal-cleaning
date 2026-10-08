@@ -535,6 +535,24 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .acc[open] > .acc__sum .acc__icon { transform: rotate(45deg); }
 .acc__in { padding: 0 0.85rem 0.85rem; }
 
+/* Two columns once there is room for them. Every field was a full-width row,
+   so on a laptop each input sprawled across 800px and the profile ran to a
+   screen and a half of scrolling for a dozen short values. .pf--wide has
+   declared `grid-column: 1 / -1` all along, waiting for the grid it was
+   written for. */
+@media (min-width: 860px) {
+  .acc__in {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem 1.5rem; align-items: start;
+  }
+  /* Things that are not a label-and-a-box span the full width. */
+  .acc__in > .profile__lookup,
+  .acc__in > .profile__lookup-setup,
+  .acc__in > .acc,
+  .acc__in > p,
+  .acc__in > .lookup-hint { grid-column: 1 / -1; }
+}
+
 .profile__foot {
   display: flex; flex-wrap: wrap; gap: 0.5rem;
   margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--oasis-line);
@@ -944,4 +962,34 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   .qline__desc { grid-template-columns: 1fr; }
   /* Full width and a proper thumb-sized target once it is on its own row. */
   .qline__fill { width: 100%; min-height: 44px; }
+}
+
+/* ------------------------------------------------------ what they asked for
+   The add-ons they ticked and the message they wrote are the basis for the
+   quote, and both were hidden inside a collapsed accordion. */
+.ask {
+  margin: 0 0 1rem; padding: 0.85rem 1rem;
+  background: rgba(2, 89, 95, 0.045);
+  border: 1px solid rgba(2, 89, 95, 0.16);
+  border-left: 3px solid var(--oasis-teal);
+  border-radius: var(--radius);
+}
+.ask__k {
+  margin: 0 0 0.45rem; font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--oasis-teal);
+}
+.ask__line {
+  margin: 0 0 0.5rem; font-size: 0.86rem; line-height: 1.45;
+  color: var(--oasis-navy); font-weight: 600;
+}
+.ask__chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0 0 0.5rem; }
+.chip--ask {
+  background: var(--oasis-white); border: 1px solid rgba(2, 89, 95, 0.3);
+  color: var(--oasis-teal); font-weight: 600;
+}
+.ask__note {
+  margin: 0.55rem 0 0; padding: 0 0 0 0.7rem;
+  border-left: 2px solid rgba(2, 89, 95, 0.25);
+  font-size: 0.86rem; line-height: 1.5; color: var(--oasis-navy);
+  font-style: italic; white-space: pre-wrap; overflow-wrap: anywhere;
 }
