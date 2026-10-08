@@ -19,6 +19,7 @@
 
   var telHref = function (n) { return 'tel:+1' + String(n).replace(/\D/g, ''); };
   var smsHref = function (n) { return 'sms:+1' + String(n).replace(/\D/g, ''); };
+  var firstName = function (n) { return String(n || '').trim().split(/\s+/)[0] || ''; };
 
   var money = function (n) { return '$' + Math.round(n).toLocaleString('en-US'); };
 
@@ -493,17 +494,37 @@
     var a = D.about;
     var body = a.story.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('');
     if (a.ownerNote) { body += '<p>' + esc(a.ownerNote) + '</p>'; }
+    /* The page argues that you are hiring a person rather than a crew, and
+       then, with no photo set, showed the logo again and never said her name.
+       Until there is a photo, the card says who she is, where she works and
+       how to reach her — all of it true and all of it already in data.js. */
+    var b = D.business;
     var photo = a.photo
       ? '<div class="about-photo"><img src="' + esc(a.photo) + '" alt="' + esc(a.photoAlt) + '"></div>'
-      : '<div class="about-photo" style="display:grid;place-items:center;padding:2.5rem">' +
-          '<img src="/logo/logo-480.webp" width="480" height="481" alt="' + esc(D.business.name) + '" style="max-width:260px">' +
-        '</div>';
+      : '<figure class="about-card">' +
+          '<img class="about-card__mark" src="/logo/logo-480.webp" width="480" height="481" ' +
+            'alt="" loading="lazy">' +
+          '<figcaption>' +
+            '<p class="about-card__name">' + esc(b.owner) + '</p>' +
+            '<p class="about-card__role">Owner &middot; ' + esc(b.name) + '</p>' +
+            '<ul class="about-card__facts">' +
+              '<li>Palm Beach &amp; Broward County, Florida</li>' +
+              '<li>Licensed and insured</li>' +
+              '<li>The same person at your door each visit</li>' +
+            '</ul>' +
+            '<div class="about-card__acts">' +
+              '<a class="btn btn--primary" href="' + telHref(b.phone) + '">Call ' +
+                esc(firstName(b.owner)) + '</a>' +
+              '<a class="btn btn--ghost" href="' + smsHref(b.phone) + '">Text</a>' +
+            '</div>' +
+          '</figcaption>' +
+        '</figure>';
     el.innerHTML =
       '<div class="about-layout">' + photo +
         '<div class="about-body">' +
           '<h2>' + esc(a.heading) + '</h2>' +
           '<p class="lead">' + esc(a.lead) + '</p>' + body +
-          '<p><a class="btn btn--primary" href="/quote">See what it would cost</a></p>' +
+          '<p><a class="btn btn--primary" href="/quote">Get my quote</a></p>' +
         '</div>' +
       '</div>';
   }
