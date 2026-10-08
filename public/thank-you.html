@@ -29,8 +29,8 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="/tokens.css?v=202610082200">
-  <link rel="stylesheet" href="/css/site.css?v=202610082200">
+  <link rel="stylesheet" href="/tokens.css?v=202610082205">
+  <link rel="stylesheet" href="/css/site.css?v=202610082205">
 </head>
 <body data-page="thanks">
 
@@ -79,24 +79,13 @@
 <div data-render="footer"></div>
 <div data-render="stickybar"></div>
 
-<script src="/js/format.js?v=202610082200"></script>
-<script src="/js/data.js?v=202610082200"></script>
-<script src="/js/site.js?v=202610082200"></script>
-<script>
-  /* If the visitor just came from the quote form, name what they asked for. */
-  (function () {
-    try {
-      var q = JSON.parse(sessionStorage.getItem('oasis-quote') || 'null');
-      if (!q) { return; }
-      var el = document.getElementById('thanks-line');
-      var who = q.name ? q.name.split(' ')[0].replace(/[^A-Za-z'-]/g, '') : '';
-      el.textContent = (who ? 'Thanks, ' + who + '. ' : '') +
-        'Your ' + q.service.toLowerCase() + ' request is in, and the range you saw was $' +
-        q.low + ' to $' + q.high + '. A firm quote follows within one business day, from a ' +
-        'person who has read what you sent.';
-      sessionStorage.removeItem('oasis-quote');
-    } catch (err) { /* nothing worth breaking the page over */ }
-  })();
-</script>
+<script src="/js/format.js?v=202610082205"></script>
+<script src="/js/data.js?v=202610082205"></script>
+<script src="/js/site.js?v=202610082205"></script>
+<!-- The quote form finishes in place, on the form itself, so nothing sends
+     anyone here any more. A script used to greet them by name and quote back
+     the figures the old pricing wizard showed. It read a sessionStorage key
+     nothing writes, and those figures no longer exist. Removed rather than
+     left to rot. -->
 </body>
 </html>

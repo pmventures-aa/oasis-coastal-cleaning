@@ -293,9 +293,9 @@
   function renderPromises(el) {
     el.className = 'grid grid--3';
     el.innerHTML = D.promises.map(function (p) {
+      /* The same faint shield three times carried no information; the gold
+         rule in the stylesheet marks the group instead. */
       return '<div class="promise">' +
-               '<span class="icon-badge" style="background:rgba(200,156,83,.18);color:var(--oasis-gold)">' +
-                 icon('shield') + '</span>' +
                '<h3>' + esc(p.title) + '</h3><p>' + esc(p.body) + '</p>' +
              '</div>';
     }).join('');
@@ -472,7 +472,7 @@
       tiles.push({ href: smsHref(b.phone), ic: 'text', h: 'Text', p: 'Send photos of the space — it speeds up the quote.', s: b.phone });
     }
     tiles.push({ href: 'mailto:' + b.email, ic: 'mail', h: 'Email', p: 'Best for schedules, invoices and paperwork.', s: b.email });
-    tiles.push({ href: '/quote', ic: 'calendar', h: 'Quote form', p: 'Two minutes, and you see a range before you send it.', s: 'Start now' });
+    tiles.push({ href: '/quote', ic: 'calendar', h: 'Quote form', p: 'Two minutes, and she writes the number for your space.', s: 'Start now' });
 
     el.className = 'grid grid--4';
     el.innerHTML = tiles.map(function (t) {
