@@ -1127,9 +1127,12 @@ input[type="number"].set__input { max-width: 9rem; }
     display: grid; gap: 0.5rem; margin-top: 0; align-content: start;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
-  .qline__remove { grid-column: 1 / -1; }
   .qline__f--cadence, .qline__f--optional { max-width: none; flex: none; }
-  .qline__remove { justify-self: start; }
+  /* Deleting a line is the one irreversible thing in this card, so it does
+     not sit left-aligned at the same weight as the button that fills a
+     field in. */
+  .qline__remove { grid-column: 1 / -1; justify-self: end; border-color: transparent; }
+  .qline__remove:hover { border-color: #b4432f; }
 }
 
 /* The fill button is a convenience, not the point of the row. It was sand —

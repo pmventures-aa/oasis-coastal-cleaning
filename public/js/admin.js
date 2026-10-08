@@ -744,10 +744,14 @@
                 esc(c.label) + '</option>';
             }).join('') +
           '</select></label>' +
-        '<label class="qline__f qline__f--optional"><span>Charge for it?</span>' +
+        /* The label asked "Charge for it?" and the answer was a box meaning
+           do not — tick for no, on the control that decides whether a line
+           is in the amount the customer accepts. Question and answer agree
+           now. */
+        '<label class="qline__f qline__f--optional"><span>Is it optional?</span>' +
           '<span class="qline__opt">' +
             '<input type="checkbox" class="quote-optional"' + (line.optional ? ' checked' : '') + '>' +
-            '<span>Optional \u2014 leave off the total</span>' +
+            '<span>Yes \u2014 leave it off the total</span>' +
           '</span></label>' +
         '<button type="button" class="qline__remove" data-remove-line ' +
           'aria-label="Remove this line">Remove</button>' +
