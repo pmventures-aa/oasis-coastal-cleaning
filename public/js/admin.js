@@ -1146,6 +1146,14 @@
         '<code>RESEND_WEBHOOK_SECRET</code> in Cloudflare is set but is not a signing secret \u2014 it may ' +
         'have been cut short when it was pasted. Copy it again from the webhook\u2019s page in Resend, ' +
         'then switch the endpoint back on there.</p>';
+    } else if (ws.usable && state.webhookLast && state.webhookLast.ok === false) {
+      /* The shape is right but Resend's own deliveries are being turned away,
+         which only ever means the secret is not the one Resend signs with. */
+      webhookWarning = '<p class="health-warn"><strong>Delivery tracking is being refused.</strong> ' +
+        'Resend\u2019s last update' + (state.webhookLast.at ? ' (' + esc(FMT.formatStamp(state.webhookLast.at)) + ')' : '') +
+        ' was rejected, so <code>RESEND_WEBHOOK_SECRET</code> in Cloudflare is not the one Resend is signing ' +
+        'with. Copy the signing secret again from the webhook\u2019s page in Resend, then switch the endpoint ' +
+        'back on there \u2014 Resend turns it off after repeated failures.</p>';
     } else if (ws.problem === 'missing') {
       webhookWarning = '<p class="health-warn"><strong>Delivery tracking is off.</strong> Quotes still send ' +
         'and arrive normally \u2014 this only tells you whether one was delivered and opened. To switch it ' +
@@ -1196,7 +1204,7 @@
   function loadSettings() {
     api('/api/admin/settings').then(function (r) {
       if (!r.ok) {
-        state.settings = {}; state.settingsFields = []; state.health = {}; state.webhookSecret = {};
+        state.settings = {}; state.settingsFields = []; state.health = {}; state.webhookSecret = {}; state.webhookLast = null;
         render();
         return;
       }
@@ -1205,6 +1213,7 @@
       state.health = r.body.health || {};
       state.schema = r.body.schema || {};
       state.webhookSecret = r.body.webhookSecret || {};
+      state.webhookLast = r.body.webhookLast || null;
       render();
     });
   }

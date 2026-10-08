@@ -80,3 +80,40 @@ export async function verifySvixWebhook(request, rawBody, secret) {
 
   return valid ? null : 'Invalid Svix signature.';
 }
+
+/* ------------------------------------------------------------------ outcome
+   Shape tells "missing" from "that is the API key" from "unreadable", but it
+   cannot tell a correct signing secret from a well-formed wrong one — and a
+   wrong one is exactly what got this endpoint disabled. The only thing that
+   knows is a real delivery, so remember how the last one went. */
+
+const OUTCOME_KEY = 'webhook_last';
+const THROTTLE_MS = 60 * 1000;
+
+/** Record how Resend's most recent delivery was handled. Never throws. */
+export async function recordWebhookOutcome(db, ok, reason) {
+  if (!db) return;
+  const now = Date.now();
+  try {
+    const prev = await readWebhookOutcome(db);
+    // One unauthenticated request must not mean one write. Only record when
+    // the answer changed, or when the last note is a minute old.
+    if (prev && prev.ok === ok && now - Number(prev.at || 0) < THROTTLE_MS) return;
+    const value = JSON.stringify({ ok, reason: ok ? null : String(reason || '').slice(0, 200), at: now });
+    await db.prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+    ).bind(OUTCOME_KEY, value, new Date(now).toISOString()).run();
+  } catch { /* tracking must never break the webhook itself */ }
+}
+
+/** How the last delivery went, or null when none has arrived. */
+export async function readWebhookOutcome(db) {
+  if (!db) return null;
+  try {
+    const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(OUTCOME_KEY).first();
+    if (!row || !row.value) return null;
+    const parsed = JSON.parse(row.value);
+    return (parsed && typeof parsed === 'object') ? parsed : null;
+  } catch { return null; }
+}

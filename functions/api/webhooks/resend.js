@@ -10,7 +10,7 @@ import { json } from '../../_lib/util.js';
 import { applyEmailWebhook } from '../../_lib/quotes.js';
 import { sendEmail } from '../../_lib/util.js';
 import { buildQuoteDeliveryEmail } from '../../_lib/email.js';
-import { verifySvixWebhook } from '../../_lib/webhook.js';
+import { verifySvixWebhook, recordWebhookOutcome } from '../../_lib/webhook.js';
 
 const EVENT_MAP = {
   'email.delivered': 'email_delivered',
@@ -25,6 +25,12 @@ export async function onRequestPost({ request, env }) {
 
   const raw = await request.text();
   const sigErr = await verifySvixWebhook(request, raw, env.RESEND_WEBHOOK_SECRET);
+
+  /* Only note deliveries that actually look like Resend's. Anything without
+     Svix headers is a stray probe and says nothing about the configuration. */
+  if (request.headers.get('svix-id')) {
+    await recordWebhookOutcome(env.DB, !sigErr, sigErr);
+  }
   if (sigErr) return json({ error: sigErr }, 401);
 
   let payload;

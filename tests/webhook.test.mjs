@@ -109,3 +109,71 @@ test('describeWebhookSecret names the problem without leaking the value', async 
     assert.equal(describeWebhookSecret('  ' + SECRET + '\n').usable, true);
   });
 });
+
+/* ------------------------------------------------------------- outcome note
+   A well-formed but wrong secret is the case shape cannot see, so the last
+   delivery's result is what the portal actually leans on. */
+import { recordWebhookOutcome, readWebhookOutcome } from '../functions/_lib/webhook.js';
+
+function makeDb() {
+  const store = new Map();
+  let writes = 0;
+  const api = (...a) => ({
+    first: async () => (store.has(a[0]) ? { value: store.get(a[0]) } : null),
+    run: async () => { writes++; store.set(a[0], a[1]); }
+  });
+  return { store, get writes() { return writes; }, prepare: () => ({ bind: api, first: api().first }) };
+}
+
+test('remembering how the last delivery went', async (t) => {
+  await t.test('records a rejection with its reason', async () => {
+    const db = makeDb();
+    await recordWebhookOutcome(db, false, 'Invalid Svix signature.');
+    const out = await readWebhookOutcome(db);
+    assert.equal(out.ok, false);
+    assert.equal(out.reason, 'Invalid Svix signature.');
+    assert.ok(out.at > 0);
+  });
+
+  await t.test('records a success and drops the stale reason', async () => {
+    const db = makeDb();
+    await recordWebhookOutcome(db, false, 'Invalid Svix signature.');
+    await recordWebhookOutcome(db, true, null);
+    const out = await readWebhookOutcome(db);
+    assert.equal(out.ok, true);
+    assert.equal(out.reason, null);
+  });
+
+  await t.test('a burst of identical results is not a burst of writes', async () => {
+    const db = makeDb();
+    for (let i = 0; i < 25; i++) await recordWebhookOutcome(db, false, 'Invalid Svix signature.');
+    assert.equal(db.writes, 1);
+  });
+
+  await t.test('but a change of result is always written through', async () => {
+    const db = makeDb();
+    await recordWebhookOutcome(db, false, 'Invalid Svix signature.');
+    await recordWebhookOutcome(db, true, null);
+    assert.equal(db.writes, 2);
+  });
+
+  await t.test('no database, or a broken one, never throws', async () => {
+    await recordWebhookOutcome(null, false, 'x');
+    const broken = { prepare: () => { throw new Error('no such table: settings'); } };
+    await recordWebhookOutcome(broken, false, 'x');
+    assert.equal(await readWebhookOutcome(broken), null);
+    assert.equal(await readWebhookOutcome(null), null);
+  });
+
+  await t.test('unreadable stored value reads as unknown, not as working', async () => {
+    const db = makeDb();
+    db.store.set('webhook_last', 'not json');
+    assert.equal(await readWebhookOutcome(db), null);
+  });
+
+  await t.test('the reason is capped so a long error cannot bloat the row', async () => {
+    const db = makeDb();
+    await recordWebhookOutcome(db, false, 'e'.repeat(5000));
+    assert.equal((await readWebhookOutcome(db)).reason.length, 200);
+  });
+});
