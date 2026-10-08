@@ -1167,10 +1167,16 @@
           '<span class="set__label">' + esc(f.label) + '</span>' +
         '</label>' + hint + '</div>';
     }
+    /* Its own class rather than .pf__v. That one is deliberately borderless
+       because the lead profile is edited in place; here they are ordinary form
+       fields. Borrowing it meant the number box and the two textareas came out
+       with no border or background at all, purely because site.css happens to
+       name input[type=text] and the others by attribute and so outranks a
+       class — while `textarea` alone does not. */
     var input = f.type === 'textarea'
-      ? '<textarea id="' + id + '" class="pf__v" rows="2" data-setting="' + esc(f.key) + '">' + esc(value || '') + '</textarea>'
-      : '<input id="' + id + '" class="pf__v" type="' + (f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : 'text') + '"' +
-        (f.type === 'number' ? ' min="1" max="365"' : '') +
+      ? '<textarea id="' + id + '" class="set__input" rows="3" data-setting="' + esc(f.key) + '">' + esc(value || '') + '</textarea>'
+      : '<input id="' + id + '" class="set__input" type="' + (f.type === 'number' ? 'number' : f.type === 'email' ? 'email' : 'text') + '"' +
+        (f.type === 'number' ? ' min="1" max="365" inputmode="numeric"' : '') +
         ' data-setting="' + esc(f.key) + '" value="' + esc(value || '') + '">';
     return '<div class="set">' +
       '<label class="set__label" for="' + id + '">' + esc(f.label) +
@@ -1501,8 +1507,12 @@
     if (q.status === 'expired') flags += '<span class="pill pill--flag">Expired</span>';
     if (view === 'accepted' && !q.completed_at) flags += '<span class="pill pill--flag">To do</span>';
     if (view === 'accepted' && q.completed_at) flags += '<span class="pill pill--quoted">Finished — awaiting payment</span>';
-    if (q.view_count > 0 && view === 'pending') {
-      flags += '<span class="pill pill--quoted">Opened ' + q.view_count + '&times;</span>';
+    if (view === 'pending') {
+      /* "Opened 4 times" is interesting; "never opened" is the one she can do
+         something about, and it looked identical to everything else. */
+      flags += Number(q.view_count) > 0
+        ? '<span class="pill pill--quoted">Opened ' + q.view_count + '&times;</span>'
+        : '<span class="pill pill--flag">Not opened yet</span>';
     }
 
     var acts = '';
@@ -1563,12 +1573,27 @@
       var e = STAGE_EMPTY[stage] || ['Nothing here', ''];
       return '<div class="empty-state"><h3>' + esc(e[0]) + '</h3><p class="muted">' + esc(e[1]) + '</p></div>';
     }
+    /* Every stage is money sitting somewhere; only one of them said so. The
+       number she wants is different per stage — what is owed, what is out
+       waiting on an answer, what is still to write up. */
+    var sum = list.reduce(function (t, q) { return t + (Number(q.total) || 0); }, 0);
+    var n = list.length;
+    var job = n === 1 ? 'job' : 'jobs';
+    var quote = n === 1 ? 'quote' : 'quotes';
     var head = '';
     if (view === 'accepted') {
-      var owed = state.pipelineCounts.outstanding_cents || 0;
-      head = '<p class="pipeline__sum">' + esc(money(owed)) + ' still to collect across ' +
-        list.length + ' job' + (list.length === 1 ? '' : 's') + '.</p>';
+      var owed = state.pipelineCounts.outstanding_cents || sum;
+      head = esc(money(owed)) + ' still to collect across ' + n + ' ' + job;
+    } else if (view === 'pending' && n) {
+      var unopened = list.filter(function (q) { return !Number(q.view_count); }).length;
+      head = esc(money(sum)) + ' out with ' + n + ' ' + (n === 1 ? 'customer' : 'customers') +
+        (unopened ? ' · ' + unopened + ' not opened yet' : '');
+    } else if (view === 'quotes' && n) {
+      head = n + ' ' + quote + ' in progress, worth ' + esc(money(sum));
+    } else if (view === 'paid' && n) {
+      head = esc(money(sum)) + ' collected across ' + n + ' ' + job;
     }
+    head = head ? '<p class="pipeline__sum">' + head + '</p>' : '';
     var cards = list.map(function (q) { return pipelineCard(q, view); }).join('') +
       openLeads.map(leadNeedingQuoteCard).join('');
     return head + '<div class="pcards">' + cards + '</div>';

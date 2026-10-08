@@ -1014,3 +1014,29 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .ccard { display: flex; flex-direction: column; }
 .ccard__props { flex: 1 1 auto; }
 .ccard__acts { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+/* Settings are a form, not an inline edit, so the fields look like fields.
+   They used to borrow .pf__v, which is transparent on purpose, and only the
+   types site.css names by attribute escaped it — so the number box and the
+   textareas had no border at all. */
+.set__input {
+  width: 100%; font: inherit; font-size: var(--step--1);
+  padding: 0.5rem 0.65rem; border-radius: 8px;
+  border: 1.5px solid var(--oasis-line); background: var(--oasis-white);
+  color: var(--oasis-navy);
+}
+.set__input:hover { border-color: rgba(2, 89, 95, 0.4); }
+.set__input:focus {
+  outline: none; border-color: var(--oasis-teal);
+  box-shadow: 0 0 0 3px rgba(39, 189, 206, 0.18);
+}
+textarea.set__input { min-height: 4.5rem; line-height: 1.5; resize: vertical; }
+input[type="number"].set__input { max-width: 9rem; }
+
+/* The groups are independent cards, so they tile once there is room rather
+   than running down the left of a laptop screen with half of it empty. */
+@media (min-width: 1040px) {
+  .settings { max-width: none; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .settings > .set-group:last-of-type { grid-column: 1 / -1; }
+  .settings__save { grid-column: 1 / -1; }
+}
