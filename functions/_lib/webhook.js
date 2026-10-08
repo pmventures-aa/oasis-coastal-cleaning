@@ -6,10 +6,34 @@ const TOLERANCE_SEC = 5 * 60;
 function decodeSecret(secret) {
   const raw = String(secret || '').trim();
   const b64 = raw.startsWith('whsec_') ? raw.slice(6) : raw;
-  const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));
+  // atob throws on anything that is not base64 — a pasted API key, a truncated
+  // copy, a stray quote. Letting it throw turned a misconfigured secret into a
+  // 500, which reads like the site is down rather than like a wrong value.
+  let bin;
+  try { bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/')); } catch { return null; }
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
+}
+
+/**
+ * Describe a webhook secret without revealing it, so the portal can tell the
+ * difference between "not set", "that is the API key, not the signing secret"
+ * and "set correctly but not the one Resend is signing with" — three problems
+ * that otherwise look identical from the outside.
+ */
+export function describeWebhookSecret(secret) {
+  const raw = String(secret || '').trim();
+  if (!raw) return { set: false, usable: false, problem: 'missing' };
+  if (raw.startsWith('re_')) {
+    return { set: true, usable: false, problem: 'api-key' };
+  }
+  const bytes = decodeSecret(raw);
+  if (!bytes) return { set: true, usable: false, problem: 'not-base64' };
+  if (bytes.length < 16) {
+    return { set: true, usable: false, problem: 'too-short', bytes: bytes.length };
+  }
+  return { set: true, usable: true, problem: null, bytes: bytes.length };
 }
 
 function toBase64(bytes) {
@@ -23,7 +47,7 @@ async function sign(content, secretBytes) {
   return crypto.subtle.sign('HMAC', key, new TextEncoder().encode(content));
 }
 
-/** Returns null when valid, or an error string. Skips check when secret is unset. */
+/** Returns null when valid, or an error string describing why it was rejected. */
 export async function verifySvixWebhook(request, rawBody, secret) {
   // No secret means nothing can be verified, so nothing may be trusted. This
   // used to return null — treating an unconfigured webhook as a valid one, and
@@ -44,6 +68,7 @@ export async function verifySvixWebhook(request, rawBody, secret) {
 
   const signedContent = `${id}.${timestamp}.${rawBody}`;
   const secretBytes = decodeSecret(secret);
+  if (!secretBytes) return 'Webhook secret is not a valid signing secret.';
   const expected = toBase64(await sign(signedContent, secretBytes));
 
   // Compared with safeEqual rather than === for the same reason the admin

@@ -7,6 +7,7 @@ import { json } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { loadSettings, saveSettings, FIELDS, DEFAULTS } from '../../_lib/settings.js';
 import { hasCustomerTables } from '../../_lib/customers.js';
+import { describeWebhookSecret } from '../../_lib/webhook.js';
 import { checkSchema } from '../../_lib/schema.js';
 
 export async function onRequestGet({ request, env }) {
@@ -22,19 +23,26 @@ export async function onRequestGet({ request, env }) {
   // Whether the database is actually up to date, columns included.
   const schema = await checkSchema(env.DB);
 
+  /* Delivery tracking used to read as On whenever this secret existed at all.
+     A wrong value looks exactly like a right one from here, so Resend's events
+     were being rejected while the portal showed green. Report the shape of the
+     secret instead — never the value. */
+  const webhookSecret = describeWebhookSecret(env.RESEND_WEBHOOK_SECRET);
+
   return json({
     ok: true,
     settings,
     fields: FIELDS,
     defaults: DEFAULTS,
     schema,
+    webhookSecret,
     health: {
       database: Boolean(env.DB),
       settingsStored,
       quotes: quotesReady,
       customers: await hasCustomerTables(env.DB),
       email: Boolean(env.RESEND_API_KEY || env.BREVO_API_KEY || env.NOTIFY_WEBHOOK_URL),
-      emailTracking: Boolean(env.RESEND_WEBHOOK_SECRET),
+      emailTracking: webhookSecret.usable,
       propertyLookup: Boolean(env.RENTCAST_API_KEY),
       spamCheck: true,
       extraSpamCheck: Boolean(env.TURNSTILE_SECRET_KEY)

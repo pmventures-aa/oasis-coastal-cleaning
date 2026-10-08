@@ -1129,6 +1129,29 @@
           'but the secret is missing from Cloudflare, so the check is shown but never verified.</p>'
         : '';
 
+    /* Resend switches an endpoint off after it keeps rejecting events, and a
+       wrong signing secret rejects every one of them. Say which of the three
+       states it is in, because the fix differs, and say that the endpoint has
+       to be switched back on afterwards — fixing the secret alone leaves it
+       disabled and nothing starts flowing again. */
+    var ws = state.webhookSecret || {};
+    var webhookWarning = '';
+    if (ws.problem === 'api-key') {
+      webhookWarning = '<p class="health-warn"><strong>Delivery tracking has the wrong key.</strong> ' +
+        '<code>RESEND_WEBHOOK_SECRET</code> in Cloudflare is an API key (it starts with <code>re_</code>). ' +
+        'It needs the signing secret from the webhook\u2019s own page in Resend, which starts with ' +
+        '<code>whsec_</code>. Then switch the endpoint back on in Resend.</p>';
+    } else if (ws.problem === 'not-base64' || ws.problem === 'too-short') {
+      webhookWarning = '<p class="health-warn"><strong>Delivery tracking has an unreadable secret.</strong> ' +
+        '<code>RESEND_WEBHOOK_SECRET</code> in Cloudflare is set but is not a signing secret \u2014 it may ' +
+        'have been cut short when it was pasted. Copy it again from the webhook\u2019s page in Resend, ' +
+        'then switch the endpoint back on there.</p>';
+    } else if (ws.problem === 'missing') {
+      webhookWarning = '<p class="health-warn"><strong>Delivery tracking is off.</strong> Quotes still send ' +
+        'and arrive normally \u2014 this only tells you whether one was delivered and opened. To switch it ' +
+        'on, add <code>RESEND_WEBHOOK_SECRET</code> in Cloudflare from the webhook\u2019s page in Resend.</p>';
+    }
+
     var health = Object.keys(HEALTH_LABELS).map(function (k) {
       var on = k === 'extraSpamCheck' ? (secret && siteKey) : !!state.health[k];
       var l = HEALTH_LABELS[k];
@@ -1162,7 +1185,7 @@
         '<p class="muted set-group__lead">Nothing here is broken — the site works without all of it.</p>' +
         setupPanel +
         '<ul class="health-list">' + health + '</ul>' +
-        turnstileWarning +
+        turnstileWarning + webhookWarning +
       '</section>' +
       '<div class="settings__save">' +
         '<button type="button" class="btn btn--primary" data-save-settings>Save settings</button>' +
@@ -1173,7 +1196,7 @@
   function loadSettings() {
     api('/api/admin/settings').then(function (r) {
       if (!r.ok) {
-        state.settings = {}; state.settingsFields = []; state.health = {};
+        state.settings = {}; state.settingsFields = []; state.health = {}; state.webhookSecret = {};
         render();
         return;
       }
@@ -1181,6 +1204,7 @@
       state.settingsFields = r.body.fields;
       state.health = r.body.health || {};
       state.schema = r.body.schema || {};
+      state.webhookSecret = r.body.webhookSecret || {};
       render();
     });
   }
