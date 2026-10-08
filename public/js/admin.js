@@ -278,12 +278,6 @@
     return '<span class="pill pill--' + esc(status) + '">' + esc(label) + '</span>';
   }
 
-  function quotePill(status) {
-    var mapped = status === 'sent' ? 'quoted' : status === 'accepted' ? 'booked'
-      : (status === 'declined' || status === 'expired') ? 'closed' : 'new';
-    return pill(mapped, QUOTE_STATUS_LABELS[status] || status);
-  }
-
   function field(l, col, value, opts) {
     opts = opts || {};
     if (opts.options) {
@@ -1200,14 +1194,27 @@
     try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
   }
 
-  function trackingSummary(q) {
-    var bits = [];
-    if (q.email_status && q.email_status !== 'pending') bits.push(EMAIL_STATUS_LABELS[q.email_status] || q.email_status);
-    if (q.first_viewed_at) bits.push('Viewed' + (q.view_count > 1 ? ' (' + q.view_count + '×)' : ''));
-    if (q.accepted_at) bits.push('Accepted');
-    else if (q.declined_at) bits.push('Declined');
-    else if (q.status === 'sent' && !q.first_viewed_at) bits.push('Awaiting response');
-    return bits.join(' · ');
+  /* What happened to the quote after she pressed send, as chips rather than
+     a line of grey text that looked the same as the address above it. The
+     one she can act on — sent, never opened — is marked as such. */
+  function trackingChips(q) {
+    var chips = [];
+    var add = function (label, tone) {
+      chips.push('<span class="qtrack__chip' + (tone ? ' qtrack__chip--' + tone : '') + '">' +
+        esc(label) + '</span>');
+    };
+    if (q.email_status && q.email_status !== 'pending') {
+      var failed = q.email_status === 'failed' || q.email_status === 'bounced';
+      add(EMAIL_STATUS_LABELS[q.email_status] || q.email_status, failed ? 'bad' : 'ok');
+    }
+    if (q.first_viewed_at) {
+      add('Opened' + (q.view_count > 1 ? ' ' + q.view_count + '\u00d7' : '') +
+        ' \u00b7 last ' + when(q.last_viewed_at || q.first_viewed_at), 'ok');
+    }
+    if (q.accepted_at) add('Accepted ' + when(q.accepted_at), 'yes');
+    else if (q.declined_at) add('Declined ' + when(q.declined_at), 'bad');
+    else if (q.status === 'sent' && !q.first_viewed_at) add('Not opened yet', 'wait');
+    return chips.length ? '<p class="qtrack">' + chips.join('') + '</p>' : '';
   }
 
   /* A user-agent string is 200 characters nobody wants to read. She wants to
@@ -1257,7 +1264,7 @@
   }
 
   function quoteCard(q) {
-    var summary = trackingSummary(q);
+    var summary = trackingChips(q);
     var isArchived = !!q.archived_at;
     var canResend = !isArchived && (q.status === 'sent' || q.status === 'declined');
     var to = q.customer_email || '';
@@ -1294,7 +1301,10 @@
         '<span class="acc__icon" aria-hidden="true"></span>' + esc(money(q.total)) + ' · ' + esc(QUOTE_STATUS_LABELS[q.status] || q.status) +
         (isArchived ? ' · Archived' : '') +
         '<span class="muted" style="margin-left:.5rem;font-weight:400">' + esc(when(q.created_at)) + '</span></summary>' +
-      '<div class="acc__in quote-card-mini">' + quotePill(q.status) +
+      /* The summary line this opens from already reads "$250.00 · Sent", and
+         the lead header above carries the same pill — three times on one
+         screen, the middle one stretched across the card by the grid. */
+      '<div class="acc__in quote-card-mini">' +
         (q.status !== 'draft' && q.token
           ? '<span class="quote-link">' +
               '<a href="/proposal?t=' + esc(q.token) + '" target="_blank" rel="noopener">Customer link</a>' +
@@ -1302,7 +1312,7 @@
             '</span>'
           : '') +
         (to ? '<p class="quote-card-mini__track muted">To ' + esc(to) + '</p>' : '') +
-        (summary ? '<p class="quote-card-mini__track muted">' + esc(summary) + '</p>' : '') +
+        summary +
         quoteTimeline(q) +
         '<div class="quote-card-mini__acts">' + acts + '</div></div></details>';
   }
@@ -1805,10 +1815,11 @@
     if (view === 'pending') {
       acts = btn('resend', q, 'Send again', 'primary') + copyLinkBtn(q);
     } else if (view === 'accepted') {
-      acts = (q.completed_at
-        ? btn('uncomplete', q, 'Not finished after all', 'ghost')
-        : btn('complete', q, 'Mark the job done', 'primary')) +
-        btn('paid', q, 'Mark paid', q.completed_at ? 'primary' : 'ghost');
+      /* The next thing to do comes first. An undo used to lead the row, at
+         the same width as the action she actually came here for. */
+      acts = q.completed_at
+        ? btn('paid', q, 'Mark paid', 'primary') + btn('uncomplete', q, 'Not finished after all', 'ghost')
+        : btn('complete', q, 'Mark the job done', 'primary') + btn('paid', q, 'Mark paid', 'ghost');
     } else if (view === 'paid') {
       acts = btn('unpaid', q, 'Not paid after all', 'ghost');
     } else if (view === 'quotes') {
@@ -1817,9 +1828,18 @@
     acts += '<a class="btn btn--ghost btn--tiny" href="/api/admin/quotes/pdf?id=' + esc(q.id) +
       '" target="_blank" rel="noopener">PDF</a>';
 
+    /* Every stage but "Quotes" was a dead end: a name, an amount and two
+       state buttons, with no way back to the quote itself to re-read what
+       was in it. The name opens it, the way it does everywhere else. */
+    var name = q.lead_id
+      ? '<button type="button" class="pcard__open" data-quote-action="open-lead" ' +
+          'data-quote-id="' + esc(q.id) + '" data-lead-id="' + esc(q.lead_id) + '">' +
+          esc(who) + '</button>'
+      : esc(who);
+
     return '<article class="pcard">' +
       '<div class="pcard__head">' +
-        '<div><h3 class="pcard__who">' + esc(who) + '</h3>' +
+        '<div><h3 class="pcard__who">' + name + '</h3>' +
           (where ? '<p class="pcard__where muted">' + esc(where) + '</p>' : '') + '</div>' +
         '<span class="pcard__amt">' + esc(money(q.total)) + '</span>' +
       '</div>' +
