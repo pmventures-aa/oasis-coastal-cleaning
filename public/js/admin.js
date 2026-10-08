@@ -116,10 +116,6 @@
   /* Always blank. The catalog carries names, never amounts — see
      js/admin-catalog.js. Kept as a function so every call site stays honest
      about where a price does not come from. */
-  function catalogPrice() {
-    return '';
-  }
-
   function splitName(full) {
     var s = String(full || '').trim().replace(/\s+/g, ' ');
     if (!s) return { first: '', last: '' };
@@ -666,22 +662,24 @@
     return { label: label, notes: standardNote() };
   }
 
+  /* The job, then each add-on they ticked. The add-ons come in at zero, so
+     a quote written the way she usually writes one — one price for the
+     clean, the extras thrown in — reads "Included" against each of them on
+     the quote, the PDF and the email. She types over any that are not free.
+     They used to arrive with an empty amount, which is neither a price nor
+     a promise. */
   function catalogQuoteLinesFromLead(l) {
     if (!l) return [];
     var seed = quoteSeedFromLead(l);
     var lines = [{ label: seed.label, qty: 1, unit_dollars: '' }];
     list(l.add_ons).forEach(function (name) {
       var item = findCatalogByLabel(name);
-      if (item) {
-        lines.push({
-          catalog_id: item.id,
-          label: item.label,
-          qty: 1,
-          unit_dollars: String(catalogPrice(item))
-        });
-      } else {
-        lines.push({ label: name, qty: 1, unit_dollars: '' });
-      }
+      lines.push({
+        catalog_id: item ? item.id : '',
+        label: item ? item.label : name,
+        qty: 1,
+        unit_dollars: '0'
+      });
     });
     return lines;
   }
@@ -706,6 +704,11 @@
     var cadence = line.cadence || 'onetime';
     var recurring = cadence !== 'onetime';
 
+    /* One card, three rows, no boxes inside boxes: what it is and what it
+       costs, what the customer reads, then a quiet strip of the three small
+       decisions. The old card split the lower half into two bordered columns
+       with a sand button wedged between them, which read as four controls of
+       equal weight when only one of them is typed into. */
     return '<div class="qline' + (recurring ? ' is-recurring' : '') +
         (line.optional ? ' is-optional' : '') + '"' +
         (line.catalog_id ? ' data-catalog-id="' + esc(line.catalog_id) + '"' : '') + '>' +
@@ -722,40 +725,27 @@
             esc(price) + '">' +
           '</span></label>' +
       '</div>' +
-      '<div class="qline__desc">' +
-        '<label class="qline__f"><span>What it includes <i>(the customer reads this)</i></span>' +
-          '<textarea class="quote-description" rows="2" ' +
-            'placeholder="Anything worth spelling out — what is covered, what is not.">' +
-            esc(line.description || '') + '</textarea></label>' +
-        '<button type="button" class="qline__fill" data-fill-addons>' +
-          'Include every add-on</button>' +
-      '</div>' +
-      '<div class="qline__meta">' +
-        '<label class="qline__f qline__f--cadence"><span>How often</span>' +
+      '<label class="qline__f qline__desc"><span>What it includes <i>(the customer reads this)</i></span>' +
+        '<textarea class="quote-description" rows="2" ' +
+          'placeholder="Anything worth spelling out — what is covered, what is not.">' +
+          esc(line.description || '') + '</textarea></label>' +
+      '<div class="qline__strip">' +
+        '<label class="qline__pick"><span>How often</span>' +
           '<select class="quote-cadence">' +
             CADENCES.map(function (c) {
               return '<option value="' + c.id + '"' + (cadence === c.id ? ' selected' : '') + '>' +
                 esc(c.label) + '</option>';
             }).join('') +
           '</select></label>' +
-        /* The label asked "Charge for it?" and the answer was a box meaning
-           do not — tick for no, on the control that decides whether a line
-           is in the amount the customer accepts. Question and answer agree
-           now. */
-        '<label class="qline__f qline__f--optional"><span>Is it optional?</span>' +
-          '<span class="qline__opt">' +
-            '<input type="checkbox" class="quote-optional"' + (line.optional ? ' checked' : '') + '>' +
-            '<span>Yes \u2014 leave it off the total</span>' +
-          '</span></label>' +
+        '<label class="qline__tick">' +
+          '<input type="checkbox" class="quote-optional"' + (line.optional ? ' checked' : '') + '>' +
+          '<span>Optional — leave it off the total</span>' +
+        '</label>' +
         '<button type="button" class="qline__remove" data-remove-line ' +
           'aria-label="Remove this line">Remove</button>' +
       '</div></div>';
   }
 
-  /* The add-on list the customer is shown, written out as a sentence for the
-     line description. Built from the same catalogue the tick boxes come from,
-     so adding an add-on to the site adds it here too and the two can never
-     tell the customer different things. */
   /* The description is what the customer reads, so she should be able to see
      all of it. The add-on sentence runs to six lines on a phone, and the box
      was showing three and scrolling the rest out of sight. Capped so one long
@@ -770,83 +760,141 @@
     Array.prototype.forEach.call(root.querySelectorAll('.quote-description'), growDesc);
   }
 
-  function everyAddonSentence() {
-    var byGroup = {};
-    var order = [];
-    (CATALOG.addOns || []).forEach(function (a) {
-      var g = a.group || 'Included';
-      if (!byGroup[g]) { byGroup[g] = []; order.push(g); }
-      // The catalogue labels carry a parenthetical for the admin's benefit
-      // ("Oven (inside)"); the customer wants the plain thing.
-      byGroup[g].push(a.label.replace(/\s*\([^)]*\)\s*$/, '').toLowerCase());
+  /* Everything she can put on a quote, flat, with the group kept for the
+     hint beside the name. */
+  function catalogItems() {
+    var out = (CATALOG.bases || []).map(function (b) {
+      return { id: b.id, label: b.label, group: 'Service' };
     });
-    if (!order.length) return '';
-    return 'Every add-on included \u2014 ' + order.map(function (g) {
-      return byGroup[g].join(', ');
-    }).join('; ') + '.';
+    (CATALOG.addOns || []).forEach(function (a) {
+      out.push({ id: a.id, label: a.label, group: a.group || 'Add-on' });
+    });
+    return out;
   }
 
-  function catalogSections() {
-    var sections = [];
-    if ((CATALOG.bases || []).length) {
-      sections.push({ id: 'base', label: 'Base', items: CATALOG.bases });
-    }
-    var groups = {};
-    var order = [];
-    (CATALOG.addOns || []).forEach(function (a) {
-      var g = a.group || 'Add-ons';
-      if (!groups[g]) { groups[g] = []; order.push(g); }
-      groups[g].push(a);
-    });
-    order.forEach(function (name) {
-      var short = name === 'Around the house' ? 'House'
-        : name === 'Organizing' ? 'Organize' : name;
-      sections.push({
-        id: 'g-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        label: short,
-        items: groups[name]
-      });
-    });
-    return sections;
-  }
-
-  function catalogRowHtml(item) {
-    var price = catalogPrice(item);
-    return '<div class="quote-catalog__row" data-catalog-row data-catalog-id="' + esc(item.id) + '" data-catalog-label="' + esc(item.label) + '">' +
-      '<span class="quote-catalog__name">' + esc(item.label) + '</span>' +
-      '<label class="quote-catalog__price">' +
-        '<span class="sr-only">Price for ' + esc(item.label) + '</span>' +
-        '<span class="quote-catalog__dollar" aria-hidden="true">$</span>' +
-        '<input type="text" inputmode="decimal" class="quote-catalog__price-input" ' +
-          'placeholder="0.00" value="' + esc(String(price)) + '" data-catalog-price-input>' +
-      '</label>' +
-      '<button type="button" class="btn btn--primary btn--tiny" data-add-catalog>Add</button>' +
+  /* The saved list was five tabs of rows, each with its own price box and
+     its own Add button — forty controls to find one service. It is a box
+     she types into: the list narrows as she goes, Enter takes the top match,
+     and anything she types that is not on the list is added as it stands.
+     Price, quantity, cadence and wording are all set on the line itself,
+     which is where every other line is edited. */
+  function quoteCatalogHtml() {
+    if (!catalogItems().length) return '';
+    return '<div class="svcpick" data-svcpick>' +
+      '<label class="svcpick__lab" for="svcpick-input">Add a saved service</label>' +
+      '<div class="svcpick__box">' +
+        '<input type="text" id="svcpick-input" class="svcpick__input" autocomplete="off" ' +
+          'role="combobox" aria-expanded="false" aria-controls="svcpick-list" ' +
+          'placeholder="Start typing — deep clean, oven, windows…" data-svcpick-input>' +
+        '<button type="button" class="btn btn--ghost btn--tiny svcpick__add" data-svcpick-add>Add</button>' +
+      '</div>' +
+      '<ul class="svcpick__list" id="svcpick-list" role="listbox" hidden data-svcpick-list></ul>' +
+      '<p class="svcpick__hint muted">Set the price, how often and the wording on the line itself. ' +
+        'Anything not on the list can just be typed.</p>' +
     '</div>';
   }
 
-  function quoteCatalogHtml() {
-    var sections = catalogSections();
-    if (!sections.length) return '';
-    var tabs = sections.map(function (s, i) {
-      return '<button type="button" class="quote-catalog__tab' + (i === 0 ? ' is-on' : '') +
-        '" data-catalog-tab="' + esc(s.id) + '" role="tab">' + esc(s.label) + '</button>';
-    }).join('');
-    var panels = sections.map(function (s, i) {
-      return '<div class="quote-catalog__panel' + (i === 0 ? ' is-on' : '') +
-        '" data-catalog-panel="' + esc(s.id) + '" role="tabpanel">' +
-        s.items.map(catalogRowHtml).join('') +
-      '</div>';
-    }).join('');
+  function svcMatches(q) {
+    var needle = String(q || '').toLowerCase().trim();
+    var all = catalogItems();
+    if (!needle) return all.slice(0, 8);
+    var starts = [], has = [];
+    all.forEach(function (it) {
+      var l = it.label.toLowerCase();
+      if (l.indexOf(needle) === 0) starts.push(it);
+      else if (l.indexOf(needle) !== -1) has.push(it);
+    });
+    return starts.concat(has).slice(0, 8);
+  }
 
-    return '<details class="quote-catalog" open>' +
-      '<summary class="quote-catalog__sum">' +
-        '<span class="quote-catalog__sum-title">Add priced items</span>' +
-        '<span class="quote-catalog__sum-meta muted">Set $ for this quote, then Add</span>' +
-      '</summary>' +
-      '<div class="quote-catalog__body">' +
-        '<div class="quote-catalog__tabs" role="tablist">' + tabs + '</div>' +
-        panels +
-      '</div></details>';
+  function svcRender(pick) {
+    var input = pick.querySelector('[data-svcpick-input]');
+    var listEl = pick.querySelector('[data-svcpick-list]');
+    var typed = String(input.value || '').trim();
+    var items = svcMatches(typed);
+
+    if (!items.length) {
+      listEl.innerHTML = typed
+        ? '<li class="svcpick__none">Nothing saved by that name — press Add to use ' +
+            '“' + esc(typed) + '” as typed.</li>'
+        : '';
+      listEl.hidden = !typed;
+      input.setAttribute('aria-expanded', String(!listEl.hidden));
+      return;
+    }
+    listEl.innerHTML = items.map(function (it, i) {
+      return '<li><button type="button" role="option" aria-selected="' + (i === 0) + '" ' +
+        'class="svcpick__opt' + (i === 0 ? ' is-on' : '') + '" ' +
+        'data-svcpick-opt data-label="' + esc(it.label) + '" data-id="' + esc(it.id) + '">' +
+        '<span class="svcpick__name">' + esc(it.label) + '</span>' +
+        '<span class="svcpick__group">' + esc(it.group) + '</span>' +
+        '</button></li>';
+    }).join('');
+    listEl.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+  }
+
+  function svcClose(pick) {
+    var listEl = pick.querySelector('[data-svcpick-list]');
+    var input = pick.querySelector('[data-svcpick-input]');
+    if (listEl) listEl.hidden = true;
+    if (input) input.setAttribute('aria-expanded', 'false');
+  }
+
+  function svcMove(pick, step) {
+    var opts = [].slice.call(pick.querySelectorAll('.svcpick__opt'));
+    if (!opts.length) return;
+    var i = opts.findIndex(function (o) { return o.classList.contains('is-on'); });
+    var next = Math.max(0, Math.min(opts.length - 1, (i < 0 ? 0 : i) + step));
+    opts.forEach(function (o, k) {
+      o.classList.toggle('is-on', k === next);
+      o.setAttribute('aria-selected', String(k === next));
+    });
+    if (opts[next].scrollIntoView) opts[next].scrollIntoView({ block: 'nearest' });
+  }
+
+  /* Adds whatever is chosen — a saved service, or the words she typed. The
+     line lands empty of price on purpose: every job is priced for the job. */
+  function svcAdd(pick, label, id) {
+    var editor = pick.closest('.quote-editor');
+    if (!editor) return;
+    var name = String(label || '').trim();
+    if (!name) return;
+    var lines = editor.querySelector('.quote-lines');
+
+    /* A single untouched starter line is replaced rather than left above
+       the thing she actually picked. */
+    var rows = lines.querySelectorAll('.qline');
+    if (rows.length === 1) {
+      var only = rows[0];
+      var onlyPrice = (only.querySelector('.quote-price') || {}).value;
+      var onlyDesc = (only.querySelector('.quote-description') || {}).value;
+      if (!onlyPrice && !String(onlyDesc || '').trim() && !only.getAttribute('data-catalog-id')) {
+        only.remove();
+      }
+    }
+
+    lines.insertAdjacentHTML('beforeend',
+      quoteLineHtml({ catalog_id: id || '', label: name, qty: 1, unit_dollars: '' }));
+    updateQuoteTotal(editor);
+    growAllDesc();
+
+    var input = pick.querySelector('[data-svcpick-input]');
+    input.value = '';
+    svcClose(pick);
+    input.focus();
+
+    var added = editor.querySelectorAll('.qline');
+    var el = added[added.length - 1];
+    var priceEl = el && el.querySelector('.quote-price');
+    if (priceEl) priceEl.focus();            // the one thing still to decide
+  }
+
+  function svcCommit(pick) {
+    var on = pick.querySelector('.svcpick__opt.is-on');
+    if (on) { svcAdd(pick, on.getAttribute('data-label'), on.getAttribute('data-id')); return; }
+    var input = pick.querySelector('[data-svcpick-input]');
+    svcAdd(pick, input.value, '');
   }
 
   function quoteEditorHtml(l, quote, opts) {
@@ -866,6 +914,10 @@
       : (standalone ? [{ label: defaultLabel, qty: 1, unit_dollars: '' }] : catalogQuoteLinesFromLead(l));
     if (!lines.length) lines = [{ label: defaultLabel, qty: 1, unit_dollars: '' }];
     var notesVal = quote.notes != null && quote.notes !== '' ? quote.notes : seed.notes;
+    /* What they ticked on the website. Kristina decides whether each one is
+       thrown in or charged; the button puts them on the quote at $0.00 and
+       she changes any of them that are not free. */
+    var asked = list(l && l.add_ons);
     var nameParts = splitName(quote.customer_name || '');
     var customerFields = standalone
       ? '<p class="cgroup__k">Who it is for</p>' +
@@ -931,7 +983,8 @@
     return (standalone ? '' : '<details class="acc" open id="quote-composer"><summary class="acc__sum"><span class="acc__icon"></span>' + summary + '</summary><div class="acc__in">') +
       '<div class="quote-editor"' + (standalone ? ' data-standalone="1"' : '') +
         (alreadyOut ? ' data-already-out="1"' : '') +
-        ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '">' +
+        ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '"' +
+        (asked.length ? ' data-asked="' + esc(JSON.stringify(asked)) + '"' : '') + '>' +
       customerFields +
       '<p class="cgroup__k">What the job includes</p>' +
       '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
@@ -944,10 +997,20 @@
       '<div class="quote-lines-actions">' +
         '<button type="button" class="btn btn--add" data-add-line>' +
           '+ Add a line</button>' +
+        /* The add-ons this customer ticked on the website, each as its own
+           line at $0.00 so the quote reads "Included" against them. The old
+           button pasted a sentence listing the whole catalogue into the
+           description instead, which named things they never asked for. */
+        (asked.length
+          ? '<button type="button" class="btn btn--add btn--add-asked" data-add-asked>' +
+              '+ Add their add-on' + (asked.length === 1 ? '' : 's') +
+              ' (' + asked.length + ')</button>'
+          : '') +
       '</div>' +
+      /* Both ways of adding a line belong together, above the running total
+         rather than under it. */
+      quoteCatalogHtml() +
       '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
-      '<details class="quote-catalog-wrap"><summary>Or pick from your saved services</summary>' +
-        quoteCatalogHtml() + '</details>' +
       '<p class="cgroup__k">A note to them <span class="cgroup__hint">— appears on the quote as a note from you</span></p>' +
       '<label class="pf pf--wide pf--note"><span class="sr-only">Note</span><textarea class="pf__v quote-notes" rows="3">' +
         esc(notesVal || '') + '</textarea></label>' +
@@ -964,68 +1027,6 @@
           (alreadyOut ? 'Update &amp; resend' : 'Send to Customer') + '</button></div>' +
       '<div class="quote-msg form-status" role="alert" hidden></div></div>' +
       (standalone ? '' : '</div></details>');
-  }
-
-  function addCatalogItem(editor, btn) {
-    var row = btn.closest('[data-catalog-row]');
-    if (!row) return;
-    var id = row.getAttribute('data-catalog-id') || '';
-    var label = row.getAttribute('data-catalog-label') || '';
-    var priceInput = row.querySelector('[data-catalog-price-input]');
-    var priceRaw = priceInput ? String(priceInput.value || '').replace(/[^0-9.]/g, '') : '';
-    var priceNum = Number(priceRaw);
-    if (!label) return;
-    if (!Number.isFinite(priceNum) || priceNum < 0) {
-      if (priceInput) priceInput.focus();
-      return;
-    }
-    var price = String(Math.round(priceNum * 100) / 100);
-
-    var lines = editor.querySelector('.quote-lines');
-    var existing = null;
-    Array.prototype.forEach.call(lines.querySelectorAll('.qline'), function (line) {
-      var rowId = line.getAttribute('data-catalog-id');
-      var rowLabel = (line.querySelector('.quote-label') || {}).value || '';
-      if (!existing && ((id && rowId === id) || rowLabel === label)) existing = line;
-    });
-
-    if (existing) {
-      var qtyEl = existing.querySelector('.quote-qty');
-      var priceEl = existing.querySelector('.quote-price');
-      qtyEl.value = String(Math.min(999, (parseInt(qtyEl.value, 10) || 1) + 1));
-      if (priceEl) priceEl.value = price;
-    } else {
-      var rows = lines.querySelectorAll('.qline');
-      if (rows.length === 1) {
-        var only = rows[0];
-        var onlyPrice = (only.querySelector('.quote-price') || {}).value;
-        var onlyLabel = ((only.querySelector('.quote-label') || {}).value || '').trim();
-        if (!onlyPrice && onlyLabel && !only.getAttribute('data-catalog-id')) {
-          only.remove();
-        }
-      }
-      lines.insertAdjacentHTML('beforeend', quoteLineHtml({
-        catalog_id: id,
-        label: label,
-        qty: 1,
-        unit_dollars: price
-      }));
-    }
-    updateQuoteTotal(editor);
-    row.classList.add('is-added');
-    setTimeout(function () { row.classList.remove('is-added'); }, 700);
-  }
-
-  function switchCatalogTab(tabBtn) {
-    var catalog = tabBtn.closest('.quote-catalog');
-    if (!catalog) return;
-    var id = tabBtn.getAttribute('data-catalog-tab');
-    Array.prototype.forEach.call(catalog.querySelectorAll('[data-catalog-tab]'), function (t) {
-      t.classList.toggle('is-on', t === tabBtn);
-    });
-    Array.prototype.forEach.call(catalog.querySelectorAll('[data-catalog-panel]'), function (p) {
-      p.classList.toggle('is-on', p.getAttribute('data-catalog-panel') === id);
-    });
   }
 
   function newQuotePanelHtml() {
@@ -2428,14 +2429,14 @@
       ed.querySelector('.quote-lines').insertAdjacentHTML('beforeend', quoteLineHtml({}));
       updateQuoteTotal(ed); return;
     }
-    var catalogTab = hit.closest('[data-catalog-tab]');
-    if (catalogTab) {
-      switchCatalogTab(catalogTab);
+    var svcOpt = hit.closest('[data-svcpick-opt]');
+    if (svcOpt) {
+      svcAdd(svcOpt.closest('[data-svcpick]'),
+        svcOpt.getAttribute('data-label'), svcOpt.getAttribute('data-id'));
       return;
     }
-    var catalogBtn = hit.closest('[data-add-catalog]');
-    if (catalogBtn) {
-      addCatalogItem(catalogBtn.closest('.quote-editor'), catalogBtn);
+    if (hit.matches('[data-svcpick-add]')) {
+      svcCommit(hit.closest('[data-svcpick]'));
       return;
     }
     if (hit.matches('[data-remove-line]')) {
@@ -2496,20 +2497,45 @@
     }
     if (hit.matches('[data-run-setup]')) { runSetup(hit); return; }
     if (hit.matches('[data-save-settings]')) { saveSettingsFromForm(); return; }
-    if (hit.matches('[data-fill-addons]')) {
-      var frow = hit.closest('.qline');
-      var box = frow && frow.querySelector('.quote-description');
-      if (box) {
-        var sentence = everyAddonSentence();
-        var current = box.value.trim();
-        // Grown after the value changes, below.
-        // Never silently wipe what she has written, and never paste the list
-        // twice because she tapped twice.
-        if (current.indexOf(sentence) === -1) {
-          box.value = current ? current + ' ' + sentence : sentence;
-        }
-        growDesc(box);
-        box.focus();
+    /* Each add-on they ticked on the website becomes its own line at $0.00,
+       which the quote, the PDF and the email all render as "Included". She
+       prices any of them that are not actually free. Tapping twice does not
+       add them twice. */
+    if (hit.matches('[data-add-asked]')) {
+      var aEd = hit.closest('.quote-editor');
+      var aLines = aEd.querySelector('.quote-lines');
+      /* Matched through the catalogue, so "Interior windows" does not land
+         beside the "Interior window" already on the quote. */
+      var canon = function (v) {
+        var item = findCatalogByLabel(v);
+        return String(item ? item.label : v).toLowerCase().replace(/\s+/g, ' ').trim();
+      };
+      var have = {};
+      [].slice.call(aEd.querySelectorAll('.quote-label')).forEach(function (inp) {
+        have[canon(inp.value)] = true;
+      });
+      var want = [];
+      try { want = JSON.parse(aEd.getAttribute('data-asked') || '[]'); } catch (e) { want = []; }
+      var added = 0;
+      want.forEach(function (label) {
+        var key = canon(label);
+        if (!key || have[key]) return;
+        have[key] = true;
+        var item = findCatalogByLabel(label);
+        aLines.insertAdjacentHTML('beforeend', quoteLineHtml({
+          catalog_id: item ? item.id : '',
+          label: item ? item.label : label,
+          qty: 1,
+          unit_dollars: '0'
+        }));
+        added++;
+      });
+      updateQuoteTotal(aEd);
+      growAllDesc();
+      if (added) {
+        var last = aEd.querySelectorAll('.qline');
+        var el = last[last.length - 1];
+        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
       return;
     }
@@ -2736,6 +2762,16 @@
     });
   }
 
+  /* Opening on focus shows what is saved without her having to guess a
+     first letter; clicking away closes it. */
+  root.addEventListener('focusin', function (e) {
+    if (e.target.matches('[data-svcpick-input]')) svcRender(e.target.closest('[data-svcpick]'));
+  });
+  document.addEventListener('click', function (e) {
+    var open = root.querySelector('[data-svcpick] [data-svcpick-list]:not([hidden])');
+    if (open && !e.target.closest('[data-svcpick]')) svcClose(open.closest('[data-svcpick]'));
+  });
+
   root.addEventListener('input', function (e) {
     if (e.target.id === 'search') { state.q = e.target.value; applySearchFilter(); }
     if (e.target.id === 'client-search') {
@@ -2749,6 +2785,9 @@
        fight the caret mid-string, so it only reshapes while she is typing at
        the end — which is how a phone number is actually entered. */
     if (e.target.matches('.quote-description')) { growDesc(e.target); }
+    if (e.target.matches('[data-svcpick-input]')) {
+      svcRender(e.target.closest('[data-svcpick]'));
+    }
     if (e.target.matches('[data-phone-field]')) {
       var el = e.target;
       var atEnd = el.selectionStart === el.value.length;
@@ -2791,7 +2830,18 @@
     }
   });
 
+  /* The saved-service box is a combobox, so it answers to the keyboard:
+     arrows move, Enter takes the highlighted match (or the words she typed
+     if nothing matches), Escape closes without adding. */
   root.addEventListener('keydown', function (e) {
+    if (e.target.matches('[data-svcpick-input]')) {
+      var pick = e.target.closest('[data-svcpick]');
+      if (e.key === 'ArrowDown') { e.preventDefault(); svcRender(pick); svcMove(pick, 1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); svcMove(pick, -1); }
+      else if (e.key === 'Enter') { e.preventDefault(); svcCommit(pick); }
+      else if (e.key === 'Escape') { svcClose(pick); }
+      return;
+    }
     if (!e.target.matches('[data-address-suggest]')) return;
     var list = addressSuggestList(e.target);
     if (!list || list.hidden) return;
