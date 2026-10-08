@@ -287,8 +287,13 @@
   function field(l, col, value, opts) {
     opts = opts || {};
     if (opts.options) {
+      /* A select shows nothing for a value it has no option for, and saving
+         the form would then write that nothing back over a real answer. If
+         what we hold is not on the list, the list grows by one. */
+      var options = opts.options.slice();
+      if (value != null && value !== '' && options.indexOf(value) === -1) { options.splice(1, 0, value); }
       return '<label class="pf"><span class="pf__k">' + esc(l) + '</span><select class="pf__v" data-col="' + col + '">' +
-        opts.options.map(function (o) {
+        options.map(function (o) {
           return '<option value="' + esc(o) + '"' + (o === value ? ' selected' : '') + '>' + esc(o || '—') + '</option>';
         }).join('') + '</select></label>';
     }
@@ -413,14 +418,6 @@
     // Profile first — confirm contact & property, then build a branded quote.
     var tab = state.leadTab[l.id] || 'intake';
 
-    var followFlag = l.followup && l.followup !== 'none'
-      ? '<span class="pill pill--flag">' + (l.followup === 'visit' ? 'Wants a visit' : 'Wants a call') + '</span>' : '';
-    var quoteBadge = '';
-    if (l.latest_quote_status && l.latest_quote_status !== 'draft') {
-      var ql = QUOTE_STATUS_LABELS[l.latest_quote_status] || l.latest_quote_status;
-      quoteBadge = '<span class="pill pill--quoted">' + esc(ql) + '</span>';
-    }
-
     var lookupHint = state.propertyLookupConfigured === false
       ? '<p class="profile__lookup-setup muted">Property lookup needs a free RentCast key: ' +
         '<a href="https://app.rentcast.io/app/api" target="_blank" rel="noopener">get API key</a> → ' +
@@ -459,7 +456,7 @@
           '<button type="button" class="btn btn--primary btn--tiny" data-property-lookup>Fill beds / baths / sq ft from this address</button>' +
           '<span class="profile__lookup-msg muted" data-lookup-msg hidden></span>' +
         '</div>' + lookupHint +
-        field('City', 'city', l.city, { options: oasisCities(l.city) }) +
+        field('City', 'city', l.city, { options: oasisCities() }) +
         field('Type', 'property_type', l.property_type, { options: oasisPropertyTypes() }) +
         field('Size', 'size_label', l.size_label) +
         field('Bedrooms', 'bedrooms', l.bedrooms) + field('Bathrooms', 'bathrooms', l.bathrooms) +
@@ -489,8 +486,10 @@
     if (l.bathrooms) propBits.push(l.bathrooms + ' bath');
     if (l.size_label) propBits.push(l.size_label);
 
+    /* The row this opens out of already carries the status, the follow-up
+       flag and the quote badge, one line above. Printing them again was two
+       "Sent" pills stacked on top of each other. */
     return '<div class="profile">' +
-      '<div class="profile__headline">' + followFlag + quoteBadge + '</div>' +
       '<div class="profile__bar">' +
         (hasPhone
           ? '<a class="btn btn--ghost" href="tel:+1' + tel + '">Call</a>' +
@@ -1362,13 +1361,32 @@
     var fields = {};
     (state.settingsFields || []).forEach(function (f) { fields[f.key] = f; });
 
-    var groups = SETTING_GROUPS.map(function (g) {
-      return '<section class="card set-group">' +
-        '<h3 class="set-group__title">' + esc(g.title) + '</h3>' +
-        g.keys.map(function (k) {
-          return fields[k] ? settingField(fields[k], state.settings[k]) : '';
-        }).join('') + '</section>';
-    }).join('');
+    /* With no settings table behind it the server sends no fields, and each
+       group used to render as a titled box with nothing inside it — three
+       dead ends and no hint that Check and update is what fixes them. */
+    var anyFields = (state.settingsFields || []).length > 0;
+    /* A field the server sends that no group lists would never be drawn, and
+       nothing would say so. Anything unaccounted for gets its own group. */
+    var placed = {};
+    SETTING_GROUPS.forEach(function (g) { g.keys.forEach(function (k) { placed[k] = true; }); });
+    var strays = (state.settingsFields || []).filter(function (f) { return !placed[f.key]; });
+    var allGroups = strays.length
+      ? SETTING_GROUPS.concat([{ title: 'Everything else', keys: strays.map(function (f) { return f.key; }) }])
+      : SETTING_GROUPS;
+
+    var groups = anyFields
+      ? allGroups.map(function (g) {
+          var body = g.keys.map(function (k) {
+            return fields[k] ? settingField(fields[k], state.settings[k]) : '';
+          }).join('');
+          if (!body) return '';
+          return '<section class="card set-group">' +
+            '<h3 class="set-group__title">' + esc(g.title) + '</h3>' + body + '</section>';
+        }).join('')
+      : '<section class="card set-group"><h3 class="set-group__title">Your settings</h3>' +
+        '<p class="muted set-group__none">There is nowhere to save them yet. Press ' +
+        '<strong>Check and update</strong> below and they will appear here — the site works ' +
+        'without them in the meantime.</p></section>';
 
     /* Turnstile needs a secret in Cloudflare AND a site key in the site. With
        only the secret, the form rejects every real customer — so the two halves
@@ -1450,10 +1468,15 @@
         '<ul class="health-list">' + health + '</ul>' +
         turnstileWarning + webhookWarning +
       '</section>' +
-      '<div class="settings__save">' +
-        '<button type="button" class="btn btn--primary" data-save-settings>Save settings</button>' +
-        '<span class="settings__msg form-status" role="status" hidden></span>' +
-      '</div></div>';
+      /* Nothing to save when there are no fields, and a Save button that can
+         only fail is worse than no button. */
+      (anyFields
+        ? '<div class="settings__save">' +
+            '<button type="button" class="btn btn--primary" data-save-settings>Save settings</button>' +
+            '<span class="settings__msg form-status" role="status" hidden></span>' +
+          '</div>'
+        : '') +
+      '</div>';
   }
 
   function loadSettings() {
