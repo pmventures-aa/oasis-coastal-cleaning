@@ -810,7 +810,8 @@
     var notesVal = quote.notes != null && quote.notes !== '' ? quote.notes : seed.notes;
     var nameParts = splitName(quote.customer_name || '');
     var customerFields = standalone
-      ? '<div class="profile__grid compose__customer">' +
+      ? '<p class="cgroup__k">Who it is for</p>' +
+        '<div class="profile__grid compose__customer">' +
           '<label class="pf"><span class="pf__k">First name</span>' +
             '<input class="pf__v quote-first-name" type="text" autocomplete="given-name" placeholder="First" value="' +
             esc(nameParts.first) + '"></label>' +
@@ -820,6 +821,9 @@
           '<label class="pf"><span class="pf__k">Email</span><input class="pf__v quote-email" type="email" placeholder="name@email.com" value="' +
             esc(quote.customer_email || '') + '"></label>' +
           '<label class="pf"><span class="pf__k">Phone</span><input class="pf__v quote-phone" type="tel" placeholder="Optional" value=""></label>' +
+        '</div>' +
+        '<p class="cgroup__k">Where the job is</p>' +
+        '<div class="profile__grid compose__customer">' +
           '<label class="pf"><span class="pf__k">ZIP</span>' +
             '<input class="pf__v quote-zip" type="text" data-zip-lookup inputmode="numeric" autocomplete="postal-code" placeholder="5-digit ZIP" maxlength="10"></label>' +
           '<label class="pf pf--wide addr-suggest"><span class="pf__k">Street address</span>' +
@@ -839,11 +843,10 @@
            scratch is for a real house too, and typing beds and baths by hand
            when the address is already there is work for nothing. */
         '<div class="compose__property">' +
-          '<div class="profile__lookup">' +
-            '<button type="button" class="btn btn--primary btn--tiny" data-compose-lookup>' +
-              'Fill beds / baths / sq ft</button>' +
-            '<span class="profile__lookup-msg" data-compose-lookup-msg hidden></span>' +
-          '</div>' +
+          '<p class="cgroup__k cgroup__k--split">About the place' +
+            '<button type="button" class="btn btn--ghost btn--tiny" data-compose-lookup>' +
+              'Fill from the address</button></p>' +
+          '<p class="profile__lookup-msg" data-compose-lookup-msg hidden></p>' +
           '<div class="profile__grid">' +
             '<label class="pf"><span class="pf__k">Bedrooms</span>' +
               '<input class="pf__v quote-bedrooms" type="text" inputmode="numeric" placeholder="—"></label>' +
@@ -868,18 +871,23 @@
         (alreadyOut ? ' data-already-out="1"' : '') +
         ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '">' +
       customerFields +
+      '<p class="cgroup__k">What the job includes</p>' +
       '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
       /* Adding a line is the main way a quote gets built — the saved list is
          the shortcut, not the other way round — so it is a full-width button
          under the lines rather than a tiny link beside them. */
+      /* This was a full-width teal slab — the loudest thing on the screen,
+         louder than Send. It is something she presses several times while
+         building, not the thing she is building towards. */
       '<div class="quote-lines-actions">' +
-        '<button type="button" class="btn btn--primary btn--block" data-add-line>' +
+        '<button type="button" class="btn btn--add" data-add-line>' +
           '+ Add a line</button>' +
       '</div>' +
       '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
       '<details class="quote-catalog-wrap"><summary>Or pick from your saved services</summary>' +
         quoteCatalogHtml() + '</details>' +
-      '<label class="pf pf--wide"><span class="pf__k">Note</span><textarea class="pf__v quote-notes" rows="2">' +
+      '<p class="cgroup__k">A note to them <span class="cgroup__hint">— appears on the quote as a note from you</span></p>' +
+      '<label class="pf pf--wide pf--note"><span class="sr-only">Note</span><textarea class="pf__v quote-notes" rows="3">' +
         esc(notesVal || '') + '</textarea></label>' +
       (alreadyOut
         ? '<p class="quote-revise-note muted">' +

@@ -1076,3 +1076,93 @@ input[type="number"].set__input { max-width: 9rem; }
 .qline__fill:hover {
   background: var(--oasis-cream); border-color: var(--oasis-teal); color: var(--oasis-teal);
 }
+
+/* ===================================================== composer structure
+   Fourteen fields ran together with nothing to say where "who" ended and
+   "where" began. Named bands give it shape without making it a wizard. */
+.cgroup__k {
+  margin: 1.4rem 0 0.6rem; padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--oasis-line);
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--oasis-teal);
+}
+.cgroup__k:first-child { margin-top: 0.2rem; }
+.cgroup__k--split { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.cgroup__hint {
+  font-size: 0.72rem; font-weight: 500; letter-spacing: 0;
+  text-transform: none; color: var(--oasis-muted);
+}
+.pf--note .pf__v { border: 1.5px solid var(--oasis-line); background: var(--oasis-white); }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ======================================================= one button scale
+   The composer had five different button text sizes (9.92 / 11.2 / 12.16 /
+   12.8 / 14.4px) and three teal fills competing to be the primary action.
+   Teal fill now means one thing: the action that sends. */
+.compose .btn, .quote-editor .btn { font-size: 0.86rem; }
+.compose .btn--tiny, .quote-editor .btn--tiny { font-size: 0.78rem; min-height: 38px; }
+
+/* Adding a line is a repeated, mid-task action: visible, clearly tappable,
+   and plainly not the finish button. */
+.btn--add {
+  width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-body); font-size: 0.86rem; font-weight: 700;
+  letter-spacing: 0.04em; cursor: pointer;
+  color: var(--oasis-teal); background: var(--oasis-cream);
+  border: 1.5px dashed rgba(2, 89, 95, 0.45); border-radius: var(--radius);
+}
+.btn--add:hover { background: #fff; border-style: solid; border-color: var(--oasis-teal); }
+
+/* The gold "+ New quote" button set a gradient; the generic primary hover
+   sets the `background` shorthand, which wiped it — leaving navy text on
+   dark teal, effectively unreadable, every time the pointer crossed it. */
+.btn--new-quote,
+.btn--new-quote:hover,
+.btn--new-quote:focus {
+  background-image: linear-gradient(135deg, var(--oasis-gold) 0%, #d4a017 100%);
+  background-color: var(--oasis-gold);
+  color: var(--oasis-navy);
+}
+
+/* ============================================================ legibility
+   Several controls were drawn at 74% alpha and one catalog heading landed
+   at 2.39:1 against its own background. */
+.qline__fill, .qline__remove { color: var(--oasis-navy); }
+.quote-catalog__sum-title { color: var(--oasis-navy); }
+.profile__lookup-msg { color: var(--oasis-navy); }
+
+/* The last size outliers: the add-on filler, the saved-service tabs and the
+   Add button inside them. Three sizes became one, and the only teal fill
+   left in the composer is the button that sends. */
+.qline__fill { font-size: 0.78rem; min-height: 38px; }
+.quote-catalog__tab { font-size: 0.78rem; min-height: 34px; padding: 0.35em 0.9em; }
+.quote-catalog__row .btn,
+.quote-catalog .btn--primary {
+  background: var(--oasis-white); color: var(--oasis-teal);
+  border: 1.5px solid var(--oasis-teal); font-size: 0.78rem; min-height: 38px;
+}
+.quote-catalog__row .btn:hover,
+.quote-catalog .btn--primary:hover { background: var(--oasis-cream); }
+.qline__remove { font-size: 0.78rem; min-height: 38px; }
+
+/* Every dropdown in the portal rendered unstyled next to text boxes that
+   looked like fields — City showed a bare em-dash where its neighbours had
+   a box. site.css styles `input[type="text"], …, select` in one list, but
+   an attribute selector outranks the .pf__v class and a bare element name
+   does not, so the inputs escaped the transparent inline-edit style and the
+   selects did not. */
+select.pf__v {
+  min-height: 50px; padding: 0.4rem 2rem 0.4rem 0.6rem;
+  border: 1.5px solid var(--oasis-line); border-radius: 8px;
+  background-color: var(--oasis-white); color: var(--oasis-navy);
+}
+select.pf__v:hover { border-color: rgba(2, 89, 95, 0.4); }
+select.pf__v:focus {
+  outline: none; border-color: var(--oasis-teal);
+  box-shadow: 0 0 0 3px rgba(39, 189, 206, 0.18);
+}
+/* The status picker sits inline in a lead header, where it stays compact. */
+.pf--inline select.pf__v { min-height: 38px; }
