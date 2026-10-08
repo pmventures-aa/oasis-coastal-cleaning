@@ -559,7 +559,12 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
 .hero__lead { max-width: 54ch; margin-bottom: 1.5rem; font-size: var(--step-0); }
 .hero__meta { margin-top: 1.3rem; font-size: 0.78rem; }
 
+/* Grid rows stretch their cards to the tallest one, so a two-line title in
+   one card used to leave its neighbour's "Get a quote" floating mid-card.
+   Column layout with the link pushed down lines every CTA up across the row. */
+.service-card { display: flex; flex-direction: column; }
 .service-card p { margin-bottom: 0.85rem; }
+.service-card .price { margin-top: auto; }
 .service-card .price {
   font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--oasis-teal); font-weight: 700;

@@ -52,6 +52,9 @@
     home:    '<path d="M3 11.2 12 4l9 7.2"/><path d="M5.6 9.6V20h12.8V9.6"/><path d="M10 20v-5.2h4V20"/>',
     office:  '<rect x="3.5" y="4" width="10" height="16" rx="1"/><path d="M13.5 9H20a.5.5 0 0 1 .5.5V20"/><path d="M6.5 8h4M6.5 12h4M6.5 16h4M16 13h2M16 17h2"/>',
     organizing: '<rect x="3.5" y="4" width="17" height="6" rx="1"/><rect x="3.5" y="14" width="17" height="6" rx="1"/><path d="M9 7h6M9 17h6"/>',
+    box:     '<path d="M3.5 7.6 12 4l8.5 3.6v8.8L12 20l-8.5-3.6Z"/><path d="m3.5 7.6 8.5 3.7 8.5-3.7M12 11.3V20"/><path d="M8 6.1 16.4 9.7"/>',
+    key:     '<circle cx="8.2" cy="12" r="3.7"/><path d="M11.9 12H20"/><path d="M17 12v3.2M14.4 12v2.4"/>',
+    trowel:  '<path d="M4 20.2 7.8 16.4"/><path d="M7.2 15.8 3.8 12.4a1 1 0 0 1 0-1.4l6.2-6.2a1 1 0 0 1 1.4 0l3.4 3.4Z"/><path d="M14.4 9.6 20.2 3.8"/>',
     laundry: '<rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="14" r="4"/><path d="M8 6.5h.01M11 6.5h.01"/>',
     phone:   '<path d="M6.2 3.5h3l1.5 4-2 1.5a12 12 0 0 0 6.3 6.3l1.5-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.2 5.7 2 2 0 0 1 6.2 3.5Z"/>',
     text:    '<path d="M20.5 12.4c0 4-3.8 7.2-8.5 7.2a10 10 0 0 1-2.6-.34L4 21l1.5-3.7A6.9 6.9 0 0 1 3.5 12.4c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2Z"/>',
@@ -255,15 +258,18 @@
   }
 
   function renderServiceDetails(el) {
-    el.innerHTML = activeServices().map(function (s, i) {
+    el.innerHTML = activeServices().map(function (s) {
       return '<article class="card" id="' + esc(s.id) + '" style="margin-bottom:clamp(1.25rem,3vw,2rem)">' +
                '<div class="grid grid--2" style="align-items:start">' +
                  '<div>' +
                    '<span class="icon-badge">' + icon(s.icon) + '</span>' +
                    '<h2 style="font-size:var(--step-1);margin:0 0 .75rem">' + esc(s.name) + '</h2>' +
                    '<p class="muted">' + esc(s.blurb) + '</p>' +
+                   /* Every one of these opens the same form. The label alternated
+                      between "Get a quote for this" and "Ask about this", which
+                      promised two different things for one destination. */
                    '<a class="btn btn--primary" href="/quote?service=' + esc(s.id) + '">' +
-                     esc(i % 2 === 0 ? 'Get a quote for this' : 'Ask about this') + '</a>' +
+                     'Get a quote for this' + '</a>' +
                  '</div>' +
                  '<details class="incl">' +
                    '<summary>What is included</summary>' +

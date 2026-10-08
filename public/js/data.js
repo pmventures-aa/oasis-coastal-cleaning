@@ -102,7 +102,7 @@ window.OASIS = {
     },
     {
       href: '/airbnb-cleaning',
-      icon: 'laundry',
+      icon: 'key',
       title: 'Airbnb & short-term turnover',
       short: 'Vacation rentals',
       blurb: 'Same-day resets between guests — linens, restock and a listing-ready finish.',
@@ -239,7 +239,7 @@ window.OASIS = {
         'Windows and tracks on the interior',
         'Final walkthrough with photos'
       ],
-      icon: 'home',
+      icon: 'box',
       recurring: false,
       sizes: [
         { id: 'm1', label: 'Condo or 1 – 2 bedrooms' },
@@ -261,7 +261,7 @@ window.OASIS = {
         'Consumables restocked from your supply',
         'Photo report sent before check-in'
       ],
-      icon: 'office',
+      icon: 'key',
       recurring: true,
       sizes: [
         { id: 't1', label: 'Studio or 1 bedroom' },
@@ -283,7 +283,7 @@ window.OASIS = {
         'Floors detailed and sealed surfaces wiped',
         'Debris hauled to your bin'
       ],
-      icon: 'organizing',
+      icon: 'trowel',
       recurring: false,
       sizes: [
         { id: 'p1', label: 'A single room or bath remodel' },
