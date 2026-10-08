@@ -7,7 +7,7 @@ import { json, clean, sendEmail } from '../../_lib/util.js';
 import {
   quoteFromRow, isExpired, recordQuoteView, logQuoteEvent, looksAutomated, acceptanceTrail
 } from '../../_lib/quotes.js';
-import { availableAddons, resolveSelectedAddons } from '../../_lib/addons.js';
+import { splitAddons, availableAddons, resolveSelectedAddons } from '../../_lib/addons.js';
 import { loadSettings, alertTarget } from '../../_lib/settings.js';
 import { renderQuotePdf } from '../../_lib/quote-doc.js';
 import { buildQuoteAcceptedEmail, buildQuoteDeclinedEmail } from '../../_lib/email.js';
@@ -20,7 +20,7 @@ export async function onRequestGet({ request, env, params }) {
 
   try {
     const row = await env.DB.prepare(
-      `SELECT q.*, l.service_label, l.city, l.property_type, l.size_label
+      `SELECT q.*, l.service_label, l.city, l.property_type, l.size_label, l.add_ons
        FROM quotes q JOIN leads l ON l.id = q.lead_id WHERE q.token = ?`
     ).bind(token).first();
 
@@ -50,9 +50,18 @@ export async function onRequestGet({ request, env, params }) {
     const fresh = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(quote.id).first();
     quote = quoteFromRow(fresh || row);
 
-    const addons = quote.status === 'sent'
-      ? availableAddons(quote.line_items).map(({ id, label, note, group }) => ({ id, label, note, group }))
-      : [];
+    /* What they asked for in the wizard is already in what Kristina quoted.
+       Showing it as something to add would read as a second charge. */
+    let requested = [];
+    try { requested = JSON.parse(row.add_ons || '[]'); } catch { requested = []; }
+    const split = splitAddons(quote.line_items, requested);
+    const slim = ({ id, label, note, group }) => ({ id, label, note, group });
+    const addons = quote.status === 'sent' ? split.available.map(slim) : [];
+    // Only name the ones they actually asked for — the rest of the catalogue
+    // is not "included", it was simply never discussed.
+    const askedFor = requested.length ? split.included.filter((a) =>
+      requested.some((l) => String(l || '').toLowerCase().trim() === a.label.toLowerCase())
+    ).map(slim) : [];
 
     return json({
       quote: {
@@ -81,6 +90,7 @@ export async function onRequestGet({ request, env, params }) {
         size_label: row.size_label
       },
       available_addons: addons,
+      included_addons: askedFor,
       business: {
         name: 'Oasis Coastal Cleaning',
         phone: '(561) 201-7123',
@@ -111,7 +121,7 @@ export async function onRequestPost({ request, env, params }) {
   }
 
   const row = await env.DB.prepare(
-    `SELECT q.*, l.name AS lead_name, l.email AS lead_email, l.service_label, l.city
+    `SELECT q.*, l.name AS lead_name, l.email AS lead_email, l.service_label, l.city, l.add_ons
      FROM quotes q JOIN leads l ON l.id = q.lead_id WHERE q.token = ?`
   ).bind(token).first();
 
@@ -157,7 +167,9 @@ export async function onRequestPost({ request, env, params }) {
   }
 
   // Only allow add-ons that were not already on the quote.
-  const allowed = new Set(availableAddons(quote.line_items).map((a) => a.id));
+  let reqLabels = [];
+  try { reqLabels = JSON.parse(row.add_ons || '[]'); } catch { reqLabels = []; }
+  const allowed = new Set(availableAddons(quote.line_items, reqLabels).map((a) => a.id));
   const requestedIds = (Array.isArray(body.add_ons) ? body.add_ons : [])
     .map((id) => String(id || '').trim())
     .filter((id) => allowed.has(id));

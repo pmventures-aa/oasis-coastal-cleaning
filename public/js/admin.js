@@ -812,7 +812,8 @@
       (alreadyOut
         ? '<p class="quote-revise-note muted">' +
             'This one is already with ' + esc((quote.customer_name || l && l.name || 'the customer').split(' ')[0]) +
-            '. Updating it sends the new version to the same link.</p>'
+            '. Saving updates it at the same link straight away \u2014 the link never stops working. ' +
+            'Resend only when you want them emailed about the change.</p>'
         : '') +
       '<div class="quote-actions quote-actions--sticky">' +
         '<button type="button" class="btn btn--ghost" data-save-quote>' +
@@ -1753,12 +1754,13 @@
       .then(function (r) {
         if (!r.ok) { showQuoteMsg(editor, r.body.error || 'Could not save.', false); return; }
         if (afterQuoteSaved(editor, r)) return;
-        // Saving a quote that was already out pulls it back to a draft, so her
-        // customer's link stops working until she sends again. Say so plainly.
+        // A saved edit to a quote that is already out is live at the same link
+        // straight away. She should know the customer can see it now, so that
+        // saving half a thought is a deliberate act rather than a surprise.
         var wasOut = editor.dataset.alreadyOut === '1';
         if (payload.lead_id) delete state.editingQuote[payload.lead_id];
         showQuoteMsg(editor, wasOut
-          ? 'Saved. The customer link is paused until you send the update.'
+          ? 'Saved — the customer sees this version at the same link. Resend if you want them told.'
           : 'Draft saved.', true);
         loadQuotes(payload.lead_id);
       });
@@ -2001,7 +2003,7 @@
       // is a different promise from sending a quote for the first time.
       var revising = ed && ed.dataset.alreadyOut === '1';
       var ask = revising
-        ? 'Send the updated quote? The customer gets the new amount at the same link.'
+        ? 'Email the updated quote? They can already see it at the same link.'
         : 'Send this quote by email?';
       if (window.confirm(ask)) sendQuote(ed);
     }

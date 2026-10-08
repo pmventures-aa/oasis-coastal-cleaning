@@ -1317,3 +1317,46 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
   .later__row.is-static { grid-template-columns: 1fr; }
   .later__row.is-static .later__price { grid-column: 1; }
 }
+
+/* ------------------------------------------------- already in your quote
+   What they ticked in the wizard, said back to them. Without this the same
+   items reappeared under the extras and read as a second charge. */
+.asked {
+  margin: 1.25rem 0 0; padding: 0.95rem 1.05rem;
+  background: rgba(39, 189, 206, 0.07);
+  border: 1px solid rgba(39, 189, 206, 0.28);
+  border-radius: var(--radius);
+}
+.asked__k {
+  margin: 0 0 0.6rem; font-size: 0.72rem; font-weight: 700;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  color: var(--oasis-teal);
+}
+.asked__list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.35rem; }
+.asked__item {
+  display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; align-items: start;
+  font-size: 0.92rem; line-height: 1.4; color: var(--oasis-navy);
+}
+.asked__tick {
+  width: 16px; height: 16px; margin-top: 0.15rem; flex: none; border-radius: 50%;
+  background: var(--oasis-teal); position: relative;
+}
+.asked__tick::after {
+  content: ''; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px;
+  border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg);
+}
+.asked__note {
+  margin: 0.7rem 0 0; font-size: 0.8rem; line-height: 1.45; color: var(--oasis-muted);
+}
+
+/* A line she is throwing in reads as a gift, not an unfinished quote. */
+.proposal__amt.is-included {
+  color: var(--oasis-teal); font-weight: 700; font-size: 0.9em;
+  letter-spacing: 0.02em;
+}
+
+/* The validity date is a footnote to the total, so it sits with it. */
+.proposal__valid {
+  margin: 0.55rem 0 0; text-align: right;
+  font-size: 0.76rem; line-height: 1.4; color: var(--oasis-muted);
+}

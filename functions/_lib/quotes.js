@@ -31,6 +31,11 @@ export const newToken = () => {
     .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 };
 
+/* A line she has priced at nothing is a line she is giving away, and saying
+   "$0.00" makes it look like a mistake or an unfinished quote. Totals keep
+   using formatMoney — a zero total is a number, not a gift. */
+export const lineAmount = (cents) => (Number(cents) === 0 ? 'Included' : formatMoney(cents));
+
 export const formatMoney = (cents) => {
   const n = Number(cents);
   if (!Number.isFinite(n)) return '$0.00';

@@ -30,6 +30,10 @@
     return '$' + (n / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
 
+  /* A line priced at nothing is one she is throwing in. "$0.00" reads as an
+     unfinished quote; "Included" reads as a gift. Totals keep the number. */
+  var lineAmount = function (cents) { return Number(cents) === 0 ? 'Included' : money(cents); };
+
   // Florida time — see js/format.js.
   var formatDate = function (iso) { return window.OasisFormat.formatDate(iso); };
 
@@ -56,6 +60,23 @@
      than they planned to, so they are worth making pleasant rather than
      apologetic. Each is a card you tap, the whole thing is a target, and the
      count updates as they go so the choice feels like it landed. */
+  /* What they asked for in the wizard, said back to them as already covered.
+     Without this the same items reappear under "While she is there" and read
+     as a second charge for something they thought they had already asked for. */
+  function includedHtml(items) {
+    if (!items || !items.length) return '';
+    return '<section class="asked">' +
+      '<p class="asked__k">You asked for these, and they are in the price above</p>' +
+      '<ul class="asked__list">' +
+        items.map(function (a) {
+          return '<li class="asked__item"><span class="asked__tick" aria-hidden="true"></span>' +
+            esc(a.label) + '</li>';
+        }).join('') +
+      '</ul>' +
+      '<p class="asked__note">Nothing further to pay for these \u2014 they are part of the total.</p>' +
+    '</section>';
+  }
+
   function addonsHtml(addons) {
     if (!addons || !addons.length) { return ''; }
     var g = groupAddons(addons);
@@ -78,9 +99,10 @@
 
     return '<section class="xtras" id="proposal-addons">' +
       '<div class="xtras__head">' +
-        '<h2 class="xtras__title">While she is there</h2>' +
-        '<p class="xtras__lead">Tick anything you would like added to your first visit. ' +
-          'Kristina will confirm the price for these before she starts — nothing is charged today.</p>' +
+        '<h2 class="xtras__title">Anything else while she is there?</h2>' +
+        '<p class="xtras__lead">These are <em>extra</em> to what you have already asked for. ' +
+          'Tick anything you would also like and Kristina will confirm the price before she starts \u2014 ' +
+          'nothing is added to the total above and nothing is charged today.</p>' +
       '</div>' +
       blocks +
       '<p class="xtras__count" id="xtras-count" hidden></p>' +
@@ -126,7 +148,7 @@
       '</div>' +
       lines.map(function (it, i) {
         var every = CAD[it.cadence];
-        var price = money(it.unit_price != null ? it.unit_price : it.total);
+        var price = lineAmount(it.unit_price != null ? it.unit_price : it.total);
         var inner =
           '<span class="later__box" aria-hidden="true"></span>' +
           '<span class="later__text">' +
@@ -150,6 +172,7 @@
     var items = q.line_items || [];
     var status = q.status;
     var addons = data.available_addons || [];
+    var included = data.included_addons || [];
 
     // A quote is rarely all one thing — the clean is fortnightly, the oven is
     // once — so each line says which it is.
@@ -169,7 +192,8 @@
           (it.description ? '<br><span class="muted">' + esc(it.description) + '</span>' : '') +
         '</td>' +
         '<td class="proposal__qty">' + esc(String(it.qty || 1)) + '</td>' +
-        '<td class="proposal__amt">' + esc(money(it.total)) + '</td>' +
+        '<td class="proposal__amt' + (Number(it.total) === 0 ? ' is-included' : '') + '">' +
+          esc(lineAmount(it.total)) + '</td>' +
       '</tr>';
     }).join('');
 
@@ -187,6 +211,7 @@
          right beside it, because that is where the hesitation is. Declining
          stays entirely available and stops shouting. */
       actions =
+        includedHtml(included) +
         laterOnHtml(laterOn, true) +
         addonsHtml(addons) +
         declinePanelHtml() +
@@ -210,6 +235,7 @@
         '<p class="proposal__done-k">You are booked in</p>' +
         '<p>Thank you, ' + esc(first) + '. Kristina has this and will text you shortly to agree a first date. ' +
         'Anything you need before then, her number is below.</p></div>' +
+        includedHtml(included) +
         laterOnHtml(laterOn, false);
     } else if (status === 'declined') {
       actions = '<div class="proposal__done">You declined this quote. Reply to Kristina if you would like a revised one.</div>';
@@ -257,10 +283,13 @@
               '<div><span>Tax</span><strong>' + esc(money(q.tax)) + '</strong></div>'
             : '') +
           '<div class="proposal__total"><span>Total</span><strong>' + esc(money(q.total)) + '</strong></div>' +
+          /* The validity date belongs to the total, not floating between the
+             total and the note where it read as a caption for whatever came
+             next. */
+          (q.expires_at && status === 'sent'
+            ? '<p class="proposal__valid">This quote holds until ' + esc(formatDate(q.expires_at)) + '</p>'
+            : '') +
         '</div>' +
-        (q.expires_at && status === 'sent'
-          ? '<p class="proposal__valid muted">Valid through ' + esc(formatDate(q.expires_at)) + '</p>'
-          : '') +
         (q.notes
           ? '<div class="proposal__note"><p class="eyebrow">A note from Kristina</p><p>' +
             esc(q.notes).replace(/\n/g, '<br>') + '</p></div>'

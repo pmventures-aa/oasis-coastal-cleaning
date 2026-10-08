@@ -194,11 +194,16 @@ body.admin-theme {
   border-bottom: 1px solid var(--oasis-line);
 }
 .quote-catalog__body { padding: 0.65rem 0.75rem 0.75rem; }
+/* A sideways scroller only scrolls if it is allowed to be narrower than the
+   tabs inside it. Without min-width: 0 a flex or grid child takes its
+   min-content width — the full width of every tab — and pushes the page
+   sideways instead of scrolling within itself. */
 .quote-catalog__tabs {
   display: flex; gap: 0.35rem; overflow-x: auto; -webkit-overflow-scrolling: touch;
   padding-bottom: 0.55rem; margin-bottom: 0.35rem;
-  scrollbar-width: thin;
+  scrollbar-width: thin; min-width: 0; max-width: 100%;
 }
+.quote-catalog, .quote-catalog__body, .quote-catalog-wrap { min-width: 0; }
 .quote-catalog__tab {
   flex: 0 0 auto; border: 1.5px solid var(--oasis-line); background: var(--oasis-white);
   color: var(--oasis-navy); border-radius: 999px; padding: 0.35em 0.8em;
@@ -863,8 +868,11 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 }
 .empty-state p { margin: 0 auto; max-width: 34ch; font-size: 0.86rem; line-height: 1.5; }
 
-/* Seven tabs need to wrap rather than squeeze. */
-.vtabs--pipeline { flex-wrap: wrap; }
+/* Seven tabs need to wrap rather than squeeze. Wrapping alone was not enough:
+   .vtabs is `flex: none`, so the row refused to shrink to the space available
+   and ran off the right of a tablet screen instead of ever reaching the point
+   where it would wrap. It has to be allowed to shrink first. */
+.vtabs--pipeline { flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
 
 /* Archived is not a stage of the work, so it is a quiet link rather than a tab. */
 .toolbar__aside { margin: 0 0 0.9rem; }

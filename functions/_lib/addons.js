@@ -42,9 +42,36 @@ export function addonAlreadyQuoted(addon, lineItems) {
   });
 }
 
+/**
+ * Split the catalogue by what this customer has already got.
+ *
+ * `requested` is what they ticked in the quote wizard. That was never
+ * consulted here, so somebody who asked for the oven and the fridge was
+ * offered the oven and the fridge again on the page where they accept —
+ * which reads as being asked to pay for them a second time.
+ *
+ * @returns {{ included: object[], available: object[] }}
+ */
+export function splitAddons(lineItems, requestedLabels) {
+  const asked = new Set(
+    (Array.isArray(requestedLabels) ? requestedLabels : [])
+      .map((l) => normalize(l))
+      .filter(Boolean)
+  );
+  const wasAsked = (a) => asked.has(normalize(a.label)) || asked.has(normalize(a.id));
+
+  const included = [];
+  const available = [];
+  for (const a of ADDON_CATALOG) {
+    if (wasAsked(a) || addonAlreadyQuoted(a, lineItems)) included.push(a);
+    else available.push(a);
+  }
+  return { included, available };
+}
+
 /** Add-ons the customer can still opt into on the proposal page. */
-export function availableAddons(lineItems) {
-  return ADDON_CATALOG.filter((a) => !addonAlreadyQuoted(a, lineItems));
+export function availableAddons(lineItems, requestedLabels) {
+  return splitAddons(lineItems, requestedLabels).available;
 }
 
 /** Resolve selected ids to catalog rows (unknown ids dropped). */

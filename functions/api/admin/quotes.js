@@ -220,16 +220,13 @@ export async function onRequestPatch({ request, env }) {
     return json({ error: 'Restore this quote before editing it.' }, 400);
   }
 
-  const wasSent = existing.status !== 'draft';
-
-
+  /* Editing a quote that is already out used to pull it back to a draft, and
+     the proposal page refuses drafts — so the link in the customer's inbox
+     went dead until she remembered to send again, and she had no way of
+     knowing it had. The token never changed; only the status did. A sent
+     quote now stays sent and the edit is simply live at the same link. */
   const sets = [];
   const values = [];
-
-  if (wasSent) {
-    sets.push('status = ?');
-    values.push('draft');
-  }
 
   if (body.line_items !== undefined) {
     let normalized;
@@ -275,7 +272,11 @@ export async function onRequestPatch({ request, env }) {
 
   // The history is the point of the trail: a quote that changed after the
   // customer already had it should say so.
-  if (wasSent) await logQuoteEvent(env.DB, id, 'revised', { from_status: existing.status });
+  // Still worth recording that an already-sent quote changed under the
+  // customer's feet, even though the link keeps working.
+  if (existing.status !== 'draft') {
+    await logQuoteEvent(env.DB, id, 'revised', { from_status: existing.status });
+  }
   const row = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(id).first();
   return json({ quote: quoteFromRow(row) });
 }

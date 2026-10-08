@@ -65,31 +65,35 @@ await t('an unauthenticated edit is refused', async () => {
   assert.equal(res.status, 401);
 });
 
-await t('a sent quote can be edited, and goes back to draft', async () => {
+/* Editing used to pull a sent quote back to draft, and the proposal page
+   refuses drafts — so the link already in the customer's inbox went dead
+   until Kristina remembered to send again, with nothing telling her it had.
+   The edit is now simply live at the same link. */
+await t('editing a sent quote leaves it sent, so the link keeps working', async () => {
   const q = base({ status: 'sent', sent_at: '2026-08-01T10:00:00.000Z', total: 17500 });
-  const { res, body, db } = await patch(q, { id: 'q1', line_items: [
+  const { res, db } = await patch(q, { id: 'q1', line_items: [
     { label: 'Home cleaning', qty: 1, unit_dollars: '175' },
     { label: 'Oven (inside)', qty: 1, unit_dollars: '45' }] });
   assert.equal(res.status, 200);
-  assert.equal(db.quote.status, 'draft', 'pulled back to draft while she works');
+  assert.equal(db.quote.status, 'sent', 'still live for the customer');
   assert.equal(db.quote.total, 22000, 'new total is stored');
-  assert.equal(db.quote.token, 't', 'the customer link still works');
+  assert.equal(db.quote.token, 't', 'and at the same link');
   assert.equal(db.quote.sent_at, '2026-08-01T10:00:00.000Z', 'original send is remembered');
   assert.ok(db.events.some((e) => e.type === 'revised'), 'the revision is on the record');
 });
 
-await t('a declined quote can be revised too', async () => {
+await t('a declined quote can be revised without being resurrected as a draft', async () => {
   const q = base({ status: 'declined', sent_at: '2026-08-01T10:00:00.000Z' });
   const { res, db } = await patch(q, { id: 'q1', line_items: LINES });
   assert.equal(res.status, 200);
-  assert.equal(db.quote.status, 'draft');
+  assert.equal(db.quote.status, 'declined', 'the customer said no; editing does not undo that');
 });
 
 await t('an expired quote can be revised', async () => {
   const q = base({ status: 'expired', sent_at: '2026-08-01T10:00:00.000Z' });
   const { res, db } = await patch(q, { id: 'q1', line_items: LINES });
   assert.equal(res.status, 200);
-  assert.equal(db.quote.status, 'draft');
+  assert.equal(db.quote.status, 'expired', 'still expired until she sends it again');
 });
 
 await t('an accepted quote stays locked', async () => {
