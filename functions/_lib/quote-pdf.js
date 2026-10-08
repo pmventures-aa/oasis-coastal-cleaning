@@ -185,8 +185,12 @@ function totals(doc, quote) {
     doc.y -= size * 1.8;
   };
 
-  row('Subtotal', quote.subtotal);
-  if (Number(quote.tax) > 0) row('Tax', quote.tax);
+  /* With no tax the subtotal is the total printed twice, seventeen points
+     above itself. */
+  if (Number(quote.tax) > 0) {
+    row('Subtotal', quote.subtotal);
+    row('Tax', quote.tax);
+  }
 
   doc.y -= 2;
   doc.line(kX, doc.y + 9, RIGHT, doc.y + 9, COLORS.teal, 1.5);
@@ -241,8 +245,14 @@ function laterOn(doc, items) {
 function noteBox(doc, title, body) {
   if (!body) return;
   const inner = CONTENT_W - 34;
-  const lines = wrapText(body, 9.3, inner);
-  const H = lines.length * 12.2 + 30;
+  /* She writes these as a letter — a greeting, two or three paragraphs, her
+     name. Wrapping the whole thing as one block ran them together into a
+     slab, so each paragraph is wrapped on its own and gets a little air. */
+  const paras = String(body).split(/\n+/).map((t) => t.trim()).filter(Boolean);
+  const GAP = 5;
+  const blocks = paras.map((t) => wrapText(t, 9.3, inner));
+  const H = blocks.reduce((n, b) => n + b.length * 12.2, 0) +
+            Math.max(0, blocks.length - 1) * GAP + 30;
   doc.ensure(H + 14);
 
   const top = doc.y;
@@ -251,7 +261,10 @@ function noteBox(doc, title, body) {
 
   doc.text(String(title).toUpperCase(), x, top - 19, { size: 7.5, bold: true, color: COLORS.teal });
   let y = top - 32;
-  for (const ln of lines) { doc.text(ln, x, y, { size: 9.3, color: COLORS.navy }); y -= 12.2; }
+  blocks.forEach((lines, i) => {
+    for (const ln of lines) { doc.text(ln, x, y, { size: 9.3, color: COLORS.navy }); y -= 12.2; }
+    if (i < blocks.length - 1) y -= GAP;
+  });
   doc.y = top - H - 12;
 }
 
@@ -300,10 +313,14 @@ function closing(doc, { sending, proposalUrl, signoff }) {
 
   if (linkLines.length) {
     y -= 4;
+    const linkTop = y + 8;
     for (const ln of linkLines) {
       doc.text(ln, x, y, { size: 8.3, bold: true, color: COLORS.teal });
       y -= 10.5;
     }
+    /* Printed and tappable. Opened on a phone, the PDF used to show a URL
+       the reader had to retype. */
+    doc.link(proposalUrl, x - 2, y + 8, CONTENT_W - 34 + 4, linkTop - (y + 8) + 3);
   }
 
   y -= 4;
@@ -342,6 +359,9 @@ export function buildQuotePdf({ quote, lead = {}, business, logo, settings = {},
   });
 
   const first = String(quote.customer_name || lead.name || '').split(' ')[0];
+  /* A quote is a document, not a text message: it is headed with the name
+     they gave, not the first word of it. */
+  const fullName = String(quote.customer_name || lead.name || '').trim();
   const allItems = quote.line_items || [];
   const items = allItems.filter((it) => !it.optional);
   const optionalItems = allItems.filter((it) => it.optional);
@@ -354,8 +374,19 @@ export function buildQuotePdf({ quote, lead = {}, business, logo, settings = {},
 
   header(doc, { logo, business });
 
+  /* Page one carries the full banner. If the quote runs on, page two used to
+     start with a box floating at the top margin and nothing to say what it
+     belonged to. */
+  doc.afterNewPage = (d) => {
+    const top = PAGE.h - MARGIN.top;
+    d.text((fullName ? 'Quote for ' + fullName : 'Quote') + '  \u00b7  ' + ref + '  \u00b7  continued',
+      MARGIN.left, top - 9, { size: 8, bold: true, color: COLORS.muted });
+    d.line(MARGIN.left, top - 19, RIGHT, top - 19, COLORS.line, 0.5);
+    d.y = top - 34;
+  };
+
   titleRow(doc, {
-    greeting: first ? 'Quote for ' + first : 'Your quote',
+    greeting: fullName ? 'Quote for ' + fullName : 'Your quote',
     forWhat: [
       [lead.service_label || quote.service_label, lead.city || quote.city].filter(Boolean).join(' in '),
       lead.address

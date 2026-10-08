@@ -111,6 +111,7 @@ export class Pdf {
     this.meta = meta;
     this.pages = [];
     this.images = [];              // { name, data, width, height }
+    this.links = [];               // { page, url, rect:[x1,y1,x2,y2] }
     this.newPage();
   }
 
@@ -119,11 +120,30 @@ export class Pdf {
     this.page = { ops: this.ops };
     this.pages.push(this.page);
     this.y = PAGE.h - MARGIN.top;
+    /* A document that runs on needs to say so at the top of the next sheet.
+       The hook draws that line and sets where the content resumes; without
+       one a continuation page starts flush at the margin with no heading. */
+    if (this.pages.length > 1 && typeof this.afterNewPage === 'function') {
+      this.afterNewPage(this);
+    }
     return this.page;
   }
 
   /** Vertical space left before the bottom margin. */
   get remaining() { return this.y - MARGIN.bottom; }
+
+  /**
+   * A tappable region over text already drawn. A quote that prints its own
+   * URL and cannot be clicked asks the reader to retype forty characters.
+   */
+  link(url, x, y, w, h) {
+    if (!url) return;
+    this.links.push({
+      page: this.pages.length - 1,
+      url: String(url),
+      rect: [x, y, x + w, y + h]
+    });
+  }
 
   /** Starts a new page when `need` points will not fit. Returns true if it did. */
   ensure(need) {
@@ -205,6 +225,7 @@ export class Pdf {
     let next = 5;
     const pageNums = this.pages.map(() => ({ page: next++, content: next++ }));
     const imageNums = this.images.map(() => next++);
+    const linkNums = this.links.map(() => next++);
     for (let i = 0; i < next - 1; i++) reserve();
 
     push('%PDF-1.4\n');
@@ -235,6 +256,16 @@ export class Pdf {
       end();
     });
 
+    /* A PDF string: only the delimiters and the escape itself need escaping. */
+    const pdfString = (v) => String(v).replace(/([\\()])/g, '\\$1');
+    this.links.forEach((lk, i) => {
+      begin(linkNums[i]);
+      push('<< /Type /Annot /Subtype /Link /Border [0 0 0] ' +
+        `/Rect [${lk.rect.map((n) => n.toFixed(2)).join(' ')}] ` +
+        `/A << /S /URI /URI (${pdfString(lk.url)}) >> >>\n`);
+      end();
+    });
+
     const xobjects = this.images.length
       ? '/XObject << ' + this.images.map((im, i) => `/${im.name} ${imageNums[i]} 0 R`).join(' ') + ' >> '
       : '';
@@ -243,9 +274,14 @@ export class Pdf {
       const body = page.ops.join('\n') + '\n';
       const bytes = enc.encode(body);
 
+      const annots = this.links
+        .map((lk, k) => (lk.page === i ? `${linkNums[k]} 0 R` : null))
+        .filter(Boolean);
+
       begin(pageNums[i].page);
       push(`<< /Type /Page /Parent ${nPages} 0 R /MediaBox [0 0 ${PAGE.w} ${PAGE.h}] ` +
         `/Resources << /Font << /FR ${nFontR} 0 R /FB ${nFontB} 0 R >> ${xobjects}>> ` +
+        (annots.length ? `/Annots [${annots.join(' ')}] ` : '') +
         `/Contents ${pageNums[i].content} 0 R >>\n`);
       end();
 

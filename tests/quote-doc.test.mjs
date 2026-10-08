@@ -99,3 +99,48 @@ test('add-ons the customer already asked for', async (t) => {
     assert.ok(available.length >= 14);
   });
 });
+
+const text = (bytes) => new TextDecoder('latin1').decode(bytes);
+
+test('the document a customer holds', async (t) => {
+  const DEEP = { label: 'Deep clean', qty: 1, unit_dollars: '250', cadence: 'onetime' };
+
+  await t.test('the link in it can be tapped, not just read', () => {
+    const pdf = text(build([DEEP]));
+    assert.match(pdf, /\/Subtype \/Link/, 'the URL was printed with nothing behind it');
+    assert.match(pdf, /\/URI \(https:\/\/www\.oasiscoastalcleaning\.com\/proposal\?t=abc\)/);
+    assert.match(pdf, /\/Annots \[/, 'and the page points at the annotation');
+  });
+
+  await t.test('every xref offset lands on its object', () => {
+    /* Offsets are written by hand, so adding an object is exactly where this
+       generator would produce a file that only a forgiving reader opens. */
+    const pdf = text(build([DEEP]));
+    const header = /xref\r?\n0 (\d+)/.exec(pdf);
+    assert.ok(header, 'there is an xref table');
+    const rows = [...pdf.matchAll(/(\d{10}) (\d{5}) ([nf])/g)];
+    assert.equal(rows.length, Number(header[1]), 'one row per object');
+    rows.forEach((row, i) => {
+      if (row[3] !== 'n') return;
+      assert.ok(pdf.startsWith(i + ' 0 obj', Number(row[1])),
+        'xref row ' + i + ' does not point at object ' + i);
+    });
+  });
+
+  await t.test('no tax means no subtotal printed twice', () => {
+    const pdf = text(build([DEEP]));
+    assert.ok(!pdf.includes('Subtotal'), 'the subtotal equalled the total, directly above it');
+    assert.ok(pdf.includes('Total'));
+  });
+
+  await t.test('with tax, the subtotal comes back', () => {
+    const pdf = text(build([DEEP], { tax: 1750 }));
+    assert.ok(pdf.includes('Subtotal'));
+    assert.ok(pdf.includes('Tax'));
+  });
+
+  await t.test('it is headed with the whole name', () => {
+    const pdf = text(build([DEEP]));
+    assert.ok(pdf.includes('Maria Alvarez'), 'a quote is a document, not a text message');
+  });
+});
