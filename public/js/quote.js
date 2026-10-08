@@ -601,6 +601,24 @@ var state = { step: 0, leadId: null };
   }
 
   /* ---------------------------------------------------------------- submit */
+
+  /* The page they were reading before they opened the form. Same-origin only
+     — an outside referrer is nobody's business and is dropped. Travels inside
+     pageUrl as ?from= so the lead record needs no new column. */
+  function sourceUrl() {
+    var here = window.location.href;
+    var ref = String(document.referrer || '');
+    if (!ref) return here;
+    var path = '';
+    try {
+      var u = new URL(ref);
+      if (u.origin !== window.location.origin) return here;
+      path = u.pathname.replace(/\.html$/, '').replace(/\/$/, '') || '/';
+    } catch (e) { return here; }
+    if (path === '/quote') return here;
+    return here + (here.indexOf('?') === -1 ? '?' : '&') + 'from=' + encodeURIComponent(path);
+  }
+
   function payload() {
     var s = U.serviceById(state.service) || services[0];
     var sizeLabel = '';
@@ -622,7 +640,7 @@ var state = { step: 0, leadId: null };
       startWhen: state.startWhen, preferredDays: state.preferredDays || [],
       access: state.access,
       company: state.company,
-      pageUrl: window.location.href
+      pageUrl: sourceUrl()
     };
   }
 

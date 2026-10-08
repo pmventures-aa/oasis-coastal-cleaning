@@ -245,9 +245,6 @@ function textShell(env, { title, subtitle, blocks, cta }) {
 
 /* --------------------------------------------------------- public builders */
 
-/** Dollar amounts (lead estimates) — already in whole dollars, not cents. */
-const money = (n) => (Number.isFinite(+n) ? '$' + Math.round(+n).toLocaleString('en-US') : '');
-
 /** Quote amounts are stored in cents — always use formatMoney for those. */
 const cents = formatMoney;
 
@@ -287,6 +284,54 @@ function laterOnBlock(items) {
  * Build the "new quote request" email from a stored lead record.
  * Returns { subject, html, text } ready for sendEmail().
  */
+/* The pages a request can start from, in the words Kristina would use. */
+const SOURCE_PAGES = {
+  '/': 'the home page', '/quote': 'the quote form', '/services': 'the services page',
+  '/pricing': 'the pricing page', '/contact': 'the contact page', '/about': 'the about page',
+  '/faq': 'the FAQ', '/service-areas': 'the service areas page',
+  '/corporate-cleaning': 'the offices page', '/airbnb-cleaning': 'the vacation rentals page',
+  '/thank-you': 'the thank-you page', '/404': 'a missing page'
+};
+
+/** One stored path, named. Falls back to the path itself rather than guessing. */
+function pageName(path) {
+  const clean = String(path || '').replace(/\.html$/, '').replace(/\/+$/, '') || '/';
+  const at = clean === '/index' ? '/' : clean;
+  return SOURCE_PAGES[at] || at;
+}
+
+/**
+ * Which page the request was sent from, in words. Mirrors cameFrom() in
+ * public/js/admin.js — keep the two in step.
+ *
+ * The form itself lives at /quote, so the path alone would say "the quote
+ * form" every time. quote.js appends ?from=<path> with the same-origin page
+ * they came off, and the two landing pages carry ?service=, so prefer those.
+ */
+function cameFromLabel(src) {
+  const raw = String(src || '').trim();
+  if (!raw) return '';
+  if (raw === 'admin-phone') return 'Taken on the phone';
+  if (raw === 'admin-new-quote') return 'Started from a new quote';
+
+  let path = raw;
+  let params = null;
+  try {
+    const u = new URL(raw, 'https://oasiscoastalcleaning.com');
+    path = u.pathname;
+    params = u.searchParams;
+  } catch { /* already a bare path */ }
+
+  const from = params && params.get('from');
+  if (from) return pageName(from);
+
+  const service = params && params.get('service');
+  if (service === 'turnover') return SOURCE_PAGES['/airbnb-cleaning'];
+  if (service === 'office') return SOURCE_PAGES['/corporate-cleaning'];
+
+  return pageName(path);
+}
+
 export function buildQuoteEmail(env, lead) {
   const base = siteBase(env);
   const adminUrl = `${base}/admin/`;
@@ -294,11 +339,6 @@ export function buildQuoteEmail(env, lead) {
   const addOns = safeList(lead.add_ons);
   const conds = safeList(lead.conditions);
   const days = safeList(lead.preferred_days);
-
-  const estimate =
-    (Number.isFinite(+lead.estimate_low) || Number.isFinite(+lead.estimate_high))
-      ? [money(lead.estimate_low), money(lead.estimate_high)].filter(Boolean).join(' – ')
-      : '';
 
   const contactRows = [
     ['Name', lead.name],
@@ -325,8 +365,13 @@ export function buildQuoteEmail(env, lead) {
     ['Preferred days', days.join(', ')],
     ['Access on the day', lead.access]
   ];
+  /* "Estimate" was the range the old pricing wizard showed. Nothing has
+     written estimate_low or estimate_high since the prices came out, so the
+     row could never render. Where the request came from is the thing she
+     actually wants from her phone — whether it arrived off the home page or
+     the vacation-rentals landing. */
   const internalRows = [
-    ['Estimate (internal)', estimate ? estimate + '  ·  not shown to the customer' : '']
+    ['Came from', cameFromLabel(lead.source_page)]
   ];
 
   const subtitle = [lead.name, lead.city || 'South Florida'].filter(Boolean).join(' · ');

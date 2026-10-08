@@ -331,21 +331,45 @@
      form went up and shown nowhere, so there was no way to tell a request
      that came off the home page from one off the vacation-rentals landing —
      or from the phone. */
+  /* Mirrors cameFromLabel() in functions/_lib/email.js — keep the two in
+     step. The form lives at /quote, so the path alone would read "the quote
+     form" every time; quote.js appends ?from=<path> with the page they came
+     off, and the two landing pages carry ?service=. */
+  var SOURCE_PAGES = {
+    '/': 'the home page', '/quote': 'the quote form', '/services': 'the services page',
+    '/pricing': 'the pricing page', '/contact': 'the contact page', '/about': 'the about page',
+    '/faq': 'the FAQ', '/service-areas': 'the service areas page',
+    '/corporate-cleaning': 'the offices page', '/airbnb-cleaning': 'the vacation rentals page',
+    '/thank-you': 'the thank-you page', '/404': 'a missing page'
+  };
+
+  function pageName(path) {
+    var clean = String(path || '').replace(/\.html$/, '').replace(/\/+$/, '') || '/';
+  var at = clean === '/index' ? '/' : clean;
+    return SOURCE_PAGES[at] || at;
+  }
+
   function cameFrom(l) {
     var src = String(l.source_page || '').trim();
     if (!src) return '';
     if (src === 'admin-phone') return 'Taken on the phone';
     if (src === 'admin-new-quote') return 'Started from a new quote';
-    var path = src;
-    try { path = new URL(src).pathname; } catch (e) { /* already a path */ }
-    path = path.replace(/\/$/, '') || '/';
-    var PAGES = {
-      '/': 'the home page', '/quote': 'the quote form', '/services': 'the services page',
-      '/pricing': 'the pricing page', '/contact': 'the contact page', '/about': 'the about page',
-      '/faq': 'the FAQ', '/service-areas': 'the service areas page',
-      '/corporate-cleaning': 'the offices page', '/airbnb-cleaning': 'the vacation rentals page'
-    };
-    return 'Came from ' + (PAGES[path] || path);
+
+    var path = src, params = null;
+    try {
+      var u = new URL(src, window.location.origin);
+      path = u.pathname;
+      params = u.searchParams;
+    } catch (e) { /* already a bare path */ }
+
+    var from = params && params.get('from');
+    if (from) return 'Came from ' + pageName(from);
+
+    var service = params && params.get('service');
+    if (service === 'turnover') return 'Came from ' + SOURCE_PAGES['/airbnb-cleaning'];
+    if (service === 'office') return 'Came from ' + SOURCE_PAGES['/corporate-cleaning'];
+
+    return 'Came from ' + pageName(path);
   }
 
   function requestSummary(l, addOns, conds, days) {
