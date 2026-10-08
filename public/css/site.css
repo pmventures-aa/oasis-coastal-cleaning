@@ -1360,3 +1360,34 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
   margin: 0.55rem 0 0; text-align: right;
   font-size: 0.76rem; line-height: 1.4; color: var(--oasis-muted);
 }
+
+/* Text first, browse second. */
+.thanks__acts { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+
+/* The home-cleaning aside: how often she comes, where she works. It used to
+   be the logo again, decorative and aria-hidden, third time on one screen. */
+.rhythm {
+  text-align: left;                 /* the aside is centred; this panel is a list */
+  padding: 1.25rem 1.35rem; border-radius: var(--radius);
+  background: var(--oasis-cream); border: 1px solid rgba(10, 46, 68, 0.1);
+  border-top: 3px solid var(--oasis-teal);
+}
+.rhythm__k {
+  margin: 0 0 0.7rem; font-size: 0.72rem; font-weight: 700;
+  letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  color: var(--oasis-teal);
+}
+.rhythm__list { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.4rem; }
+.rhythm__list li {
+  display: flex; align-items: center; gap: 0.6rem;
+  font-size: 1rem; font-weight: 600; color: var(--oasis-navy);
+}
+.rhythm__list li::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: var(--oasis-teal);
+}
+.rhythm__note {
+  text-align: left; margin: 0.9rem 0 0; padding-top: 0.8rem;
+  border-top: 1px solid rgba(10, 46, 68, 0.12);
+  font-size: 0.84rem; line-height: 1.5; color: var(--oasis-muted);
+}

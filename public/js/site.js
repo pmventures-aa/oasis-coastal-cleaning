@@ -193,11 +193,24 @@
           '<a class="btn btn--ghost" href="/services#home">See what a visit includes</a>' +
         '</p>' +
       '</div>' +
+      /* This held the logo, decorative and aria-hidden — the third time the
+         same mark appeared before the first scroll, carrying nothing. The
+         question someone is actually asking here is how often she comes, so
+         the space answers that instead. (The note also read
+         D.business.city, which is not a field that exists, so it had been
+         falling through to the hard-coded area all along.) */
       '<div class="feature__aside">' +
-        '<img class="feature__img" src="/logo/logo-480.webp" width="480" height="481" ' +
-          'alt="" loading="lazy" aria-hidden="true">' +
-        '<p class="feature__note">' + esc(D.business.city || 'Palm Beach & Broward') +
-          ' — weekly, every two weeks, monthly, or a one-off when you need it.</p>' +
+        '<div class="rhythm">' +
+          '<p class="rhythm__k">How often</p>' +
+          '<ul class="rhythm__list">' +
+            (D.frequencies || []).map(function (f) {
+              var label = f.label || f;
+              return '<li>' + esc(label) + '</li>';
+            }).join('') +
+          '</ul>' +
+          '<p class="rhythm__note">Across Palm Beach &amp; Broward. ' +
+            'No contract — pause or stop with a week of notice.</p>' +
+        '</div>' +
       '</div>';
   }
 
@@ -454,6 +467,16 @@
     el.innerHTML = '<a href="' + href + '">' + esc(b.phone) + '</a>';
   }
 
+  /* The thank-you page asks them to text photos of the space. It used to ask
+     and then offer a link to the services page, so the one useful thing on
+     that screen had nothing to tap. */
+  function renderTextButton(el) {
+    var b = D.business;
+    var label = el.getAttribute('data-label') || 'Text photos to';
+    el.outerHTML = '<a class="btn btn--primary" href="' + smsHref(b.phone) + '">' +
+      esc(label) + ' ' + esc(b.phone) + '</a>';
+  }
+
   function renderTagline(el) { el.textContent = D.business.tagline; }
 
   /* -------------------------------------------- structured data for Google */
@@ -530,6 +553,7 @@
     hours: renderHours,
     about: renderAbout,
     phone: renderPhone,
+    textButton: renderTextButton,
     tagline: renderTagline
   };
 
