@@ -159,7 +159,11 @@
   function moneyDollars(n) {
     var x = Number(n);
     if (!Number.isFinite(x)) return '$0';
-    return '$' + x.toFixed(x % 1 ? 2 : 0);
+    var v = x.toFixed(x % 1 ? 2 : 0);
+    var dot = v.indexOf('.');
+    var whole = dot === -1 ? v : v.slice(0, dot);
+    var rest = dot === -1 ? '' : v.slice(dot);
+    return '$' + whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + rest;
   }
 
   var esc = function (s) {
@@ -191,9 +195,15 @@
   };
 
   var digits = function (v) { return String(v || '').replace(/\D/g, ''); };
+  /* Grouped, the way the quote and the PDF already do it. Without this the
+     portal showed $1840.00 where the document it produced said $1,840.00. */
+  var group = function (str) { return str.replace(/\B(?=(\d{3})+(?!\d))/g, ','); };
   var money = function (cents) {
     var n = Number(cents);
-    return Number.isFinite(n) ? '$' + (n / 100).toFixed(2) : '$0.00';
+    if (!Number.isFinite(n)) return '$0.00';
+    var v = (n / 100).toFixed(2);
+    var dot = v.indexOf('.');
+    return '$' + group(v.slice(0, dot)) + v.slice(dot);
   };
   var parseDollars = function (v) {
     var n = Number(String(v || '').replace(/[^0-9.-]/g, ''));
@@ -1338,6 +1348,26 @@
      A person or a company, and every address of theirs. This is the screen
      that answers "who is this and what else do we clean for them", which the
      flat list of requests never could. */
+  /* What she has actually done for them. The endpoint has counted this all
+     along; nothing showed it, so the screen was a list of names and nothing
+     else. */
+  function statsRow(c) {
+    var bits = [];
+    var q = Number(c.quote_count || 0), a = Number(c.accepted_count || 0);
+    var paid = Number(c.paid_total || 0);
+    if (q) bits.push(q + (q === 1 ? ' quote' : ' quotes'));
+    if (a) bits.push(a + ' accepted');
+    if (paid > 0) bits.push(money(paid) + ' paid');
+    if (!bits.length) {
+      var leads = Number(c.lead_count || 0);
+      bits.push(leads ? leads + (leads === 1 ? ' request' : ' requests') + ', nothing quoted yet'
+                      : 'Nothing yet');
+    }
+    return '<p class="ccard__stats">' + bits.map(function (t) {
+      return '<span>' + esc(t) + '</span>';
+    }).join('') + '</p>';
+  }
+
   function clientCard(c) {
     var props = c.properties || [];
     var name = c.company ? c.company : c.name;
@@ -1364,7 +1394,10 @@
               (size ? '<span class="muted"> — ' + esc(size) + '</span>' : '') + '</li>';
           }).join('') + '</ul>'
         : '<p class="muted ccard__props-empty">No addresses recorded yet.</p>') +
+      statsRow(c) +
       '<div class="ccard__acts">' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-client-work="' + esc(c.name || '') + '">' +
+          'See their requests</button>' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-add-property="' + esc(c.id) + '">' +
           '+ Add an address</button>' +
       '</div>' +
@@ -1382,9 +1415,56 @@
       return '<div class="empty-state"><h3>No clients yet</h3>' +
         '<p class="muted">Everyone who sends a request appears here, with every address you clean for them.</p></div>';
     }
+    var q = String(state.clientQ || '').toLowerCase().trim();
+    var shown = !q ? list : list.filter(function (c) {
+      var hay = [c.name, c.company, c.email, c.phone,
+        (c.properties || []).map(function (p) {
+          return [p.label, p.address, p.city, p.zip].filter(Boolean).join(' '); }).join(' ')
+      ].join(' ').toLowerCase();
+      if (hay.indexOf(q) !== -1) return true;
+      var d = q.replace(/\D/g, '');
+      return d.length >= 3 && String(c.phone || '').replace(/\D/g, '').indexOf(d) !== -1;
+    });
+
     var many = list.filter(function (c) { return (c.properties || []).length > 1; }).length;
-    return (many ? '<p class="pipeline__sum">' + many + ' of these have more than one address.</p>' : '') +
-      '<div class="ccards">' + list.map(clientCard).join('') + '</div>';
+    return '<div class="csearch">' +
+        '<input type="search" id="client-search" class="toolbar__search" ' +
+          'placeholder="Search clients by name, address, ZIP or phone…" ' +
+          'value="' + esc(state.clientQ || '') + '" autocomplete="off">' +
+      '</div>' +
+      '<p class="pipeline__sum">' +
+        (q ? shown.length + ' of ' + list.length + ' ' + (list.length === 1 ? 'client' : 'clients')
+           : list.length + ' ' + (list.length === 1 ? 'client' : 'clients') +
+             (many ? ' · ' + many + ' with more than one address' : '')) +
+      '</p>' +
+      (shown.length
+        ? '<div class="ccards">' + shown.map(clientCard).join('') + '</div>'
+        : '<p class="empty">Nobody matches that.</p>');
+  }
+
+  function addProperty(btn) {
+    var id = btn.getAttribute('data-add-property');
+    var card = btn.closest('.ccard');
+    var label = window.prompt('What should this address be called? (e.g. Home, Main office)');
+    if (label === null) return;
+    var address = window.prompt('Street address');
+    if (address === null) return;
+    var city = window.prompt('City');
+    if (city === null) return;
+
+    btn.disabled = true;
+    var was = btn.textContent;
+    btn.textContent = 'Adding…';
+    api('/api/admin/customers', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'add-property', customer_id: id,
+        label: label, address: address, city: city })
+    }).then(function (r) {
+      btn.disabled = false;
+      btn.textContent = was;
+      if (!r.ok) { window.alert(r.body.error || 'Could not add that address.'); return; }
+      loadClients();
+    });
   }
 
   function loadClients() {
@@ -2029,6 +2109,22 @@
       if (editor.querySelectorAll('.qline').length > 1) { row.remove(); updateQuoteTotal(editor); }
       return;
     }
+    /* Takes her to the requests list filtered to this person, rather than
+       inventing a second place to read the same records. */
+    if (hit.matches('[data-client-work]')) {
+      state.clientQ = '';
+      state.q = hit.getAttribute('data-client-work') || '';
+      state.view = 'active';
+      state.open = null;
+      load();
+      return;
+    }
+    /* The server has implemented add-property all along; nothing ever called
+       it, so this button did nothing at all. */
+    if (hit.matches('[data-add-property]')) {
+      addProperty(hit);
+      return;
+    }
     if (hit.matches('[data-run-setup]')) { runSetup(hit); return; }
     if (hit.matches('[data-save-settings]')) { saveSettingsFromForm(); return; }
     if (hit.matches('[data-fill-addons]')) {
@@ -2271,6 +2367,13 @@
 
   root.addEventListener('input', function (e) {
     if (e.target.id === 'search') { state.q = e.target.value; applySearchFilter(); }
+    if (e.target.id === 'client-search') {
+      state.clientQ = e.target.value;
+      var cpos = e.target.selectionStart;
+      render();
+      var again = root.querySelector('#client-search');
+      if (again) { again.focus(); try { again.setSelectionRange(cpos, cpos); } catch (err) {} }
+    }
     /* Type the digits, get the number. Reformatting on every keystroke would
        fight the caret mid-string, so it only reshapes while she is typing at
        the end — which is how a phone number is actually entered. */

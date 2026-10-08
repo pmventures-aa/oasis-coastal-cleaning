@@ -433,7 +433,17 @@ window.OASIS = {
     '33071': 'Coral Springs', '33073': 'Coconut Creek', '33076': 'Parkland',
     '33431': 'Boca Raton', '33432': 'Boca Raton', '33433': 'Boca Raton',
     '33434': 'Boca Raton', '33441': 'Deerfield Beach', '33442': 'Deerfield Beach',
-    '33486': 'Boca Raton', '33487': 'Boca Raton', '33496': 'Boca Raton', '33498': 'Boca Raton'
+    '33486': 'Boca Raton', '33487': 'Boca Raton', '33496': 'Boca Raton', '33498': 'Boca Raton',
+
+    /* Palm Beach County — see functions/_lib/zips.js; tests keep the two in step. */
+    '33401': 'West Palm Beach', '33402': 'West Palm Beach', '33404': 'Riviera Beach',
+    '33405': 'West Palm Beach', '33407': 'West Palm Beach', '33409': 'West Palm Beach',
+    '33410': 'Palm Beach Gardens', '33411': 'Royal Palm Beach', '33413': 'Greenacres',
+    '33414': 'Wellington', '33418': 'Palm Beach Gardens', '33426': 'Boynton Beach',
+    '33435': 'Boynton Beach', '33436': 'Boynton Beach', '33444': 'Delray Beach',
+    '33445': 'Delray Beach', '33449': 'Wellington', '33458': 'Jupiter',
+    '33460': 'Lake Worth Beach', '33462': 'Lantana', '33463': 'Greenacres',
+    '33469': 'Tequesta', '33470': 'Westlake', '33483': 'Delray Beach'
   },
 
   areas: [

@@ -32,9 +32,20 @@ export async function onRequestGet({ request, env }) {
   try {
     const where = id ? 'WHERE c.id = ?' : 'WHERE c.archived_at IS NULL';
     const stmt = env.DB.prepare(
+      /* lead_count was already being computed and then dropped on the floor.
+         The screen is meant to answer "who is this and what have we done for
+         them", so the work and the money come back with them. */
       `SELECT c.*,
               (SELECT COUNT(*) FROM properties p WHERE p.customer_id = c.id AND p.archived_at IS NULL) AS property_count,
-              (SELECT COUNT(*) FROM leads l WHERE l.customer_id = c.id) AS lead_count
+              (SELECT COUNT(*) FROM leads l WHERE l.customer_id = c.id) AS lead_count,
+              (SELECT COUNT(*) FROM quotes q JOIN leads l2 ON l2.id = q.lead_id
+                 WHERE l2.customer_id = c.id) AS quote_count,
+              (SELECT COUNT(*) FROM quotes q JOIN leads l3 ON l3.id = q.lead_id
+                 WHERE l3.customer_id = c.id AND q.accepted_at IS NOT NULL) AS accepted_count,
+              (SELECT COALESCE(SUM(q.total), 0) FROM quotes q JOIN leads l4 ON l4.id = q.lead_id
+                 WHERE l4.customer_id = c.id AND q.paid_at IS NOT NULL) AS paid_total,
+              (SELECT MAX(q.paid_at) FROM quotes q JOIN leads l5 ON l5.id = q.lead_id
+                 WHERE l5.customer_id = c.id) AS last_paid_at
        FROM customers c ${where}
        ORDER BY c.created_at DESC LIMIT 500`
     );

@@ -993,3 +993,24 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   font-size: 0.86rem; line-height: 1.5; color: var(--oasis-navy);
   font-style: italic; white-space: pre-wrap; overflow-wrap: anywhere;
 }
+
+/* ------------------------------------------------------------- clients */
+.csearch { margin: 0 0 0.75rem; }
+.csearch input { width: 100%; }
+
+/* What she has done for them, at a glance. */
+.ccard__stats {
+  display: flex; flex-wrap: wrap; gap: 0.3rem 0.4rem;
+  margin: 0.7rem 0 0; padding-top: 0.7rem;
+  border-top: 1px solid rgba(9, 64, 69, 0.08);
+}
+.ccard__stats span {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em;
+  padding: 0.2em 0.6em; border-radius: 999px;
+  background: rgba(2, 89, 95, 0.08); color: var(--oasis-teal);
+}
+/* Cards in a row should end level, with the buttons on the same line. */
+.ccards { align-items: stretch; }
+.ccard { display: flex; flex-direction: column; }
+.ccard__props { flex: 1 1 auto; }
+.ccard__acts { margin-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }

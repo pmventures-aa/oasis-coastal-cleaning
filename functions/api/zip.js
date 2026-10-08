@@ -12,7 +12,7 @@
  * here to protect, and the quote form needs it before anyone has signed in.
  */
 import { json } from '../_lib/util.js';
-import { SERVICE_AREA_ZIPS } from '../_lib/zips.js';
+import { SERVICE_AREA_ZIPS, plausibleCity } from '../_lib/zips.js';
 
 const FL_MIN = 32000, FL_MAX = 34999;
 
@@ -36,7 +36,10 @@ export async function onRequestGet({ request, env }) {
   if (env.DB) {
     try {
       const row = await env.DB.prepare('SELECT city, county FROM zip_cache WHERE zip = ?').bind(zip).first();
-      if (row) {
+      /* Rows written before the guard below could hold the ZIP itself as the
+         city, which told a customer "that is 33406". Checked on the way out
+         too, so the bad ones stop being served without a migration. */
+      if (row && plausibleCity(row.city, zip)) {
         await env.DB.prepare('UPDATE zip_cache SET hits = hits + 1 WHERE zip = ?').bind(zip).run();
         return json({ ok: true, zip, city: row.city, county: row.county, source: 'cache' }, 200, CACHE_HEADERS);
       }
@@ -56,7 +59,10 @@ export async function onRequestGet({ request, env }) {
     const hit = (data.features || [])
       .map((f) => f.properties || {})
       .find((p) => p.state === 'Florida' && (p.postcode === zip || !p.postcode) && (p.city || p.name));
-    const city = hit ? (hit.city || hit.name) : null;
+    /* Photon answers a bare postal area with the postcode as its `name`, so
+       `hit.name` was being stored as the town. */
+    const raw = hit ? (hit.city || hit.name) : null;
+    const city = plausibleCity(raw, zip) ? raw : null;
     const county = hit ? (hit.county || null) : null;
 
     if (city && env.DB) {

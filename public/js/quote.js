@@ -390,9 +390,14 @@ var state = { step: 0, leadId: null };
       return starts.concat(contains);
     };
 
-    var choose = function (value) {
+    /* Whether the city in the box got there from the ZIP or from the person.
+       Only the first kind may be replaced when the ZIP changes. */
+    var cityFromZip = false;
+
+    var choose = function (value, fromZip) {
       city.value = value;
       state.city = value;
+      cityFromZip = !!fromZip;
       close();
       city.classList.remove('is-bad');
     };
@@ -435,15 +440,29 @@ var state = { step: 0, leadId: null };
     });
 
     function applyCity(digits, name) {
-      if (!city.value.trim()) {
-        choose(name);
-        if (hint) { hint.textContent = 'That is ' + name + ' — change it below if not.'; }
+      /* Correcting a mistyped ZIP used to leave the previous town sitting in
+         the box — the hint said Lake Worth Beach while the field still said
+         Delray Beach, and the wrong one is what got sent. A town this field
+         filled in itself is replaced; one the customer typed is left alone. */
+      if (!city.value.trim() || cityFromZip) {
+        var had = city.value.trim();
+        choose(name, true);
+        if (hint) {
+          hint.textContent = had && had !== name
+            ? 'That ZIP is in ' + name + ' — updated for you.'
+            : 'That is ' + name + ' — change it below if not.';
+        }
       } else if (hint) {
         hint.textContent = 'That ZIP is in ' + name + '.';
       }
     }
 
-    city.addEventListener('input', function () { open(match(city.value)); });
+    city.addEventListener('input', function () {
+      // Typed by hand, so a later ZIP must not overwrite it.
+      cityFromZip = false;
+      state.city = city.value;
+      open(match(city.value));
+    });
     city.addEventListener('focus', function () { if (!city.value.trim()) { open(match('')); } });
     city.addEventListener('blur', function () { window.setTimeout(close, 150); });
 
