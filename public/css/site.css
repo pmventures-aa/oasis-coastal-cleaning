@@ -447,7 +447,9 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
 .about-card__role {
   margin: 0.3rem 0 0; font-size: 0.72rem; font-weight: 700;
   letter-spacing: var(--tracking-caps); text-transform: uppercase;
-  color: var(--oasis-gold);
+  /* Gold as a word on a white card is 2.5:1 — the readable gold, not the
+     one the rules and borders use. */
+  color: var(--oasis-gold-ink);
 }
 .about-card__facts {
   list-style: none; margin: 1rem 0 0; padding: 1rem 0 0;
@@ -791,6 +793,9 @@ p { line-height: 1.55; }
 .area-card p, .faq p, .contact-tile p, .freq-card p { line-height: 1.5; }
 
 .checklist li { margin-bottom: 0.35rem; line-height: 1.45; font-size: var(--step--1); }
+/* A bare list beside a card is a grid item like any other, so it stretched
+   to the card's height and carried 75px of air under its last line. */
+.grid > .checklist { align-self: start; }
 
 /* Cinzel at display size drops single words onto their own line — the hero
    was reading "FROM EVERYDAY / MESS". Let the browser even the lines out. */

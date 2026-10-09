@@ -11,6 +11,10 @@
   --oasis-teal:        #02595F;  /* the script "Oasis" — primary brand color */
   --oasis-navy:        #094045;  /* COASTAL CLEANING caps — headings, body text */
   --oasis-gold:        #C89C53;  /* the double ring — rules, accents, hover */
+  /* The same gold darkened until it is readable as text on a light
+     background. #C89C53 on white is 2.5:1; this is 4.9:1. Use the plain
+     gold for rules, borders and icons, this one for words. */
+  --oasis-gold-ink:    #7A551C;
   --oasis-sea:         #27BDCE;  /* the water — highlights, small fills */
   --oasis-palm:        #455E03;  /* palm fronds — use sparingly */
   --oasis-sand:        #F5D9B9;  /* beach — soft section backgrounds */
