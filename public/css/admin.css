@@ -1021,12 +1021,18 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 }
 /* Cards in a row should end level, with the buttons on the same line. */
 .ccards { align-items: stretch; }
+/* With a profile open the tallest card in the row is that profile, so the
+   closed cards beside it stretched to match and the auto margin on their
+   buttons pushed them to the bottom of all that empty height. The :has()
+   rule is the same thing for anything that re-renders without the class. */
+.ccards--open, .ccards:has(.ccard.is-open) { align-items: start; }
 .ccard { display: flex; flex-direction: column; }
 /* The address list used to be the growing element, so in a short card its
    rows spread themselves down a column of empty space. The gap belongs
    above the buttons, not inside the addresses. */
 .ccard__props { flex: 0 0 auto; align-content: start; }
 .ccard__acts { margin-top: auto; padding-top: 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.ccard__acts .ccard__more { margin-left: auto; font-size: 0.78rem; }
 
 /* ----------------------------------------------------- client profile */
 /* The head is the control that opens the profile, so it has to look and

@@ -1699,10 +1699,15 @@
       '<div class="ccard__acts">' +
         '<button type="button" class="btn btn--primary btn--tiny" data-quote-client="' + esc(c.id) + '">' +
           'Start a quote</button>' +
+        /* Shorter so the row fits one line in a card this wide — the card
+           it sits in says whose requests they are. */
         '<button type="button" class="btn btn--ghost btn--tiny" data-client-work="' + esc(c.name || '') + '">' +
-          'See their requests</button>' +
-        '<button type="button" class="btn btn--ghost btn--tiny" data-add-property="' + esc(c.id) + '">' +
-          '+ Add an address</button>' +
+          'Their requests</button>' +
+        /* Three pills never fit one card width, so this one always wrapped
+           onto a line of its own. It is the least used of the three and it
+           reads fine as a plain action. */
+        '<button type="button" class="linkish ccard__more" data-add-property="' + esc(c.id) + '">' +
+          '+ Address</button>' +
       '</div>' +
     '</article>';
   }
@@ -1741,7 +1746,13 @@
              (many ? ' · ' + many + ' with more than one address' : '')) +
       '</p>' +
       (shown.length
-        ? '<div class="ccards">' + shown.map(clientCard).join('') + '</div>'
+        /* Cards in a row stretch to the tallest so their buttons line up.
+           Once one is opened into a profile, that tallest is the open one,
+           and its neighbours grew three hundred points of blank space
+           between their last line and their buttons. While one is open the
+           row stops stretching. */
+        ? '<div class="ccards' + (state.openClient ? ' ccards--open' : '') + '">' +
+            shown.map(clientCard).join('') + '</div>'
         : '<p class="empty">Nobody matches that.</p>');
   }
 
