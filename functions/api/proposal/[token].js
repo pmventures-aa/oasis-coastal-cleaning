@@ -152,12 +152,16 @@ export async function onRequestPost({ request, env, params }) {
       const to = alertTarget(await loadSettings(env.DB), env, 'decline');
       if (to) {
         const mail = buildQuoteDeclinedEmail(env, { quote, lead: row, reason });
+        /* No reply-to on this one. It is the only alert that quotes a
+           private note back, and with the customer as reply-to a single tap
+           of Reply sends them the whole thing — note included — inside the
+           quoted message. The accepted alert carries nothing private and
+           keeps its reply-to. */
         await sendEmail(env, {
           to,
           subject: mail.subject,
           html: mail.html,
-          text: mail.text,
-          replyTo: row.lead_email || undefined
+          text: mail.text
         });
       }
     } catch (err) {

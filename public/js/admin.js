@@ -1014,6 +1014,9 @@
       '<p class="cgroup__k">A note to them <span class="cgroup__hint">— appears on the quote as a note from you</span></p>' +
       '<label class="pf pf--wide pf--note"><span class="sr-only">Note</span><textarea class="pf__v quote-notes" rows="3">' +
         esc(notesVal || '') + '</textarea></label>' +
+      /* A note that names a figure the quote does not charge is how a
+         customer ends up reading $110 above a line that says $150. */
+      '<p class="qcompose__warn note-money" hidden></p>' +
       (alreadyOut
         ? '<p class="quote-revise-note muted">' +
             'This one is already with ' + esc((quote.customer_name || l && l.name || 'the customer').split(' ')[0]) +
@@ -1182,6 +1185,48 @@
       });
   }
 
+  /* Every dollar figure written in the note, and every one the quote
+     actually charges. A figure in the note that is on neither the lines nor
+     the total is almost always a number she changed on one and not the
+     other. It warns rather than blocks: a deposit, a past price or "under
+     $300" are all legitimate things to write. */
+  function noteMoneyMismatch(editor) {
+    var note = (editor.querySelector('.quote-notes') || {}).value || '';
+    var said = (note.match(/\$\s?\d[\d,]*(?:\.\d{1,2})?/g) || []).map(function (m) {
+      return Math.round(parseFloat(m.replace(/[^0-9.]/g, '')) * 100);
+    }).filter(function (c) { return c > 0; });
+    if (!said.length) return [];
+
+    var charged = {};
+    [].slice.call(editor.querySelectorAll('.qline')).forEach(function (row) {
+      var qty = Math.max(1, parseInt((row.querySelector('.quote-qty') || {}).value, 10) || 1);
+      var unit = parseDollars((row.querySelector('.quote-price') || {}).value);
+      if (unit > 0) { charged[unit] = true; charged[unit * qty] = true; }
+    });
+    var lines = quotePayload(editor).line_items;
+    charged[calcLineTotal(lines)] = true;
+    charged[calcLineTotal(lines, true)] = true;
+
+    var seen = {};
+    return said.filter(function (c) {
+      if (charged[c] || seen[c]) return false;
+      seen[c] = true;
+      return true;
+    });
+  }
+
+  function showNoteMoneyWarning(editor) {
+    var el = editor.querySelector('.note-money');
+    if (!el) return;
+    var odd = noteMoneyMismatch(editor);
+    if (!odd.length) { el.hidden = true; el.textContent = ''; return; }
+    el.hidden = false;
+    el.textContent = 'Your note mentions ' +
+      odd.map(function (c) { return money(c); }).join(' and ') +
+      (odd.length === 1 ? ', which is not' : ', which are not') +
+      ' on this quote. Worth a look before it goes.';
+  }
+
   function calcLineTotal(lines, includeOptional) {
     return (lines || []).reduce(function (sum, line) {
       if (line.optional && !includeOptional) return sum;
@@ -1243,7 +1288,14 @@
         if (ev.kind === 'sent' && detail && detail.to) {
           meta += ' · ' + detail.to + (detail.resend ? ' (resend)' : '');
         }
-        if (ev.kind === 'declined' && detail && detail.reason) meta += ' · “' + detail.reason + '”';
+        /* Two different things wear the same word. What the customer typed
+           on their own page is theirs; what she typed in the portal is an
+           internal note nobody else has seen. */
+        if (ev.kind === 'declined' && detail) {
+          if (detail.reason) meta += ' · they said “' + detail.reason + '”';
+          if (detail.note) meta += ' · your note: “' + detail.note + '”';
+          if (detail.by === 'staff') meta += ' · recorded by you';
+        }
         if (ev.kind === 'accepted' && detail && detail.add_ons && detail.add_ons.length) {
           meta += ' · Add-ons: ' + detail.add_ons.map(function (a) { return a.label || a.id; }).join(', ');
         }
@@ -1287,6 +1339,13 @@
     } else if (!isArchived && q.status !== 'draft') {
       acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="edit" data-quote-id="' +
         esc(q.id) + '">Edit</button>';
+    }
+    /* A no that comes by phone had nowhere to be recorded, so the only way
+       to mark one was to open the customer's own link and answer as them —
+       on a page that invites a note "to tell Kristina why". */
+    if (!isArchived && q.status === 'sent') {
+      acts += '<button type="button" class="btn btn--ghost btn--tiny" data-quote-action="decline" data-quote-id="' +
+        esc(q.id) + '">Mark declined</button>';
     }
     if (isArchived) {
       acts +=
@@ -2200,6 +2259,7 @@
   function updateQuoteTotal(editor) {
     var el = editor.querySelector('[data-quote-total]');
     if (el) el.textContent = money(calcLineTotal(quotePayload(editor).line_items));
+    showNoteMoneyWarning(editor);
   }
 
   function showQuoteMsg(editor, text, ok) {
@@ -2316,6 +2376,17 @@
     if (action === 'unpaid' && !window.confirm('Mark this as not paid after all?')) return;
 
     var extra = {};
+    /* The note is hers. It is not emailed to anybody and the customer's own
+       page never shows it — which is the whole reason this button exists,
+       so the prompt says so plainly. */
+    if (action === 'decline') {
+      var said = window.prompt(
+        'Mark this quote as declined?\n\n' +
+        'Why did they say no? (optional — this is an internal note. The ' +
+        'customer is not emailed and never sees it.)');
+      if (said === null) return;                // cancelled
+      if (said.trim()) extra.note = said.trim();
+    }
     if (action === 'reopen') {
       var why = window.prompt(
         'Reopen this accepted quote?\n\nIt goes back to sent so you can change and resend it. ' +
@@ -2559,6 +2630,13 @@
       var ask = revising
         ? 'Email the updated quote? They can already see it at the same link.'
         : 'Send this quote by email?';
+      /* The last moment the mismatch can be caught — a note saying $110
+         over a line charging $150 is read by the customer, not by her. */
+      var odd = noteMoneyMismatch(ed);
+      if (odd.length) {
+        ask = 'Your note mentions ' + odd.map(function (c) { return money(c); }).join(' and ') +
+          ', which ' + (odd.length === 1 ? 'is' : 'are') + ' not on this quote.\n\n' + ask;
+      }
       if (window.confirm(ask)) sendQuote(ed);
     }
   });
@@ -2796,6 +2874,10 @@
        fight the caret mid-string, so it only reshapes while she is typing at
        the end — which is how a phone number is actually entered. */
     if (e.target.matches('.quote-description')) { growDesc(e.target); }
+    if (e.target.matches('.quote-notes, .quote-price, .quote-qty')) {
+      var ned = e.target.closest('.quote-editor');
+      if (ned) showNoteMoneyWarning(ned);
+    }
     if (e.target.matches('[data-svcpick-input]')) {
       svcRender(e.target.closest('[data-svcpick]'));
     }

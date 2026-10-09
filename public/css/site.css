@@ -1005,6 +1005,12 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
   display: block; font-size: var(--step--1); font-weight: 600;
   color: var(--oasis-ink); margin-bottom: 0.45rem;
 }
+/* Who reads this is the question anyone hesitates over before typing, so
+   the answer sits under the question rather than in the label with it. */
+.proposal__decline-label span {
+  display: block; font-weight: 400; color: var(--oasis-muted);
+  font-size: 0.8rem; margin-top: 0.15rem;
+}
 .proposal__decline-input {
   width: 100%; box-sizing: border-box; min-height: 4.5rem;
   padding: 0.65rem 0.75rem; border: 1px solid var(--oasis-line);

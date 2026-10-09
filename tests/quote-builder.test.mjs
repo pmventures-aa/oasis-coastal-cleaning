@@ -84,3 +84,30 @@ test('one line of a quote is one card', async (t) => {
     assert.match(css, /grid-template-areas: 'name name' 'qty amount'/);
   });
 });
+
+test('a note that names a figure the quote does not charge', async (t) => {
+  /* A note reading "$110 every two weeks" went out above a line charging
+     $150. The customer reads the note; nobody else does. */
+  const fn = src.slice(src.indexOf('function noteMoneyMismatch'), src.indexOf('function calcLineTotal'));
+
+  await t.test('compares what the note says against what the lines charge', () => {
+    assert.match(fn, /quote-notes/);
+    assert.match(fn, /quote-price/);
+    assert.match(fn, /calcLineTotal/, 'naming the grand total is not a mismatch');
+  });
+
+  await t.test('counts each line at unit and at line total', () => {
+    /* Two hampers at $40 may be written as either in the note. */
+    assert.match(fn, /charged\[unit\] = true; charged\[unit \* qty\] = true/);
+  });
+
+  await t.test('says nothing when the note names no money', () => {
+    assert.match(fn, /if \(!said\.length\) return \[\]/);
+  });
+
+  await t.test('warns rather than blocks', () => {
+    const send = src.slice(src.indexOf("hit.matches('[data-send-quote]')"), src.indexOf('});', src.indexOf("hit.matches('[data-send-quote]')")));
+    assert.match(send, /noteMoneyMismatch/, 'the last chance to catch it is the send confirmation');
+    assert.match(send, /window\.confirm/, 'a deposit or a past price is a legitimate thing to write');
+  });
+});

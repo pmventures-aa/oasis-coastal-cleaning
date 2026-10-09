@@ -127,7 +127,9 @@
 
   function declinePanelHtml() {
     return '<div class="proposal__decline" id="decline-panel" hidden>' +
-      '<label class="proposal__decline-label" for="decline-reason">Optional — tell Kristina why (helps her revise the quote)</label>' +
+      '<label class="proposal__decline-label" for="decline-reason">' +
+        'Anything you would like to say? <span>Optional. It goes to Kristina and ' +
+        'nowhere else.</span></label>' +
       '<textarea id="decline-reason" class="proposal__decline-input" rows="3" maxlength="1000" ' +
         'placeholder="Timing, budget, looking elsewhere…"></textarea>' +
       '<div class="proposal__decline-acts">' +

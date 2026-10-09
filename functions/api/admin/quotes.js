@@ -183,6 +183,28 @@ export async function onRequestPatch({ request, env }) {
     return json({ ok: true, action: 'reopened' });
   }
 
+  /* A no that arrives by phone or text still has to be recorded, and until
+     now the only place to record one was the customer's own link — so she
+     opened their page and typed her note into a box captioned "tell
+     Kristina why". The note is hers, so it stays in the portal: nothing is
+     emailed and the customer's page shows them nothing but that the quote
+     was declined. */
+  if (action === 'decline') {
+    if (existing.status === 'accepted') {
+      return json({ error: 'That quote was accepted. Reopen it first.' }, 400);
+    }
+    const at = new Date().toISOString();
+    const note = clean(body.note, 1000);
+    await env.DB.prepare(
+      `UPDATE quotes SET status = 'declined', declined_at = ?, updated_at = ? WHERE id = ?`
+    ).bind(at, at, id).run();
+    await env.DB.prepare('UPDATE leads SET status = ?, updated_at = ? WHERE id = ?')
+      .bind('closed', at, existing.lead_id).run().catch(() => {});
+    await logQuoteEvent(env.DB, id, 'declined',
+      { by: 'staff', ...(note ? { note } : {}) });
+    return json({ ok: true, action: 'declined' });
+  }
+
   /* The two things that happen after a yes: the work, and the money. Each is
      a date rather than a flag, so "when did she finish it" and "when did they
      pay" are answerable later. Both can be undone — she will mis-tap. */
