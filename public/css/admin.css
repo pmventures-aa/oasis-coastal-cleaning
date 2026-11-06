@@ -1562,3 +1562,16 @@ select.pf__v:focus {
   .oslot { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 0.3rem; }
   .oslot .bfield__in { padding-left: 0.5rem; padding-right: 0.3rem; }
 }
+
+/* Used in two places and styled in none, so a form error rendered as plain
+   body text directly under the field it was complaining about. */
+.bform__err {
+  margin: 0.2rem 0 0.6rem; padding: 0.55rem 0.7rem; border-radius: 10px;
+  background: #FBEEDA; color: #7A551C; font-size: 0.86rem; font-weight: 600;
+}
+
+/* Said, not implied: the link went out, or it did not. */
+.bform__sent {
+  margin: 0.2rem 0 0.6rem; padding: 0.55rem 0.7rem; border-radius: 10px;
+  background: #E6F4EA; color: #1B5E34; font-size: 0.86rem; font-weight: 600;
+}

@@ -352,6 +352,133 @@ await testAsync('an offer with only past times is refused outright', async () =>
 
 
 
+/* ------------------------------------------------- emailing it to them */
+
+/* sendEmail returns null when it went and a MESSAGE when it did not, which
+   is the opposite of what a truthy check would assume. A send reported as
+   successful when it failed leaves her believing a link went out. */
+const mailEnv = (db, outcome) => ({
+  DB: db, SESSION_SECRET: SECRET, SITE_URL: 'https://x.test',
+  RESEND_API_KEY: 'test-key',
+  // the real sendEmail talks to Resend; stub fetch so nothing leaves here
+  __outcome: outcome
+});
+
+const withFetch = async (outcome, fn) => {
+  const real = globalThis.fetch;
+  globalThis.fetch = async () => outcome === 'ok'
+    ? new Response(JSON.stringify({ id: 'e1' }), { status: 200 })
+    : new Response('nope', { status: 500 });
+  try { return await fn(); } finally { globalThis.fetch = real; }
+};
+
+await testAsync('nothing is emailed unless she ticks the box', async () => {
+  const db = DB();
+  let called = 0;
+  await withFetch('ok', async () => {
+    const real = globalThis.fetch;
+    globalThis.fetch = async (...a) => { called++; return real(...a); };
+    const r = await adminPost({
+      request: await adminReq({ customer_name: 'Maria', email: 'maria@example.test',
+        slots: [{ start_at: iso(hoursFromNow(48)) }] }),
+      env: mailEnv(db)
+    });
+    assert.equal(r.status, 201);
+    const b = await r.json();
+    assert.equal(b.emailed, false);
+  });
+  assert.equal(called, 0, 'no send attempt was made');
+});
+
+await testAsync('ticking the box with no address is refused before anything is saved', async () => {
+  const db = DB();
+  const r = await adminPost({
+    request: await adminReq({ customer_name: 'Maria', send_email: true,
+      slots: [{ start_at: iso(hoursFromNow(48)) }] }),
+    env: mailEnv(db)
+  });
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /email address/i);
+  assert.equal((await db.prepare('SELECT * FROM time_offers').all()).results.length, 0);
+});
+
+await testAsync('a malformed address is refused too', async () => {
+  const db = DB();
+  const r = await adminPost({
+    request: await adminReq({ customer_name: 'Maria', send_email: true, email: 'not-an-address',
+      slots: [{ start_at: iso(hoursFromNow(48)) }] }),
+    env: mailEnv(db)
+  });
+  assert.equal(r.status, 400);
+  assert.equal((await db.prepare('SELECT * FROM time_offers').all()).results.length, 0);
+});
+
+await testAsync('ticking the box emails it and says so', async () => {
+  const db = DB();
+  await withFetch('ok', async () => {
+    const r = await adminPost({
+      request: await adminReq({ customer_name: 'Maria', send_email: true,
+        email: 'maria@example.test', service_label: 'Deep clean',
+        slots: [{ start_at: iso(hoursFromNow(48)) }, { start_at: iso(hoursFromNow(72)) }] }),
+      env: mailEnv(db)
+    });
+    assert.equal(r.status, 201);
+    const b = await r.json();
+    assert.equal(b.emailed, true);
+    assert.equal(b.emailedTo, 'maria@example.test');
+    assert.equal(b.emailError, null);
+  });
+});
+
+/* The trap: a failed send must never read as a sent one. */
+await testAsync('a failed send is reported as failed, and the link still works', async () => {
+  const db = DB();
+  await withFetch('fail', async () => {
+    const r = await adminPost({
+      request: await adminReq({ customer_name: 'Maria', send_email: true,
+        email: 'maria@example.test', slots: [{ start_at: iso(hoursFromNow(48)) }] }),
+      env: mailEnv(db)
+    });
+    assert.equal(r.status, 201, 'the offer itself is not rolled back for a bad email');
+    const b = await r.json();
+    assert.equal(b.emailed, false, 'a failure must not read as a send');
+    assert.ok(b.emailError, 'and it must say what happened');
+    assert.equal(b.emailedTo, null);
+    assert.match(b.url, /\/offer\?t=/);     // she can still text it
+  });
+  assert.equal((await db.prepare('SELECT * FROM time_offers').all()).results.length, 1);
+});
+
+await testAsync('with no mail provider configured at all it does not claim a send', async () => {
+  const db = DB();
+  const r = await adminPost({
+    request: await adminReq({ customer_name: 'Maria', send_email: true,
+      email: 'maria@example.test', slots: [{ start_at: iso(hoursFromNow(48)) }] }),
+    env: { DB: db, SESSION_SECRET: SECRET, SITE_URL: 'https://x.test' }   // no keys
+  });
+  const b = await r.json();
+  assert.equal(b.emailed, false);
+  assert.match(b.emailError, /notification channel|did not go out/i);
+});
+
+await testAsync('the email lists the times, not just a bare link', async () => {
+  const { buildOfferEmail } = await import('../functions/_lib/email.js');
+  const start = new Date('2027-07-04T13:00:00.000Z');       // 9am EDT
+  const mail = buildOfferEmail({ SITE_URL: 'https://x.test' }, {
+    offer: { customer_name: 'Maria Delgado', service_label: 'Deep clean', note: 'Any of these suit?' },
+    slots: [{ start_at: start.toISOString(), end_at: new Date(start.getTime() + 7200000).toISOString() }],
+    offerUrl: 'https://x.test/offer?t=abc'
+  });
+  assert.match(mail.subject, /pick whichever suits you/i);
+  for (const src of [mail.html, mail.text]) {
+    assert.match(src, /Sunday, July 4/);
+    assert.match(src, /9 AM|9:00/);
+    assert.match(src, /x\.test\/offer\?t=abc/);
+  }
+  assert.match(mail.html, /Any of these suit\?/);
+  assert.match(mail.html, /not held/);         // honest about what an offer is
+});
+
 /* ------------------------------------------------------- the two screens */
 import { readFileSync } from 'node:fs';
 const ADMIN = readFileSync(new URL('../public/js/admin.js', import.meta.url), 'utf8');
@@ -401,6 +528,34 @@ test('a time that has gone is shown struck through AND labelled', () => {
   assert.match(css, /\.pslot--gone/);
   assert.match(PUBJS, /Just taken/);
   assert.match(PUBJS, /Already passed/);
+});
+
+test('the email is opt-in, and the address only asked for when ticked', () => {
+  assert.match(ADMIN, /data-of-send/);
+  assert.match(ADMIN, /Email it to them as well as giving me the link/);
+  // the address field is rendered only when the box is ticked
+  assert.match(ADMIN, /f\.sendEmail\s*\?\s*'<label class="bfield"><span>Their email/);
+  // and a new form starts unticked
+  assert.match(ADMIN, /sendEmail: false/);
+});
+
+test('the button admits that it is about to email a customer', () => {
+  assert.match(ADMIN, /Email it and make the link/);
+  assert.match(ADMIN, /f\.sendEmail \? 'Sending…'/);
+});
+
+test('the panel says whether it emailed, and never guesses', () => {
+  assert.match(ADMIN, /f\.made\.emailed/);
+  assert.match(ADMIN, /It did not email/);
+  assert.match(ADMIN, /The link below still works/);
+  assert.match(ADMINCSS, /\.bform__sent/);
+  assert.match(ADMINCSS, /\.bform__err/);   // was used in two places, styled in none
+});
+
+test('success is read from null, which is what sendEmail returns when it went', async () => {
+  const src = readFileSync(new URL('../functions/api/admin/offers.js', import.meta.url), 'utf8');
+  assert.match(src, /emailed = sent === null/);
+  assert.ok(!/sent !== false/.test(src), 'a truthy check here reports every failure as a send');
 });
 
 console.log('\n' + n + ' passed');

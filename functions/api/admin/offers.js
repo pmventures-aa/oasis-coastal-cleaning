@@ -9,7 +9,8 @@
  * slots she could still sell. The offer is re-checked when the customer
  * answers, which is the only check that can be trusted.
  */
-import { json, clean, newId, siteBase } from '../../_lib/util.js';
+import { json, clean, newId, siteBase, sendEmail, isEmail } from '../../_lib/util.js';
+import { buildOfferEmail } from '../../_lib/email.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { ensureScheduleTables } from '../../_lib/schema.js';
 import { loadWindowFor, conflictsForSpan } from '../../_lib/schedule-db.js';
@@ -87,6 +88,17 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'Pick at least one time that has not already passed.', dropped }, 400);
   }
 
+  /* Emailing it is hers to choose. Nothing is sent unless she ticks the box,
+     and a tick with no address is an error now rather than a silent no-send
+     she only notices when nobody answers. */
+  const email = clean(body.email, 160);
+  const wantsEmail = body.send_email === true;
+  if (wantsEmail && !isEmail(email)) {
+    return json({ error: email
+      ? 'That email address does not look right.'
+      : 'Add their email address, or untick "Email it to them".' }, 400);
+  }
+
   /* Each offered time is checked against the diary now. She is told which
      ones clash rather than having them silently removed. */
   const first = new Date(slots[0].start_at);
@@ -119,7 +131,7 @@ export async function onRequestPost({ request, env }) {
     ).bind(id, token, now,
       clean(body.lead_id, 60) || null, clean(body.quote_id, 60) || null,
       clean(body.customer_id, 60) || null, clean(body.customer_name, 120) || null,
-      clean(body.email, 160) || null, clean(body.phone, 40) || null,
+      email || null, clean(body.phone, 40) || null,
       clean(body.address, 200) || null, clean(body.city, 80) || null,
       clean(body.zip, 20) || null, clean(body.service_label, 120) || null,
       duration, clean(body.note, 500) || null,
@@ -134,9 +146,31 @@ export async function onRequestPost({ request, env }) {
     }
 
     const row = await env.DB.prepare('SELECT * FROM time_offers WHERE id = ?').bind(id).first();
+    const saved = await slotsOf(env.DB, id);
+    const url = siteBase(env) + '/offer?t=' + token;
+
+    /* The link exists either way. If the email fails, she is told so and
+       still has the link to text -- the offer is not rolled back for it. */
+    let emailed = false, emailError = null;
+    if (wantsEmail) {
+      try {
+        const mail = buildOfferEmail(env, { offer: { ...row }, slots: saved, offerUrl: url });
+        /* sendEmail returns null when it went, and a message when it did
+           not. Anything other than null is a failure to report, never a
+           send to celebrate. */
+        const sent = await sendEmail(env, {
+          to: email, subject: mail.subject, html: mail.html, text: mail.text
+        });
+        emailed = sent === null;
+        if (!emailed) emailError = String(sent || 'The email did not go out.');
+      } catch (err) {
+        emailError = 'The email did not go out: ' + String(err && err.message || err);
+      }
+    }
+
     return json({ ok: true,
-      offer: { ...row, slots: await slotsOf(env.DB, id) },
-      url: siteBase(env) + '/offer?t=' + token,
+      offer: { ...row, slots: saved }, url,
+      emailed, emailError, emailedTo: emailed ? email : null,
       dropped, overridden: clashing.length ? clashing : undefined }, 201);
   } catch (err) {
     return json({ error: 'Could not save that offer.',

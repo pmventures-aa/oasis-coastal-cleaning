@@ -2402,13 +2402,23 @@
          moment it exists. */
       return '<section class="bform bform--done" aria-labelledby="oform-title">' +
         '<div class="bform__head">' +
-          '<h3 class="bform__title" id="oform-title">Send them this link</h3>' +
+          '<h3 class="bform__title" id="oform-title">' +
+            (f.made.emailed ? 'Sent — and here is the link' : 'Send them this link') +
+          '</h3>' +
           '<button type="button" class="btn btn--ghost btn--tiny" data-offer-cancel>Done</button>' +
         '</div>' +
         '<p class="bform__hint">' + esc(f.made.count) +
           (f.made.count === 1 ? ' time is' : ' times are') + ' on it. ' +
           'Nothing is booked until they pick one, and whichever they pick ' +
           'lands straight on your calendar.</p>' +
+        /* Said plainly either way. A link she believes was emailed and was
+           not is worse than one she knows she has to send. */
+        (f.made.emailed
+          ? '<p class="bform__sent">Emailed to ' + esc(f.made.emailedTo) + '.</p>'
+          : f.made.emailError
+            ? '<p class="bform__err" role="alert"><strong>It did not email.</strong> ' +
+              esc(f.made.emailError) + ' The link below still works — text it to them.</p>'
+            : '') +
         '<p class="feedbox__url"><code>' + esc(f.made.url) + '</code></p>' +
         '<div class="feedbox__acts">' +
           '<button type="button" class="btn btn--primary btn--tiny" data-offer-copy="' +
@@ -2439,6 +2449,18 @@
       '<label class="bfield"><span>Address</span>' +
         '<input type="text" class="bfield__in" data-of="address" value="' + esc(f.address || '') + '" ' +
           'placeholder="Where the job is" autocomplete="off"></label>' +
+
+      /* Two ways to get the link to them. Texting it is the default because
+         that is how she already works; the email is a tick, and nothing is
+         sent unless she ticks it. */
+      '<label class="btoggle">' +
+        '<input type="checkbox" data-of-send' + (f.sendEmail ? ' checked' : '') + '>' +
+        '<span>Email it to them as well as giving me the link</span></label>' +
+      (f.sendEmail
+        ? '<label class="bfield"><span>Their email</span>' +
+            '<input type="email" class="bfield__in" data-of="email" value="' + esc(f.email || '') + '" ' +
+              'placeholder="name@example.com" autocomplete="off" inputmode="email"></label>'
+        : '') +
 
       '<label class="bfield"><span>How long will it take?</span>' +
         '<select class="bfield__in" data-of="duration">' +
@@ -2480,9 +2502,15 @@
         : '') +
 
       '<div class="bform__acts">' +
+        /* The button says what it is about to do. With the box ticked this
+           sends mail to a real customer, which "Make the link" did not
+           admit to. */
         '<button type="button" class="btn btn--primary btn--tiny" data-offer-save' +
           (f.saving ? ' disabled' : '') + '>' +
-          (f.saving ? 'Making the link…' : 'Make the link') + '</button>' +
+          (f.saving
+            ? (f.sendEmail ? 'Sending…' : 'Making the link…')
+            : (f.sendEmail ? 'Email it and make the link' : 'Make the link')) +
+          '</button>' +
         (clash.length
           ? '<button type="button" class="btn btn--ghost btn--tiny" data-offer-save="override">' +
             'Send the free ones anyway</button>' : '') +
@@ -2629,6 +2657,8 @@
         note: String(f.note || '').trim() || undefined,
         duration_minutes: Number(f.duration) || 120,
         slots: slots.map(function (sl) { return { date: sl.date, time: sl.time }; }),
+        send_email: f.sendEmail === true,
+        email: String(f.email || '').trim() || undefined,
         override: override === true
       })
     }).then(function (r) {
@@ -2639,6 +2669,9 @@
         f.made = {
           url: url,
           count: (r.body.offer && r.body.offer.slots || []).length,
+          emailed: r.body.emailed === true,
+          emailedTo: r.body.emailedTo || '',
+          emailError: r.body.emailError || '',
           /* She texts these links, so hand her the text message already
              written rather than make her paste it somewhere. */
           sms: phone ? 'sms:+1' + phone + '&body=' + encodeURIComponent(
@@ -3609,8 +3642,9 @@
     }
     if (hit.matches('[data-offer-new]')) {
       state.blockForm = null;
-      state.offerForm = { name: '', service: '', phone: '', address: '', note: '',
-        duration: 120, slots: [blankOfferSlot(schedCursor())], clashes: [] };
+      state.offerForm = { name: '', service: '', phone: '', address: '', email: '',
+        note: '', sendEmail: false, duration: 120,
+        slots: [blankOfferSlot(schedCursor())], clashes: [] };
       render(); return;
     }
     if (hit.matches('[data-offer-cancel]')) { state.offerForm = null; render(); return; }
@@ -3807,6 +3841,10 @@
 
   root.addEventListener('change', function (e) {
     if (e.target.matches('[data-pipe-select]')) { goView(e.target.value); return; }
+    if (e.target.matches('[data-of-send]') && state.offerForm) {
+      state.offerForm.sendEmail = e.target.checked;
+      render(); return;                       // the address field appears with it
+    }
     if (e.target.matches('[data-of]') && state.offerForm) {
       state.offerForm[e.target.getAttribute('data-of')] = e.target.value;
       return;
