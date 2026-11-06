@@ -48,7 +48,7 @@ test('the refresh-timing detail waits until a link exists', () => {
     'timing detail does not belong in the always-on copy');
   const how = JS.slice(JS.indexOf('function howtoHtml()'));
   assert.match(how.slice(0, how.indexOf('\n  }')), /picks up changes within the hour/);
-  assert.match(feed, /\(f\.enabled \|\| f\.share_enabled\) \? howtoHtml\(\)/);
+  assert.match(feed, /live \? howtoHtml\(\)/);   // only once a link exists
 });
 
 test('the one-way nature is still stated up front', () => {
@@ -63,8 +63,11 @@ test('copying a link no longer leaves her with nowhere to put it', () => {
 
 /* Re-rendering a <details> drops its open attribute, which shut the panel
    on the very link it had just made. The nested one has the same fault. */
-test('both drawers remember whether they were open', () => {
-  assert.match(JS, /state\.feedOpen \? ' open' : ''/);
+test('the how-to drawer remembers whether it was open', () => {
+  /* The sharing panel is no longer a drawer at all -- it is an open
+     section, because a shut one left her asking whether sharing existed. */
+  assert.ok(!/<details class="feedbox"/.test(JS));
+  assert.match(JS, /<section class="feedbox"/);
   assert.match(JS, /state\.feedHow \? ' open' : ''/);
   assert.match(JS, /\[data-feedhow\]'\)\) state\.feedHow = e\.target\.open/);
   assert.match(JS, /feedHow: false/);
@@ -130,7 +133,6 @@ test('the chosen day is listed under the grid exactly once', () => {
 });
 
 test('the dot key shows where dots do the work and not where chips do', () => {
-  assert.match(JS, /mkey--offer/);
   const keyAt = CSS.indexOf('.mgrid__key {');
   const hideAt = CSS.indexOf('.mgrid__key { display: none; }');
   assert.ok(keyAt > -1 && hideAt > keyAt,

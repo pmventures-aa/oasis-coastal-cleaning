@@ -9,12 +9,14 @@ import * as feed from '../functions/api/calendar/[token].js';
 
 const TOKEN = 'tok-abcdefghijklmnop';
 const SHARE = 'busy-abcdefghijklmnop';
+const STAFF = 'team-abcdefghijklmnop';
 const envWith = async (rows = [], blocks = []) => {
   const DB = makeD1();
   /* The feed reads settings through loadSettings, which needs the table. */
   DB._raw.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)`);
   DB._raw.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('calendar_token', TOKEN);
   DB._raw.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('calendar_share_token', SHARE);
+  DB._raw.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('calendar_staff_token', STAFF);
   for (const r of rows) {
     DB._raw.prepare(`INSERT INTO appointments
       (id, created_at, customer_name, phone, address, city, service_label, status,
@@ -43,6 +45,56 @@ const soon = (days, h) => {
 const get = (env, token) =>
   feed.onRequestGet({ request: { url: 'https://x.test/api/calendar/' + token },
     params: { token }, env });
+
+/* She asked whether she could share the calendar with somebody she hires.
+   A cleaner needs the address and the name, so this link carries them --
+   which is exactly why it is its own token and not her phone's. */
+test('the link for somebody who works with her', async (t) => {
+  const JOB = {
+    id: 'a1', customer_name: 'Maria Delgado', phone: '5615550142',
+    address: '12 Ocean Ave', city: 'Lake Worth', service_label: 'Deep clean',
+    notes: 'Gate code 4417', start_at: soon(2, '09:00'), end_at: soon(2, '11:00')
+  };
+
+  await t.test('it carries what somebody doing the job needs', async () => {
+    const env = await envWith([JOB]);
+    const body = await (await get(env, STAFF)).text();
+    for (const needed of ['Maria Delgado', '12 Ocean Ave', 'Lake Worth', 'Deep clean']) {
+      assert.ok(body.includes(needed), 'missing ' + needed);
+    }
+  });
+
+  await t.test('the busy-only link still gives none of it', async () => {
+    const env = await envWith([JOB]);
+    const body = await (await get(env, SHARE)).text();
+    for (const priv of ['Maria Delgado', '12 Ocean Ave', 'Lake Worth', '5615550142',
+                        'Deep clean', 'Gate code 4417']) {
+      assert.ok(!body.includes(priv), 'leaked ' + priv);
+    }
+    assert.ok(body.includes('SUMMARY:Busy'));
+  });
+
+  await t.test('turning it off does not touch her own phone', async () => {
+    const env = await envWith([JOB]);
+    env.DB._raw.prepare('UPDATE settings SET value = ? WHERE key = ?')
+      .run('', 'calendar_staff_token');
+    assert.equal((await get(env, STAFF)).status, 404, 'the staff link is dead');
+    assert.equal((await get(env, TOKEN)).status, 200, 'hers still works');
+    assert.equal((await get(env, SHARE)).status, 200, 'the busy link still works');
+  });
+
+  await t.test('and her own link is unaffected by the staff one existing', async () => {
+    const env = await envWith([JOB]);
+    const body = await (await get(env, TOKEN)).text();
+    assert.ok(body.includes('Maria Delgado'));
+  });
+
+  await t.test('it is named so a shared calendar app says whose it is', async () => {
+    const env = await envWith([JOB]);
+    const body = await (await get(env, STAFF)).text();
+    assert.match(body, /X-WR-CALNAME:Oasis Coastal Cleaning/);
+  });
+});
 
 test('the feed', async (t) => {
   await t.test('a wrong token is a 404, not a hint', async () => {

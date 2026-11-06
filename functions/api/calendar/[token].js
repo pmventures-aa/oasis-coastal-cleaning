@@ -52,10 +52,15 @@ export async function onRequestGet({ request, params, env }) {
      address, no phone, no note. Someone who needs to know when she is free
      does not need to know whose kitchen she is in. */
   const mine = await readSecret(env.DB, 'calendar_token');
+  const staff = await readSecret(env.DB, 'calendar_staff_token');
   const shared = await readSecret(env.DB, 'calendar_share_token');
   const isMine = mine && safeEqual(given, mine);
-  const isShared = !isMine && shared && safeEqual(given, shared);
-  if (!isMine && !isShared) return new Response('Not found', { status: 404 });
+  /* Whoever she hires needs the address and the name to do the job, so the
+     staff link carries what hers does. It is a separate token only so that
+     taking it back does not stop her own phone updating. */
+  const isStaff = !isMine && staff && safeEqual(given, staff);
+  const isShared = !isMine && !isStaff && shared && safeEqual(given, shared);
+  if (!isMine && !isStaff && !isShared) return new Response('Not found', { status: 404 });
   const busyOnly = !!isShared;
 
   /* A window, not everything: a phone does not need last year. */
@@ -83,6 +88,7 @@ export async function onRequestGet({ request, params, env }) {
     'PRODID:-//Oasis Coastal Cleaning//Schedule//EN',
     'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
     busyOnly ? 'X-WR-CALNAME:Kristina — when she is busy'
+    : isStaff ? 'X-WR-CALNAME:Oasis Coastal Cleaning — the schedule'
              : 'X-WR-CALNAME:Oasis Coastal Cleaning',
     'X-WR-TIMEZONE:America/New_York',
     /* A hint, not a promise: the client refreshes when it feels like it. */
