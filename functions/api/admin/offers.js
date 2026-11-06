@@ -60,7 +60,7 @@ export async function onRequestGet({ request, env }) {
     const offers = [];
     for (const o of rows.results || []) {
       offers.push({ ...o, slots: await slotsOf(env.DB, o.id),
-        url: siteBase(env) + '/offer.html?t=' + o.token });
+        url: siteBase(env) + '/offer?t=' + o.token });
     }
     return json({ ok: true, offers });
   } catch (err) {
@@ -136,7 +136,7 @@ export async function onRequestPost({ request, env }) {
     const row = await env.DB.prepare('SELECT * FROM time_offers WHERE id = ?').bind(id).first();
     return json({ ok: true,
       offer: { ...row, slots: await slotsOf(env.DB, id) },
-      url: siteBase(env) + '/offer.html?t=' + token,
+      url: siteBase(env) + '/offer?t=' + token,
       dropped, overridden: clashing.length ? clashing : undefined }, 201);
   } catch (err) {
     return json({ error: 'Could not save that offer.',

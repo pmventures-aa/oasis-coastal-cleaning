@@ -331,7 +331,9 @@ await testAsync('she can send the free ones anyway when she means to', async () 
   });
   assert.equal(r.status, 201);
   const b = await r.json();
-  assert.match(b.url, /\/offer\.html\?t=/);
+  // extension-less, like the quote links: it is texted to people
+  assert.match(b.url, /\/offer\?t=/);
+  assert.ok(!b.url.includes('.html'), 'no redirect hop in a link she texts');
   // the clashing one is still ON the offer, but the public page will show it
   // as gone rather than pretend it was never offered
   assert.equal(b.offer.slots.length, 2);
