@@ -171,4 +171,33 @@ test('a text field keeps its caret, not just its focus', () => {
   assert.match(body, /preventScroll: true/);
 });
 
+/* --------------------------------------------------------- reduced motion */
+
+/* Measured in Chromium: scrollIntoView({behavior:'smooth'}) animates exactly
+   the same whether or not the reader has asked for reduced motion, and the
+   blanket "transition: none" in tokens.css cannot reach a scroll driven by
+   script. So the portal has to ask. */
+test('the portal does not smooth-scroll at a reader who asked it not to', () => {
+  assert.ok(!/behavior: 'smooth'/.test(JS),
+    'no unconditional smooth scroll may remain');
+  assert.match(JS, /function reducedMotion\(\)/);
+  assert.match(JS, /prefers-reduced-motion: reduce/);
+  assert.match(JS, /behavior: reducedMotion\(\) \? 'auto' : 'smooth'/);
+});
+
+test('the preference is read each time, not cached at load', () => {
+  const fn = JS.slice(JS.indexOf('function reducedMotion()'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  // the matchMedia call must be inside the function, not a module-level const
+  assert.match(body, /return !!\(window\.matchMedia/);
+});
+
+test('every scroll in the portal goes through the one helper', () => {
+  const calls = (JS.match(/\.scrollIntoView\(/g) || []).length;
+  // one inside scrollTo(), plus the keyboard list-box nudge which is
+  // block:'nearest' with no behavior and so never animates
+  assert.ok(calls <= 2, 'found ' + calls + ' direct scrollIntoView calls');
+  assert.match(JS, /function scrollTo\(el, block\)/);
+});
+
 console.log('\n' + n + ' passed');

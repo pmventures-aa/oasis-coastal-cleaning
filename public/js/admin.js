@@ -586,6 +586,21 @@
     }
   }
 
+  /* Chromium animates scrollIntoView({behavior:'smooth'}) whether or not the
+     reader has asked for reduced motion -- measured, not assumed -- and the
+     blanket "transition: none" in tokens.css cannot reach a scroll driven by
+     script. So the three places that scroll the portal ask first. Read each
+     time rather than cached, because the setting can change mid-session. */
+  function reducedMotion() {
+    return !!(window.matchMedia &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+  function scrollTo(el, block) {
+    if (!el || !el.scrollIntoView) return;
+    el.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth',
+      block: block || 'start' });
+  }
+
   function render() {
     var keepFocus = focusMemo();
     signout.hidden = false;
@@ -2947,7 +2962,7 @@
       if (state.focusQuoteEditor === leadId) {
         state.focusQuoteEditor = null;
         var composer = panel.querySelector('#quote-composer') || ed;
-        if (composer && composer.scrollIntoView) composer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollTo(composer, 'start');
         var price = panel.querySelector('.quote-price');
         if (price) price.focus();
       }
@@ -3549,7 +3564,7 @@
       state.view = 'active';
       render();
       var panel = document.querySelector('.compose');
-      if (panel && panel.scrollIntoView) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      scrollTo(panel, 'start');
       return;
     }
     /* A request listed under a client opens where requests live, rather than
@@ -3618,7 +3633,7 @@
       if (added) {
         var last = aEd.querySelectorAll('.qline');
         var el = last[last.length - 1];
-        if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        scrollTo(el, 'nearest');
       }
       return;
     }
