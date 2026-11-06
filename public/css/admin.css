@@ -402,11 +402,19 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .vtabs button {
   cursor: pointer; font-family: var(--font-body); font-size: 0.72rem; font-weight: 600;
   letter-spacing: 0.06em; text-transform: uppercase;
-  padding: 0.5em 1.1em; border-radius: var(--radius-pill);
+  /* These sit beside .sched__arrow / .sched__today, which are 44px. At 28px
+     they were both an undersized tap target on a phone and visibly shorter
+     than their own neighbours in the same toolbar. */
+  min-height: 44px; padding: 0.5em 1.1em; border-radius: var(--radius-pill);
   border: 1.5px solid var(--oasis-line); background: var(--oasis-white); color: var(--oasis-navy);
 }
 .vtabs button.is-on { background: var(--oasis-teal); color: var(--oasis-cream); border-color: var(--oasis-teal); }
 .vtabs button b { margin-left: 0.4rem; opacity: .7; }
+
+/* The phone gets a dropdown instead of eight wrapped pills; the tabs stay on
+   anything wider. Declared here, above the max-width block that turns it on:
+   same specificity, so whichever comes last would win. */
+.toolbar__pipe { display: none; }
 
 .toolbar__select select {
   font-family: var(--font-body); font-size: 0.72rem; font-weight: 600;
@@ -515,6 +523,9 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   }
   .vtabs { flex: 1 1 100%; flex-wrap: wrap; }
   .vtabs button { flex: 0 1 auto; text-align: center; }
+  .vtabs--pipeline { display: none; }
+  .toolbar__pipe { display: block; flex: 1 1 100%; }
+  .toolbar__pipe select { width: 100%; max-width: none; min-height: 44px; }
   .toolbar__select { flex: 1 1 8rem; }
   .toolbar__select select { width: 100%; max-width: none; }
   .toolbar__filter { flex: 0 0 auto; }
@@ -1502,3 +1513,15 @@ select.pf__v:focus {
   text-transform: uppercase; color: var(--oasis-teal);
 }
 .feedbox__rule { border: 0; border-top: 1px solid rgba(9, 64, 69, 0.12); margin: 0.3rem 0; }
+
+/* The steps for getting the link onto a phone. Collapsed: read once, then
+   never again, so it must not cost height on every visit. */
+.feedhow { border-top: 1px solid rgba(9, 64, 69, 0.12); margin-top: 0.2rem; }
+.feedhow > summary {
+  cursor: pointer; min-height: 44px; display: flex; align-items: center;
+  font-size: 0.82rem; font-weight: 700; color: var(--oasis-teal);
+}
+.feedhow > summary::-webkit-details-marker { display: none; }
+.feedhow__in { display: grid; gap: 0.5rem; padding: 0 0 0.6rem; }
+.feedhow__in p { margin: 0; font-size: 0.82rem; line-height: 1.5; color: var(--oasis-navy); }
+.feedhow__note { color: var(--oasis-muted); }

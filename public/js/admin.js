@@ -46,7 +46,7 @@
     openClient: null, composeFor: null,
     schedule: null, schedView: 'agenda', schedCursor: null, openAppt: null,
     schedBusy: false, schedErr: '', blockForm: null, schedCovering: null, schedFeed: null,
-    today: null, feedOpen: false
+    today: null, feedOpen: false, feedHow: false
   };
 
   var OASIS = window.OASIS || {};
@@ -568,6 +568,17 @@
               (n === null ? '' : '<b>' + n + '</b>') + '</button>';
           }).join('') +
         '</div>' +
+        /* Eight stages as wrapped pills cost 193px of a 375px screen before
+           any work showed. One row of the same eight, as the control phones
+           already know how to open. */
+        '<label class="toolbar__select toolbar__pipe">' +
+          '<span class="sr-only">Which list</span><select data-pipe-select>' +
+          VIEWS.map(function (v) {
+            var n = viewCount(v.id, counts, activeTotal);
+            return '<option value="' + v.id + '"' +
+              (state.view === v.id ? ' selected' : '') + '>' + esc(v.label) +
+              (n === null ? '' : ' (' + n + ')') + '</option>';
+          }).join('') + '</select></label>' +
         (state.view === 'active'
           ? '<label class="toolbar__select"><span class="sr-only">Status</span><select id="status-filter">' +
             '<option value="">All statuses</option>' +
@@ -1783,6 +1794,22 @@
      out. Everything is in Florida time; the server stores instants and
      these only ever format them. */
 
+  /* One way in to a list, whichever control asked: the pipeline tabs on a
+     wide screen, the dropdown that replaces them on a phone, and the Today
+     band. */
+  function goView(id) {
+    state.view = id;
+    state.filter = ''; state.followup = false; state.open = null;
+    state.composing = false; state.composingLead = false; state.composeFor = null;
+    if (state.view === 'settings') { render(); loadSettings(); return; }
+    if (state.view === 'schedule') {
+      state.schedule = null; render(); loadSchedule(); loadFeed(); return;
+    }
+    if (state.view === 'clients') { loadClients(); return; }
+    if (STAGE_FOR_VIEW[state.view]) { loadPipeline(state.view); return; }
+    load();
+  }
+
   var SCHED_VIEWS = [
     { id: 'agenda', label: 'Agenda' },
     { id: 'day',    label: 'Day' },
@@ -2147,12 +2174,8 @@
       '<div class="feedbox__in">' +
 
         '<p class="feedbox__k">Your own calendar</p>' +
-        '<p>A link Apple Calendar or Google Calendar can follow, so your cleanings ' +
-        'and your blocked time sit alongside everything else on your phone.</p>' +
-        '<p class="feedbox__warn"><strong>It only goes one way.</strong> Changing ' +
-        'something in your phone’s calendar does not change it here — the next ' +
-        'refresh puts it back. Book and block in this portal. Apple usually refreshes ' +
-        'within the hour; Google is often slower, and neither lets us hurry it.</p>' +
+        '<p>Your cleanings and blocked time, on your phone beside everything else. ' +
+        '<strong>It only goes one way</strong> — book and block here, not there.</p>' +
         linkRow(f.enabled, f.url, 'mine',
           'Anyone with this link can read your whole schedule, including customer ' +
           'names and addresses.') +
@@ -2160,14 +2183,33 @@
         '<hr class="feedbox__rule">' +
 
         '<p class="feedbox__k">A link you can give somebody else</p>' +
-        '<p>Same calendar, with everything private taken out. Whoever you give it to ' +
-        'sees only <strong>Busy</strong> and the times — no customer names, no ' +
-        'addresses, no phone numbers, and not even the note on your blocked time. ' +
-        'Good for anyone who needs to know when you are free.</p>' +
+        '<p>The same calendar with the private parts removed: they see ' +
+        '<strong>Busy</strong> and the times, never a name, address, phone number ' +
+        'or note.</p>' +
         linkRow(f.share_enabled, f.share_url, 'share',
           'It still shows exactly when you are working, so give it to people you ' +
           'would tell anyway.') +
 
+        ((f.enabled || f.share_enabled) ? howtoHtml() : '') +
+
+      '</div></details>';
+  }
+
+  /* "Copy the link" on its own leaves her holding a URL with nowhere to put
+     it, so the steps live here. Collapsed, because it is read once. */
+  function howtoHtml() {
+    return '<details class="feedhow"' + (state.feedHow ? ' open' : '') + ' data-feedhow>' +
+      '<summary>How do I add it to my phone?</summary>' +
+      '<div class="feedhow__in">' +
+        '<p><strong>iPhone:</strong> Settings → Apps → Calendar → Calendar ' +
+        'Accounts → Add Account → Other → Add Subscribed Calendar, then paste ' +
+        'the link.</p>' +
+        '<p><strong>Google Calendar:</strong> open it on a computer — Other ' +
+        'calendars → + → From URL, then paste the link. It shows up on the ' +
+        'phone app afterwards.</p>' +
+        '<p class="feedhow__note">Apple usually picks up changes within the hour and ' +
+        'Google is often slower. Neither lets us hurry it, so this screen is always ' +
+        'the one that is right.</p>' +
       '</div></details>';
   }
 
@@ -3155,18 +3197,7 @@
        and let the branches ask about that. */
     var hit = e.target.closest('button, a, [data-toggle], [role="tab"]') || e.target;
 
-    if (hit.matches('[data-view]')) {
-      state.view = hit.dataset.view;
-      state.filter = ''; state.followup = false; state.open = null;
-      state.composing = false; state.composingLead = false; state.composeFor = null;
-      if (state.view === 'settings') { render(); loadSettings(); return; }
-      if (state.view === 'schedule') {
-        state.schedule = null; render(); loadSchedule(); loadFeed(); return;
-      }
-      if (state.view === 'clients') { loadClients(); return; }
-      if (STAGE_FOR_VIEW[state.view]) { loadPipeline(state.view); return; }
-      load(); return;
-    }
+    if (hit.matches('[data-view]')) { goView(hit.dataset.view); return; }
     if (hit.matches('[data-new-lead]')) {
       state.composingLead = true; state.composing = false; state.open = null;
       render(); return;
@@ -3500,9 +3531,11 @@
      way down. */
   root.addEventListener('toggle', function (e) {
     if (e.target.matches('[data-feedbox]')) state.feedOpen = e.target.open;
+    if (e.target.matches('[data-feedhow]')) state.feedHow = e.target.open;
   }, true);
 
   root.addEventListener('change', function (e) {
+    if (e.target.matches('[data-pipe-select]')) { goView(e.target.value); return; }
     /* Checkboxes and date pickers fire change, not input, in some browsers. */
     if (e.target.matches('[data-bf]') && state.blockForm) {
       var bk = e.target.getAttribute('data-bf');
