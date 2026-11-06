@@ -886,6 +886,13 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .pcard__flags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .pcard__acts, .ccard__acts { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.2rem; }
 
+/* The grid gives every card in a row the same height, but the content packed
+   to the top, so three cards put their buttons at three different heights and
+   the shortest card carried an empty well under its own. A flex column hands
+   the slack to the action row instead, which lines the buttons up. */
+.pcard { display: flex; flex-direction: column; }
+.pcard__acts { margin-top: auto; }
+
 .ccard__reach { margin: 0; font-size: 0.85rem; }
 .ccard__props { margin: 0.2rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; }
 .ccard__props li { font-size: 0.84rem; line-height: 1.4; }

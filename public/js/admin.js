@@ -1474,10 +1474,15 @@
           return '<section class="card set-group">' +
             '<h3 class="set-group__title">' + esc(g.title) + '</h3>' + body + '</section>';
         }).join('')
-      : '<section class="card set-group"><h3 class="set-group__title">Your settings</h3>' +
-        '<p class="muted set-group__none">There is nowhere to save them yet. Press ' +
-        '<strong>Check and update</strong> below and they will appear here — the site works ' +
-        'without them in the meantime.</p></section>';
+      : state.settingsBroke
+        ? '<section class="card set-group"><h3 class="set-group__title">Your settings</h3>' +
+          '<p class="muted set-group__none">These did not load. Nothing is lost and the site ' +
+          'is still working — reload the page to try again. <strong>Check and update</strong> ' +
+          'will not help with this one.</p></section>'
+        : '<section class="card set-group"><h3 class="set-group__title">Your settings</h3>' +
+          '<p class="muted set-group__none">There is nowhere to save them yet. Press ' +
+          '<strong>Check and update</strong> below and they will appear here — the site works ' +
+          'without them in the meantime.</p></section>';
 
     /* Turnstile needs a secret in Cloudflare AND a site key in the site. With
        only the secret, the form rejects every real customer — so the two halves
@@ -1572,11 +1577,18 @@
 
   function loadSettings() {
     api('/api/admin/settings').then(function (r) {
-      if (!r.ok) {
+      /* A 200 whose body is not the shape we asked for used to throw on the
+         next line, which skipped the render below and left the screen reading
+         "Loading your settings..." for good. Treat it as the failure it is,
+         and keep it apart from an empty settings table: the advice differs. */
+      var shaped = r.ok && r.body && typeof r.body.settings === 'object' && r.body.settings;
+      if (!shaped) {
         state.settings = {}; state.settingsFields = []; state.health = {}; state.webhookSecret = {}; state.webhookLast = null;
+        state.settingsBroke = !!r.ok;
         render();
         return;
       }
+      state.settingsBroke = false;
       state.settings = r.body.settings;
       state.standardNote = r.body.settings.quote_note || '';
       state.settingsFields = r.body.fields;

@@ -70,4 +70,30 @@ test('both drawers remember whether they were open', () => {
   assert.match(JS, /feedHow: false/);
 });
 
+/* A 200 whose body was not the shape we asked for threw before render(),
+   leaving the settings screen reading "Loading your settings..." for good. */
+test('a malformed settings response cannot strand the screen on Loading', () => {
+  const fn = JS.slice(JS.indexOf('function loadSettings()'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /typeof r\.body\.settings === 'object'/);
+  // the unguarded read must now sit after the guard, never before it
+  assert.ok(body.indexOf('var shaped') < body.indexOf('r.body.settings.quote_note'));
+  assert.match(body, /state\.settingsBroke = !!r\.ok/);
+});
+
+test('a broken load is not mistaken for an empty settings table', () => {
+  assert.match(JS, /state\.settingsBroke/);
+  assert.match(JS, /These did not load/);
+  assert.match(JS, /will not help with this one/);
+  // and the old advice still stands for the genuinely-empty case
+  assert.match(JS, /There is nowhere to save them yet/);
+});
+
+/* Three cards in a row put their buttons at three different heights, and the
+   shortest carried an empty well under its own. */
+test('pipeline card actions are pinned to the bottom so they line up', () => {
+  assert.match(CSS, /\.pcard \{ display: flex; flex-direction: column; \}/);
+  assert.match(CSS, /\.pcard__acts \{ margin-top: auto; \}/);
+});
+
 console.log('\n' + n + ' passed');
