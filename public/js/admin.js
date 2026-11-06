@@ -46,7 +46,7 @@
     openClient: null, composeFor: null,
     schedule: null, schedView: 'agenda', schedCursor: null, openAppt: null,
     schedBusy: false, schedErr: '', blockForm: null, schedCovering: null, schedFeed: null,
-    today: null
+    today: null, feedOpen: false
   };
 
   var OASIS = window.OASIS || {};
@@ -1945,20 +1945,52 @@
     '</article>';
   }
 
+  /** When something starts, as a number, for sorting a day's entries. */
+  function startMinutes(row, date) {
+    if (row.all_day) return -1;                       // all day comes first
+    if (!row.start_at) return 0;
+    var d = new Date(row.start_at);
+    if (isoDateET(d) < date) return -1;               // ran in from yesterday
+    var p = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/New_York',
+      hour: '2-digit', minute: '2-digit', hour12: false }).format(d).split(':');
+    return Number(p[0]) * 60 + Number(p[1]);
+  }
+
   function dayGroupHtml(date, bucket, opts) {
     opts = opts || {};
-    var items = bucket.blocks.map(blockCardHtml).concat(bucket.appts.map(apptCardHtml));
+    /* Blocks and cleanings are the same day to her, so they are one list in
+       time order. Listing every block first put a 3pm school run above a
+       9am clean. */
+    var items = bucket.blocks.map(function (b) { return { row: b, block: true }; })
+      .concat(bucket.appts.map(function (a) { return { row: a, block: false }; }))
+      .sort(function (x, y) {
+        var dx = startMinutes(x.row, date), dy = startMinutes(y.row, date);
+        if (dx !== dy) return dx - dy;
+        return x.block === y.block ? 0 : (x.block ? -1 : 1);
+      })
+      .map(function (it) { return it.block ? blockCardHtml(it.row) : apptCardHtml(it.row); });
     var live = bucket.appts.filter(function (a) { return a.status !== 'cancelled'; }).length;
     if (!items.length && opts.hideEmpty) return '';
-    return '<section class="sday' + (date === isoDateET(new Date()) ? ' is-today' : '') + '">' +
+    var today = date === isoDateET(new Date());
+
+    /* A free day is worth one line. Six of them at full height is most of a
+       phone screen spent saying nothing. */
+    if (!items.length) {
+      return '<section class="sday sday--free' + (today ? ' is-today' : '') + '">' +
+        '<h3 class="sday__k sday__k--free">' + esc(prettyDay(date)) +
+          '<span class="sday__n">Free</span>' +
+          '<button type="button" class="linkish sday__add" data-block-day="' + esc(date) + '">' +
+            'Block</button>' +
+        '</h3></section>';
+    }
+    return '<section class="sday' + (today ? ' is-today' : '') + '">' +
       '<h3 class="sday__k">' + esc(prettyDay(date)) +
         '<span class="sday__n">' +
           (live ? live + (live === 1 ? ' cleaning' : ' cleanings') : 'Nothing booked') +
         '</span>' +
         '<button type="button" class="linkish sday__add" data-block-day="' + esc(date) + '">' +
           'Block time</button>' +
-      '</h3>' +
-      (items.length ? items.join('') : '<p class="sday__free">Free all day.</p>') +
+      '</h3>' + items.join('') +
     '</section>';
   }
 
@@ -1998,8 +2030,13 @@
     var map = byDay(gridStart, dAdd(gridStart, 41));
     var today = isoDateET(new Date());
 
+    /* Six rows only when the month needs six. A trailing week made entirely
+       of next month is a row of greyed-out numbers nobody reads. */
+    var weeks = 6;
+    while (weeks > 4 && Number(dAdd(gridStart, (weeks - 1) * 7).split('-')[1]) !== p[1]) weeks--;
+
     var cells = '';
-    for (var i = 0; i < 42; i++) {
+    for (var i = 0; i < weeks * 7; i++) {
       var d = dAdd(gridStart, i);
       var b = map[d];
       var inMonth = Number(d.split('-')[1]) === p[1];
@@ -2022,7 +2059,13 @@
     return '<div class="mgrid" role="grid">' +
       '<div class="mgrid__head">' + DAY_NAMES.map(function (n) {
         return '<span>' + n + '</span>'; }).join('') + '</div>' +
-      '<div class="mgrid__cells">' + cells + '</div></div>' +
+      '<div class="mgrid__cells">' + cells + '</div>' +
+      /* A dot means nothing on its own. */
+      '<p class="mgrid__key">' +
+        '<span><i class="mkey mkey--confirmed"></i> Booked</span>' +
+        '<span><i class="mkey mkey--tentative"></i> Tentative</span>' +
+        '<span><i class="mkey mkey--block"></i> Unavailable</span>' +
+      '</p></div>' +
       dayGroupHtml(cur, byDay(cur, cur)[cur], {});
   }
 
@@ -2063,10 +2106,12 @@
           '<button type="button" class="sched__arrow" data-sched-step="+" ' +
             'aria-label="Later">&#8250;</button>' +
         '</div>' +
-        '<button type="button" class="btn btn--primary btn--tiny sched__block" data-job-new>' +
-          '+ Cleaning</button>' +
-        '<button type="button" class="btn btn--ghost btn--tiny sched__block" data-block-new>' +
-          'Block time</button>' +
+        '<div class="sched__actions">' +
+          '<button type="button" class="btn btn--primary btn--tiny" data-job-new>' +
+            '+ Cleaning</button>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-block-new>' +
+            'Block time</button>' +
+        '</div>' +
       '</div>' +
       '<p class="sched__title" data-step="' + step + '">' + esc(title) +
         '<span class="muted sched__tz"> · all times Florida time</span></p>' +
@@ -2094,30 +2139,53 @@
      subscription, not synchronisation, and saying otherwise would have her
      moving a cleaning in Apple Calendar and expecting it to stick. */
   function feedHtml() {
-    var f = state.schedFeed;
-    return '<details class="feedbox">' +
-      '<summary>See this on your phone’s calendar</summary>' +
+    var f = state.schedFeed || {};
+    /* Re-rendering a <details> loses whether it was open, so pressing
+       "Create the link" shut the drawer on the link it had just made. */
+    return '<details class="feedbox"' + (state.feedOpen ? ' open' : '') + ' data-feedbox>' +
+      '<summary>Put this on a phone, or share it</summary>' +
       '<div class="feedbox__in">' +
-        '<p>This gives you a link Apple Calendar or Google Calendar can follow. ' +
-        'Your cleanings and your blocked time show up there alongside everything else.</p>' +
-        '<p class="feedbox__warn"><strong>It only goes one way.</strong> Changing something ' +
-        'in your phone’s calendar does not change it here — the next refresh puts it ' +
-        'back. Book and block in this portal. Apple usually refreshes within the hour; ' +
-        'Google is often slower, and neither lets us hurry it.</p>' +
-        '<p class="feedbox__warn">Anyone with the link can read your schedule, including ' +
-        'customer names and addresses. Replace it if it goes astray.</p>' +
-        (f && f.enabled
-          ? '<p class="feedbox__url"><code>' + esc(f.url) + '</code></p>' +
-            '<div class="feedbox__acts">' +
-              '<button type="button" class="btn btn--ghost btn--tiny" data-feed-copy ' +
-                'data-link="' + esc(f.url) + '">Copy the link</button>' +
-              '<button type="button" class="btn btn--ghost btn--tiny" data-feed-new>Replace it</button>' +
-              '<button type="button" class="btn btn--ghost btn--tiny" data-feed-off>Turn it off</button>' +
-            '</div>'
-          : '<div class="feedbox__acts">' +
-              '<button type="button" class="btn btn--primary btn--tiny" data-feed-new>' +
-                'Create the link</button></div>') +
+
+        '<p class="feedbox__k">Your own calendar</p>' +
+        '<p>A link Apple Calendar or Google Calendar can follow, so your cleanings ' +
+        'and your blocked time sit alongside everything else on your phone.</p>' +
+        '<p class="feedbox__warn"><strong>It only goes one way.</strong> Changing ' +
+        'something in your phone’s calendar does not change it here — the next ' +
+        'refresh puts it back. Book and block in this portal. Apple usually refreshes ' +
+        'within the hour; Google is often slower, and neither lets us hurry it.</p>' +
+        linkRow(f.enabled, f.url, 'mine',
+          'Anyone with this link can read your whole schedule, including customer ' +
+          'names and addresses.') +
+
+        '<hr class="feedbox__rule">' +
+
+        '<p class="feedbox__k">A link you can give somebody else</p>' +
+        '<p>Same calendar, with everything private taken out. Whoever you give it to ' +
+        'sees only <strong>Busy</strong> and the times — no customer names, no ' +
+        'addresses, no phone numbers, and not even the note on your blocked time. ' +
+        'Good for anyone who needs to know when you are free.</p>' +
+        linkRow(f.share_enabled, f.share_url, 'share',
+          'It still shows exactly when you are working, so give it to people you ' +
+          'would tell anyway.') +
+
       '</div></details>';
+  }
+
+  function linkRow(on, url, kind, caution) {
+    return (on
+      ? '<p class="feedbox__url"><code>' + esc(url) + '</code></p>' +
+        '<p class="feedbox__warn">' + esc(caution) + ' Replace it if it goes astray.</p>' +
+        '<div class="feedbox__acts">' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-feed-copy ' +
+            'data-link="' + esc(url) + '">Copy the link</button>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-feed-new ' +
+            'data-kind="' + kind + '">Replace it</button>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-feed-off ' +
+            'data-kind="' + kind + '">Turn it off</button>' +
+        '</div>'
+      : '<div class="feedbox__acts">' +
+          '<button type="button" class="btn btn--primary btn--tiny" data-feed-new ' +
+            'data-kind="' + kind + '">Create the link</button></div>');
   }
 
   function loadFeed() {
@@ -3247,19 +3315,25 @@
       return;
     }
     if (hit.matches('[data-feed-new]')) {
-      if (state.schedFeed && state.schedFeed.enabled &&
-          !window.confirm('Replace the link?\n\nThe old one stops working straight away, ' +
-            'and any phone following it stops updating until you give it the new one.')) return;
-      api('/api/admin/schedule/feed', { method: 'POST', body: '{}' }).then(function (r) {
-        if (!r.ok) { window.alert((r.body && r.body.error) || 'Could not make a link.'); return; }
-        state.schedFeed = r.body; render();
-      });
+      var nk = hit.getAttribute('data-kind') || 'mine';
+      var already = state.schedFeed && (nk === 'share' ? state.schedFeed.share_enabled
+                                                       : state.schedFeed.enabled);
+      if (already && !window.confirm('Replace the link?\n\nThe old one stops working ' +
+        'straight away, and anyone following it stops updating until you give them the ' +
+        'new one.')) return;
+      api('/api/admin/schedule/feed', { method: 'POST', body: JSON.stringify({ kind: nk }) })
+        .then(function (r) {
+          if (!r.ok) { window.alert((r.body && r.body.error) || 'Could not make a link.'); return; }
+          loadFeed();
+        });
       return;
     }
     if (hit.matches('[data-feed-off]')) {
-      if (!window.confirm('Turn the link off? Any phone following it stops updating.')) return;
-      api('/api/admin/schedule/feed', { method: 'POST', body: JSON.stringify({ action: 'off' }) })
-        .then(function (r) { state.schedFeed = r.ok ? r.body : state.schedFeed; render(); });
+      var ok = hit.getAttribute('data-kind') || 'mine';
+      if (!window.confirm('Turn this link off? Anyone following it stops updating.')) return;
+      api('/api/admin/schedule/feed',
+        { method: 'POST', body: JSON.stringify({ action: 'off', kind: ok }) })
+        .then(function () { loadFeed(); });
       return;
     }
     if (hit.matches('[data-feed-copy]')) {
@@ -3421,6 +3495,12 @@
       if (window.confirm(ask)) sendQuote(ed);
     }
   });
+
+  /* <details> fires toggle, which does not bubble, so it is caught on the
+     way down. */
+  root.addEventListener('toggle', function (e) {
+    if (e.target.matches('[data-feedbox]')) state.feedOpen = e.target.open;
+  }, true);
 
   root.addEventListener('change', function (e) {
     /* Checkboxes and date pickers fire change, not input, in some browsers. */

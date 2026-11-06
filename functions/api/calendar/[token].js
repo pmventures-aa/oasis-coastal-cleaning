@@ -47,10 +47,16 @@ export async function onRequestGet({ request, params, env }) {
   const given = clean(params.token, 80);
   if (!given || !env.DB) return new Response('Not found', { status: 404 });
 
-  const expected = await readSecret(env.DB, 'calendar_token');
-  if (!expected || !safeEqual(given, expected)) {
-    return new Response('Not found', { status: 404 });
-  }
+  /* Two links, two different things. Hers shows the job: who, where, what.
+     The one she shares shows only that the time is taken — no name, no
+     address, no phone, no note. Someone who needs to know when she is free
+     does not need to know whose kitchen she is in. */
+  const mine = await readSecret(env.DB, 'calendar_token');
+  const shared = await readSecret(env.DB, 'calendar_share_token');
+  const isMine = mine && safeEqual(given, mine);
+  const isShared = !isMine && shared && safeEqual(given, shared);
+  if (!isMine && !isShared) return new Response('Not found', { status: 404 });
+  const busyOnly = !!isShared;
 
   /* A window, not everything: a phone does not need last year. */
   const from = addDays(todayLocal(), -30);
@@ -76,7 +82,8 @@ export async function onRequestGet({ request, params, env }) {
     'BEGIN:VCALENDAR', 'VERSION:2.0',
     'PRODID:-//Oasis Coastal Cleaning//Schedule//EN',
     'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
-    'X-WR-CALNAME:Oasis Coastal Cleaning',
+    busyOnly ? 'X-WR-CALNAME:Kristina — when she is busy'
+             : 'X-WR-CALNAME:Oasis Coastal Cleaning',
     'X-WR-TIMEZONE:America/New_York',
     /* A hint, not a promise: the client refreshes when it feels like it. */
     'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H'
@@ -93,6 +100,14 @@ export async function onRequestGet({ request, params, env }) {
     } else {
       out.push(`DTSTART:${stampUtc(row.start_at)}`);
       out.push(`DTEND:${stampUtc(row.end_at)}`);
+    }
+    if (busyOnly) {
+      /* Nothing identifying survives this branch. */
+      out.push('SUMMARY:Busy');
+      out.push('TRANSP:OPAQUE');
+      if (row.status === 'tentative') out.push('STATUS:TENTATIVE');
+      out.push('END:VEVENT');
+      return out;
     }
     out.push(`SUMMARY:${esc(summary)}`);
     if (description) out.push(`DESCRIPTION:${esc(description)}`);

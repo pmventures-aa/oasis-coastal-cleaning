@@ -8,11 +8,13 @@ import { localStampToUtc } from '../functions/_lib/schedule.js';
 import * as feed from '../functions/api/calendar/[token].js';
 
 const TOKEN = 'tok-abcdefghijklmnop';
+const SHARE = 'busy-abcdefghijklmnop';
 const envWith = async (rows = [], blocks = []) => {
   const DB = makeD1();
   /* The feed reads settings through loadSettings, which needs the table. */
   DB._raw.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT)`);
   DB._raw.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('calendar_token', TOKEN);
+  DB._raw.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('calendar_share_token', SHARE);
   for (const r of rows) {
     DB._raw.prepare(`INSERT INTO appointments
       (id, created_at, customer_name, phone, address, city, service_label, status,
@@ -115,5 +117,59 @@ test('the feed', async (t) => {
     /* One-way is a property of the code, not a promise in the copy: the
        module exports a GET and nothing else. */
     assert.deepEqual(Object.keys(feed).sort(), ['onRequestGet']);
+  });
+});
+
+test('the link she can give somebody else', async (t) => {
+  /* She asked whether the calendar is something she can share. It is — but
+     not the one on her own phone, which names her customers and says where
+     they live. The shared link says only that the time is taken. */
+  const PRIVATE = ['Maria Delgado', '12 Ocean Ave', 'Lake Worth', '5615550142',
+                   'Deep clean', 'Gate code 4417'];
+  const withJob = () => envWith([{ id: 'a1', customer_name: 'Maria Delgado',
+    service_label: 'Deep clean', address: '12 Ocean Ave', city: 'Lake Worth',
+    phone: '5615550142', notes: 'Gate code 4417',
+    start_at: soon(2, '09:00'), end_at: soon(2, '12:00') }]);
+
+  await t.test('hers still shows the job', async () => {
+    const body = await (await get(await withJob(), TOKEN)).text();
+    for (const secret of PRIVATE) assert.ok(body.includes(secret), secret + ' is missing from her own feed');
+  });
+
+  await t.test('the shared one says only that she is busy', async () => {
+    const body = await (await get(await withJob(), SHARE)).text();
+    assert.match(body, /SUMMARY:Busy/);
+    for (const secret of PRIVATE) {
+      assert.ok(!body.includes(secret), 'the shared link leaks "' + secret + '"');
+    }
+    assert.ok(!/LOCATION:/.test(body), 'no address line at all');
+    assert.ok(!/DESCRIPTION:/.test(body), 'no notes line at all');
+  });
+
+  await t.test('but the time itself is exact, or it is useless', async () => {
+    const body = await (await get(await withJob(), SHARE)).text();
+    assert.ok(body.includes('DTSTART:' + soon(2, '09:00').replace(/[-:]/g, '').replace(/\.\d{3}/, '')));
+    assert.ok(body.includes('DTEND:' + soon(2, '12:00').replace(/[-:]/g, '').replace(/\.\d{3}/, '')));
+  });
+
+  await t.test('blocked time is busy too, and its note stays hers', async () => {
+    const env = await envWith([], [{ id: 'b1', note: 'Hospital appointment',
+      start_at: soon(3, '14:00'), end_at: soon(3, '16:00') }]);
+    const body = await (await get(env, SHARE)).text();
+    assert.match(body, /SUMMARY:Busy/);
+    assert.ok(!body.includes('Hospital'), 'why she is unavailable is nobody else\u2019s business');
+  });
+
+  await t.test('turning one off does not touch the other', async () => {
+    const env = await envWith();
+    env.DB._raw.prepare('UPDATE settings SET value = ? WHERE key = ?').run('', 'calendar_share_token');
+    assert.equal((await get(env, SHARE)).status, 404);
+    assert.equal((await get(env, TOKEN)).status, 200);
+  });
+
+  await t.test('an empty share token does not match an empty guess', async () => {
+    const env = await envWith();
+    env.DB._raw.prepare('UPDATE settings SET value = ? WHERE key = ?').run('', 'calendar_share_token');
+    assert.equal((await get(env, '')).status, 404);
   });
 });

@@ -1464,3 +1464,41 @@ select.pf__v:focus {
   .tband__line { flex-basis: 100%; order: 3; }
   .tband__go { margin-left: auto; }
 }
+
+/* A free day is a line, not a panel. */
+.sday--free { margin-bottom: 0.3rem; }
+.sday__k--free {
+  border-bottom: 0; padding-bottom: 0; margin-bottom: 0;
+  color: var(--oasis-muted); font-weight: 600;
+}
+.sday--free.is-today .sday__k--free { color: var(--oasis-teal); }
+.sday__k--free .sday__n { font-weight: 600; }
+
+/* What the dots mean. */
+.mgrid__key {
+  display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin: 0.5rem 0 0;
+  font-size: 0.72rem; color: var(--oasis-muted);
+}
+.mgrid__key span { display: inline-flex; align-items: center; gap: 0.35rem; }
+.mkey { width: 7px; height: 7px; border-radius: 50%; background: var(--oasis-teal); }
+.mkey--tentative { background: transparent; box-shadow: inset 0 0 0 1.5px var(--oasis-teal); }
+.mkey--block { width: 12px; height: 3px; border-radius: 0; background: var(--oasis-gold); }
+
+.sched__actions { display: flex; gap: 0.4rem; flex: none; }
+.sched__actions .btn { min-height: 44px; }
+
+/* On a phone the bar is three honest rows: the views, then the date nav
+   and the two things she came to do. Left to wrap it put one button in a
+   column of its own with a hole beside it. */
+@media (max-width: 560px) {
+  .sched__bar { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
+  .sched__views, .sched__nav, .sched__actions { grid-column: 1; }
+  .sched__nav { justify-content: flex-start; }
+  .sched__actions .btn { flex: 1; }
+}
+
+.feedbox__k {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--oasis-teal);
+}
+.feedbox__rule { border: 0; border-top: 1px solid rgba(9, 64, 69, 0.12); margin: 0.3rem 0; }
