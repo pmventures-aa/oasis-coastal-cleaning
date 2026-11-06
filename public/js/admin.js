@@ -45,7 +45,8 @@
     propertyLookupConfigured: null, emailConfigured: true,
     openClient: null, composeFor: null,
     schedule: null, schedView: 'agenda', schedCursor: null, openAppt: null,
-    schedBusy: false, schedErr: '', blockForm: null, schedCovering: null, schedFeed: null
+    schedBusy: false, schedErr: '', blockForm: null, schedCovering: null, schedFeed: null,
+    today: null
   };
 
   var OASIS = window.OASIS || {};
@@ -553,6 +554,7 @@
       (!state.emailConfigured
         ? '<div class="admin-banner" role="status">Email is not configured yet — save drafts and use <strong>Copy link</strong> to text quotes. Add <code>RESEND_API_KEY</code> in Cloudflare to send from here.</div>'
         : '') +
+      todayBandHtml() +
       '<div class="toolbar">' +
         /* Arranged the way the work moves rather than by what the database
            calls things: requests come in, quotes get written, they go out and
@@ -2121,6 +2123,52 @@
   function loadFeed() {
     api('/api/admin/schedule/feed').then(function (r) {
       state.schedFeed = r.ok ? r.body : null;
+      render();
+    });
+  }
+
+  /* What today looks like, at the top of every screen. She asked for a
+     calendar she does not have to go looking for: this is the first thing
+     on the page the moment she signs in, whatever tab she is on, and it
+     opens the full diary when she taps it. */
+  function todayBandHtml() {
+    if (state.view === 'schedule') return '';          // already looking at it
+    var t = state.today;
+    if (!t) return '';
+    if (t.error) {
+      return '<button type="button" class="tband tband--bad" data-view="schedule">' +
+        '<span class="tband__k">Today</span>' +
+        '<span class="tband__line">The schedule did not load — tap to try again</span></button>';
+    }
+    var jobs = (t.appointments || []).filter(function (a) { return a.status !== 'cancelled'; })
+      .sort(function (x, y) { return String(x.start_at || '').localeCompare(String(y.start_at || '')); });
+    var blocks = t.blocks || [];
+
+    var line = jobs.length
+      ? jobs.slice(0, 3).map(function (a) {
+          return (a.all_day ? 'All day' : clockOf(a.start_at)) + ' ' +
+            esc(a.customer_name || a.title || 'Cleaning');
+        }).join(' · ') + (jobs.length > 3 ? ' · +' + (jobs.length - 3) + ' more' : '')
+      : 'Nothing booked';
+
+    return '<button type="button" class="tband" data-view="schedule">' +
+      '<span class="tband__k">Today</span>' +
+      '<span class="tband__line">' + line + '</span>' +
+      (blocks.length
+        ? '<span class="tband__blocked">' + blocks.length +
+          (blocks.length === 1 ? ' block' : ' blocks') + '</span>' : '') +
+      '<span class="tband__go" aria-hidden="true">›</span>' +
+      '<span class="sr-only">Open the schedule</span>' +
+    '</button>';
+  }
+
+  function loadToday() {
+    var d = isoDateET(new Date());
+    api('/api/admin/schedule?from=' + d + '&to=' + d).then(function (r) {
+      /* A schedule that is not set up yet is not an error to shout about on
+         every screen — the Schedule tab explains it. */
+      if (!r.ok && r.body && r.body.needsSetup) { state.today = null; render(); return; }
+      state.today = r.ok ? r.body : { error: true };
       render();
     });
   }
@@ -3779,6 +3827,8 @@
       state.propertyLookupConfigured = !!status.propertyLookupConfigured;
       state.emailConfigured = status.emailConfigured !== false;
       loadPipelineCounts();
+      /* Her day, fetched once on sign-in and shown above everything. */
+      if (state.today == null) loadToday();
       /* The quote editor seeds its note from Settings, so fetch that one
          value early. Kept apart from state.settings, which the Settings
          screen uses to tell "still loading" from "loaded and empty". */

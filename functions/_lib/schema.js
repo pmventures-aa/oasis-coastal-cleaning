@@ -48,7 +48,31 @@ const TABLES = [
     created_at TEXT NOT NULL, hits INTEGER NOT NULL DEFAULT 0)`],
 
   ['submissions', `CREATE TABLE IF NOT EXISTS submissions (
-    id TEXT PRIMARY KEY, ip TEXT, created_at TEXT NOT NULL, kind TEXT)`]
+    id TEXT PRIMARY KEY, ip TEXT, created_at TEXT NOT NULL, kind TEXT)`],
+
+  /* The diary. See migrations/0011_schedule.sql for why timed rows hold
+     instants and all-day rows hold local dates. */
+  ['appointments', `CREATE TABLE IF NOT EXISTS appointments (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
+    lead_id TEXT, quote_id TEXT, customer_id TEXT, property_id TEXT,
+    title TEXT, customer_name TEXT, phone TEXT, address TEXT, city TEXT, zip TEXT,
+    service_label TEXT, status TEXT NOT NULL DEFAULT 'confirmed',
+    all_day INTEGER NOT NULL DEFAULT 0,
+    start_at TEXT, end_at TEXT, start_date TEXT, end_date TEXT,
+    notes TEXT, series_id TEXT, series_rule TEXT,
+    cancelled_at TEXT, archived_at TEXT)`],
+
+  ['availability_blocks', `CREATE TABLE IF NOT EXISTS availability_blocks (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
+    note TEXT, address TEXT, all_day INTEGER NOT NULL DEFAULT 0,
+    start_at TEXT, end_at TEXT, start_date TEXT, end_date TEXT,
+    repeat_freq TEXT, repeat_days TEXT, repeat_until TEXT, skip_dates TEXT,
+    archived_at TEXT)`],
+
+  ['schedule_events', `CREATE TABLE IF NOT EXISTS schedule_events (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL,
+    subject_kind TEXT NOT NULL, subject_id TEXT NOT NULL,
+    kind TEXT NOT NULL, detail TEXT)`]
 ];
 
 /* Columns added to tables that already existed. SQLite has no
@@ -87,7 +111,15 @@ const INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_leads_property ON leads(property_id)',
   'CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)',
   'CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)',
-  'CREATE INDEX IF NOT EXISTS idx_submissions_ip ON submissions(ip, created_at)'
+  'CREATE INDEX IF NOT EXISTS idx_submissions_ip ON submissions(ip, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_appt_start ON appointments(start_at)',
+  'CREATE INDEX IF NOT EXISTS idx_appt_dates ON appointments(start_date)',
+  'CREATE INDEX IF NOT EXISTS idx_appt_status ON appointments(status)',
+  'CREATE INDEX IF NOT EXISTS idx_appt_series ON appointments(series_id)',
+  'CREATE INDEX IF NOT EXISTS idx_appt_lead ON appointments(lead_id)',
+  'CREATE INDEX IF NOT EXISTS idx_block_start ON availability_blocks(start_at)',
+  'CREATE INDEX IF NOT EXISTS idx_block_dates ON availability_blocks(start_date)',
+  'CREATE INDEX IF NOT EXISTS idx_sched_ev ON schedule_events(subject_id, created_at)'
 ];
 
 /* Turns the leads that already exist into customers and properties. Only ever

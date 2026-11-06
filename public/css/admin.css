@@ -1429,3 +1429,38 @@ select.pf__v:focus {
   padding: 0.4rem 0.5rem; border-radius: 8px; display: block;
 }
 .feedbox__acts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+/* Today, above everything, on every screen. She asked not to have to go
+   looking for her calendar, so it is the first thing after the header and
+   it opens the diary when tapped. */
+.tband {
+  display: flex; align-items: center; gap: 0.6rem; width: 100%;
+  min-height: 52px; margin: 0 0 0.9rem; padding: 0.55rem 0.8rem;
+  appearance: none; cursor: pointer; text-align: left; font: inherit;
+  border: 1px solid rgba(2, 89, 95, 0.22); border-radius: 12px;
+  background: linear-gradient(100deg, rgba(2, 89, 95, 0.09), rgba(39, 189, 206, 0.06));
+  color: var(--oasis-navy);
+}
+.tband:hover { border-color: var(--oasis-teal); }
+.tband:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: 2px; }
+.tband--bad { background: #FBEEDA; border-color: rgba(122, 85, 28, 0.3); color: #7A551C; }
+.tband__k {
+  flex: none; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--oasis-teal);
+}
+.tband--bad .tband__k { color: #7A551C; }
+.tband__line {
+  flex: 1 1 auto; min-width: 0; font-size: 0.86rem; font-weight: 600;
+  line-height: 1.35;
+}
+.tband__blocked {
+  flex: none; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: #7A551C;
+  background: rgba(200, 156, 83, 0.24); padding: 0.2em 0.6em; border-radius: 999px;
+}
+.tband__go { flex: none; font-size: 1.2rem; color: var(--oasis-teal); line-height: 1; }
+@media (max-width: 560px) {
+  .tband { flex-wrap: wrap; }
+  .tband__line { flex-basis: 100%; order: 3; }
+  .tband__go { margin-left: auto; }
+}
