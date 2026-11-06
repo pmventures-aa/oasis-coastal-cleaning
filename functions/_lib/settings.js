@@ -27,6 +27,29 @@ export const DEFAULTS = {
   notify_on_followup:   'yes'
 };
 
+/* The calendar feed's token is deliberately not in DEFAULTS. Everything in
+   there is a setting she can see and change on the settings page, and a
+   test holds that true. A token is a credential: generated, never typed,
+   and read straight out of the table by the feed. */
+export async function readSecret(db, key) {
+  if (!db) return '';
+  try {
+    const row = await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first();
+    return (row && row.value) || '';
+  } catch { return ''; }
+}
+
+export async function writeSecret(db, key, value) {
+  if (!db) return false;
+  try {
+    await db.prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+    ).bind(key, String(value || ''), new Date().toISOString()).run();
+    return true;
+  } catch { return false; }
+}
+
 /** What each setting is, in Kristina's words, for the settings screen. */
 export const FIELDS = [
   { key: 'quote_from_name', label: 'Your name on quotes', type: 'text',

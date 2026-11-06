@@ -13,7 +13,9 @@ const FRIENDLY = {
   quotes: 'Branded quotes', quote_events: 'Quote history',
   customers: 'Customers', properties: 'Properties',
   settings: 'Your settings', property_cache: 'Property lookup savings',
-  zip_cache: 'ZIP lookups', submissions: 'Spam protection'
+  zip_cache: 'ZIP lookups', submissions: 'Spam protection',
+  appointments: 'Your schedule', availability_blocks: 'Blocked time',
+  schedule_events: 'Schedule history'
 };
 
 export async function onRequestPost({ request, env }) {
