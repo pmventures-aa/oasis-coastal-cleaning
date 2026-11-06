@@ -139,4 +139,36 @@ test('the dot key shows where dots do the work and not where chips do', () => {
     'the hide must come after the base rule or source order wins');
 });
 
+/* ------------------------------------------------------------- keyboard */
+
+/* Everything is drawn by replacing innerHTML, which throws focus onto the
+   body. Measured in Chromium: pressing Enter on a view tab, on a day, or on
+   the next-month arrow all lost focus, so paging the calendar by keyboard
+   was not possible. */
+test('focus is remembered across a re-render', () => {
+  assert.match(JS, /function focusMemo\(\)/);
+  assert.match(JS, /function focusRestore\(memo\)/);
+  const r = JS.slice(JS.indexOf('  function render() {'));
+  const body = r.slice(0, r.indexOf('\n  }'));
+  assert.match(body, /var keepFocus = focusMemo\(\);/);
+  assert.match(body, /focusRestore\(keepFocus\);/);
+  // captured before the markup is replaced, restored after
+  assert.ok(body.indexOf('focusMemo()') < body.indexOf('root.innerHTML'));
+  assert.ok(body.indexOf('root.innerHTML') < body.indexOf('focusRestore('));
+});
+
+test('the calendar controls are all things focus can be returned to', () => {
+  for (const k of ['data-sched-view', 'data-sched-date', 'data-sched-step', 'data-bf']) {
+    assert.ok(JS.includes("'" + k + "'"), k + ' is not in FOCUS_KEYS');
+  }
+});
+
+test('a text field keeps its caret, not just its focus', () => {
+  const fn = JS.slice(JS.indexOf('function focusRestore'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  assert.match(body, /setSelectionRange\(memo\.start, memo\.end\)/);
+  // and restoring focus must not yank the page around
+  assert.match(body, /preventScroll: true/);
+});
+
 console.log('\n' + n + ' passed');

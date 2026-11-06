@@ -545,7 +545,49 @@
       (open ? '<div class="lead__body">' + detail(l) + '</div>' : '') + '</article>';
   }
 
+  /* Everything here is drawn by replacing innerHTML, which throws whatever
+     had focus onto the body. With a mouse that is invisible; with a
+     keyboard it meant pressing the next-month arrow sent you back to the
+     top of the page, so paging through the calendar was not possible at
+     all. These two remember who had focus and give it back.
+
+     The element is found again by the attribute that identifies it rather
+     than by position, because the list it sits in is usually what changed. */
+  var FOCUS_KEYS = ['id', 'data-sched-view', 'data-sched-date', 'data-sched-step',
+    'data-view', 'data-bf', 'data-of', 'data-feed-new', 'data-feed-off',
+    'data-lead-field', 'data-sched-today', 'data-block-new', 'data-job-new'];
+
+  function focusMemo() {
+    var a = document.activeElement;
+    if (!a || a === document.body || !root.contains(a)) return null;
+    for (var i = 0; i < FOCUS_KEYS.length; i++) {
+      var k = FOCUS_KEYS[i];
+      var v = k === 'id' ? a.id : a.getAttribute(k);
+      if (v) {
+        return { sel: k === 'id' ? '#' + CSS.escape(v) : '[' + k + '="' + CSS.escape(v) + '"]',
+          start: a.selectionStart, end: a.selectionEnd };
+      }
+    }
+    /* No handle on it: an attribute-less button keeps its place in its own
+       kind rather than losing focus to the top of the page. */
+    var kin = [].slice.call(root.querySelectorAll(a.tagName));
+    var at = kin.indexOf(a);
+    return at < 0 ? null : { tag: a.tagName, at: at };
+  }
+
+  function focusRestore(memo) {
+    if (!memo) return;
+    var el = memo.sel ? root.querySelector(memo.sel)
+      : root.querySelectorAll(memo.tag)[memo.at];
+    if (!el || typeof el.focus !== 'function') return;
+    try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+    if (memo.start != null && el.setSelectionRange) {
+      try { el.setSelectionRange(memo.start, memo.end); } catch (e) { /* not a text field */ }
+    }
+  }
+
   function render() {
+    var keepFocus = focusMemo();
     signout.hidden = false;
     var counts = state.counts;
     var activeTotal = STATUSES.reduce(function (n, s) { return n + (counts[s] || 0); }, 0);
@@ -616,6 +658,9 @@
           : '<p class="empty">' + (state.view === 'archived' ? 'Nothing archived.' : 'No requests yet. They will appear here the moment someone sends one.') + '</p>');
 
     applySearchFilter();
+    /* Put focus back before anything else claims it, so that the two
+       deliberate claims below still win when a form has just opened. */
+    focusRestore(keepFocus);
     if (state.composingLead) {
       var ln = root.querySelector('[data-lead-field="name"]');
       if (ln) ln.focus();
