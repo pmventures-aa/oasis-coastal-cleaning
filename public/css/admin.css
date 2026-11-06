@@ -1378,6 +1378,46 @@ select.pf__v:focus {
   background: var(--oasis-gold);
 }
 
+.mcell__dot--offer { background: transparent; box-shadow: inset 0 0 0 1.5px #C89C53; }
+
+/* The chosen day, written out under the grid. A dot cannot say who or when,
+   so every calendar that uses dots pairs them with this list. */
+.mpick { margin-top: 0.7rem; }
+.mpick .sday { margin-bottom: 0; }
+
+/* Chips are hidden until a cell is wide enough to read one. */
+.mcell__chips { display: none; }
+
+/* 780px is where a cell passes ~95px and a name stops being two letters
+   and an ellipsis. Below it the dots and the list under the grid do the
+   work; above it the month itself becomes readable. */
+@media (min-width: 780px) {
+  .mcell {
+    align-items: stretch; justify-content: flex-start;
+    min-height: 92px; padding: 0.3rem 0.25rem; gap: 0.15rem;
+  }
+  .mcell__n { text-align: left; padding-left: 0.15rem; line-height: 1.3rem; }
+  .mcell.is-today .mcell__n { width: 1.4rem; height: 1.4rem; margin-left: 0; }
+  .mcell__dots { display: none; }          /* the chips say it better */
+  .mcell__chips { display: grid; gap: 2px; min-width: 0; }
+  .mchip {
+    display: block; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+    font-size: 0.68rem; line-height: 1.5; text-align: left;
+    padding: 0.1rem 0.3rem; border-radius: 4px;
+    background: rgba(2, 89, 95, 0.10); color: var(--oasis-navy);
+    border-left: 3px solid var(--oasis-teal);
+  }
+  .mchip b { font-weight: 700; }
+  .mchip--tentative { background: rgba(2, 89, 95, 0.05); border-left-style: dashed; }
+  .mchip--block { background: rgba(200, 156, 83, 0.16); border-left-color: #C89C53; }
+  .mchip--offer { background: #FBEEDA; color: #7A551C; border-left-color: #C89C53;
+                  border-left-style: dashed; }
+  .mchip__more {
+    font-size: 0.64rem; color: var(--oasis-muted); text-align: left; padding-left: 0.3rem;
+  }
+}
+
 /* ------------------------------------------------- blocking out time
    The platform's own date and time pickers, because hers are better than
    anything written here and her thumb already knows them. */
@@ -1499,6 +1539,12 @@ select.pf__v:focus {
 }
 .mgrid__key span { display: inline-flex; align-items: center; gap: 0.35rem; }
 .mkey { width: 7px; height: 7px; border-radius: 50%; background: var(--oasis-teal); }
+.mkey--offer { background: transparent; box-shadow: inset 0 0 0 1.5px #C89C53; }
+/* Declared after .mgrid__key itself: same specificity, so source order
+   decides, and the earlier attempt at this lost to its own base rule. */
+@media (min-width: 780px) {
+  .mgrid__key { display: none; }   /* chips say it; there is nothing to key */
+}
 .mkey--tentative { background: transparent; box-shadow: inset 0 0 0 1.5px var(--oasis-teal); }
 .mkey--block { width: 12px; height: 3px; border-radius: 0; background: var(--oasis-gold); }
 

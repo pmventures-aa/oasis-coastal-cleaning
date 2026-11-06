@@ -96,4 +96,45 @@ test('pipeline card actions are pinned to the bottom so they line up', () => {
   assert.match(CSS, /\.pcard__acts \{ margin-top: auto; \}/);
 });
 
+/* ------------------------------------------------------- the month view */
+
+test('month is the first tab and the view she lands on', () => {
+  const views = JS.slice(JS.indexOf('var SCHED_VIEWS'), JS.indexOf('var DAY_NAMES'));
+  const order = [...views.matchAll(/id: '(\w+)'/g)].map((m) => m[1]);
+  assert.deepEqual(order, ['month', 'agenda', 'day', 'week']);
+  assert.match(JS, /schedView: 'month'/);
+});
+
+/* A 46px phone cell truncates a name to nothing, so the phone gets dots and
+   a written-out list; a 144px cell fits a chip that can be read. */
+test('cells carry readable chips where there is room for one', () => {
+  assert.match(JS, /class="mchip mchip--/);
+  assert.match(JS, /shortClock\(a\.start_at\)/);
+  assert.match(CSS, /\.mcell__chips \{ display: none; \}/);
+  const wide = CSS.slice(CSS.indexOf('@media (min-width: 780px)',
+    CSS.indexOf('.mcell__chips { display: none; }')));
+  assert.match(wide.slice(0, wide.indexOf('\n}')), /\.mcell__chips \{ display: grid/);
+});
+
+test('a long name is cut with an ellipsis, never shrunk away', () => {
+  assert.match(CSS, /\.mchip \{[^}]*text-overflow: ellipsis/s);
+  // and the whole of it is still reachable
+  assert.match(JS, /title="' \+\s*esc\(rangeOf\(a\) \+ ' — ' \+ who\)/);
+});
+
+/* monthHtml already ended with one; adding a second rendered the day twice. */
+test('the chosen day is listed under the grid exactly once', () => {
+  const fn = JS.slice(JS.indexOf('function monthHtml()'), JS.indexOf('function scheduleHtml()'));
+  assert.equal((fn.match(/dayGroupHtml\(/g) || []).length, 1);
+  assert.match(fn, /class="mpick"/);
+});
+
+test('the dot key shows where dots do the work and not where chips do', () => {
+  assert.match(JS, /mkey--offer/);
+  const keyAt = CSS.indexOf('.mgrid__key {');
+  const hideAt = CSS.indexOf('.mgrid__key { display: none; }');
+  assert.ok(keyAt > -1 && hideAt > keyAt,
+    'the hide must come after the base rule or source order wins');
+});
+
 console.log('\n' + n + ' passed');

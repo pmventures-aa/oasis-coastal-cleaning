@@ -44,7 +44,7 @@
     pipeline: null, pipelineCounts: {}, clients: null, schema: null,
     propertyLookupConfigured: null, emailConfigured: true,
     openClient: null, composeFor: null,
-    schedule: null, schedView: 'agenda', schedCursor: null, openAppt: null,
+    schedule: null, schedView: 'month', schedCursor: null, openAppt: null,
     schedBusy: false, schedErr: '', blockForm: null, schedCovering: null, schedFeed: null,
     today: null, feedOpen: false, feedHow: false, offers: [], offerForm: null
   };
@@ -1823,10 +1823,10 @@
   }
 
   var SCHED_VIEWS = [
+    { id: 'month',  label: 'Month' },
     { id: 'agenda', label: 'Agenda' },
     { id: 'day',    label: 'Day' },
-    { id: 'week',   label: 'Week' },
-    { id: 'month',  label: 'Month' }
+    { id: 'week',   label: 'Week' }
   ];
   var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
@@ -1864,6 +1864,16 @@
     return new Date(iso).toLocaleTimeString('en-US',
       { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
   }
+  /* "9a", "2:30p" — a month cell has room for the hour or the name, not
+     both at full length, and the name is the one she is scanning for. */
+  function shortClock(iso) {
+    var d = new Date(iso);
+    var parts = d.toLocaleTimeString('en-US', { timeZone: 'America/New_York',
+      hour: 'numeric', minute: '2-digit', hour12: true }).split(' ');
+    var hm = parts[0].replace(':00', '');
+    return hm + (parts[1] === 'PM' ? 'p' : 'a');
+  }
+
   /** "9:00 – 11:00 AM", and says so when it runs past midnight. */
   function rangeOf(row) {
     if (row.all_day) return 'All day';
@@ -2119,18 +2129,44 @@
       var b = map[d];
       var inMonth = Number(d.split('-')[1]) === p[1];
       var live = b.appts.filter(function (a) { return a.status !== 'cancelled'; });
+      var offers = (b.offers || []).length;
+      /* Chips where the cell is wide enough to read one, dots where it is
+         not. A 50px phone cell truncates a name to nothing, so the phone
+         gets dots and the list underneath instead. CSS picks which. */
+      var chips = live.slice(0, 2).map(function (a) {
+        var who = a.customer_name || a.title || 'Cleaning';
+        /* A long name is cut with an ellipsis rather than shrunk until
+           nothing is readable; the whole of it is in the title, and in
+           the day's list under the grid. */
+        return '<span class="mchip mchip--' + esc(a.status) + '" title="' +
+          esc(rangeOf(a) + ' — ' + who) + '">' +
+          '<b>' + esc(shortClock(a.start_at)) + '</b> ' + esc(who) + '</span>';
+      }).join('') +
+      (b.blocks.length ? '<span class="mchip mchip--block" title="' +
+        esc('Unavailable — ' + (b.blocks[0].note || '')) + '">' +
+        esc(b.blocks[0].note || 'Unavailable') + '</span>' : '') +
+      (offers ? '<span class="mchip mchip--offer">' +
+        offers + ' offered</span>' : '');
+      var hidden = live.length - Math.min(live.length, 2);
+      if (hidden > 0) chips += '<span class="mchip__more">+' + hidden + ' more</span>';
+
       cells += '<button type="button" class="mcell' +
         (inMonth ? '' : ' is-out') + (d === today ? ' is-today' : '') +
         (d === cur ? ' is-on' : '') + '" data-sched-date="' + esc(d) + '">' +
         '<span class="mcell__n">' + Number(d.split('-')[2]) + '</span>' +
         (b.blocks.length ? '<span class="mcell__block" title="Unavailable"></span>' : '') +
-        (live.length ? '<span class="mcell__dots">' +
+        (live.length || offers ? '<span class="mcell__dots">' +
           live.slice(0, 3).map(function (a) {
             return '<span class="mcell__dot mcell__dot--' + esc(a.status) + '"></span>';
-          }).join('') + (live.length > 3 ? '<span class="mcell__more">+</span>' : '') +
+          }).join('') +
+          (offers ? '<span class="mcell__dot mcell__dot--offer"></span>' : '') +
+          (live.length > 3 ? '<span class="mcell__more">+</span>' : '') +
           '</span>' : '') +
+        (chips ? '<span class="mcell__chips">' + chips + '</span>' : '') +
         '<span class="sr-only">' + esc(prettyDay(d)) + ', ' +
-          (live.length ? live.length + ' cleanings' : 'nothing booked') +
+          (live.length ? live.length + (live.length === 1 ? ' cleaning' : ' cleanings')
+                       : 'nothing booked') +
+          (offers ? ', ' + offers + ' offered' : '') +
           (b.blocks.length ? ', unavailable time' : '') + '</span>' +
       '</button>';
     }
@@ -2138,13 +2174,20 @@
       '<div class="mgrid__head">' + DAY_NAMES.map(function (n) {
         return '<span>' + n + '</span>'; }).join('') + '</div>' +
       '<div class="mgrid__cells">' + cells + '</div>' +
-      /* A dot means nothing on its own. */
+      /* A dot means nothing on its own, so the key stays wherever dots are
+         what she is reading. Chips replace both on a wide screen. */
       '<p class="mgrid__key">' +
         '<span><i class="mkey mkey--confirmed"></i> Booked</span>' +
         '<span><i class="mkey mkey--tentative"></i> Tentative</span>' +
+        '<span><i class="mkey mkey--offer"></i> Offered</span>' +
         '<span><i class="mkey mkey--block"></i> Unavailable</span>' +
       '</p></div>' +
-      dayGroupHtml(cur, byDay(cur, cur)[cur], {});
+      /* The chosen day written out. Dots cannot say who or when, so every
+         calendar that uses them pairs the grid with this list. */
+      '<div class="mpick">' +
+        dayGroupHtml(cur, byDay(cur, cur)[cur] ||
+          { appts: [], blocks: [], offers: [] }, {}) +
+      '</div>';
   }
 
   function scheduleHtml() {
