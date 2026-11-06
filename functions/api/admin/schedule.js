@@ -11,6 +11,7 @@
  */
 import { json, clean, newId } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
+import { ensureScheduleTables } from '../../_lib/schema.js';
 import {
   spanOf, findConflicts, expandBlock, outsideWorkingHours, suggestSlots,
   localDateOf, addDays, todayLocal
@@ -24,9 +25,12 @@ const guard = async (request, env) => {
   return null;
 };
 
+/* Builds them if they are not there. She should not have to find a setup
+   button before her calendar works — the first time she opens it, it makes
+   what it needs. Everything here is behind the login already. */
 async function hasTables(db) {
   try { await db.prepare('SELECT 1 FROM appointments LIMIT 1').first(); return true; }
-  catch { return false; }
+  catch { return ensureScheduleTables(db); }
 }
 
 /** A window wide enough to catch anything that might overlap the edges. */

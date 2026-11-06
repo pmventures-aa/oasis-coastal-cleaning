@@ -195,6 +195,33 @@ const isDuplicate = (message) =>
  * Brings the database up to date. Safe to run any number of times.
  * Returns what it created, what was already there, and anything that failed.
  */
+/* The three schedule tables on their own.
+ *
+ * Asking someone to press a setup button before a feature works is how a
+ * finished feature sits switched off. The schedule creates its own tables
+ * the first time a signed-in request needs them: the statements are the
+ * same ones setup runs, they are safe to run twice, and the caller is
+ * already behind the login. */
+const SCHEDULE_TABLES = ['appointments', 'availability_blocks', 'schedule_events'];
+
+export async function ensureScheduleTables(db) {
+  if (!db) return false;
+  try {
+    for (const [name, ddl] of TABLES) {
+      if (SCHEDULE_TABLES.includes(name)) await db.prepare(ddl).run();
+    }
+    for (const sql of INDEXES) {
+      if (SCHEDULE_TABLES.some((t) => sql.includes(' ON ' + t + '('))) {
+        try { await db.prepare(sql).run(); } catch { /* an index is an optimisation */ }
+      }
+    }
+    await db.prepare('SELECT 1 FROM appointments LIMIT 1').first();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function applySchema(db) {
   const created = [], existed = [], failed = [];
   if (!db) return { ok: false, created, existed, failed: ['No database is connected.'] };
