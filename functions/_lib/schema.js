@@ -72,7 +72,22 @@ const TABLES = [
   ['schedule_events', `CREATE TABLE IF NOT EXISTS schedule_events (
     id TEXT PRIMARY KEY, created_at TEXT NOT NULL,
     subject_kind TEXT NOT NULL, subject_id TEXT NOT NULL,
-    kind TEXT NOT NULL, detail TEXT)`]
+    kind TEXT NOT NULL, detail TEXT)`],
+
+  /* A few times sent to one customer to pick from. See migration 0012. */
+  ['time_offers', `CREATE TABLE IF NOT EXISTS time_offers (
+    id TEXT PRIMARY KEY, token TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL, updated_at TEXT,
+    lead_id TEXT, quote_id TEXT, customer_id TEXT,
+    customer_name TEXT, email TEXT, phone TEXT,
+    address TEXT, city TEXT, zip TEXT, service_label TEXT,
+    duration_minutes INTEGER NOT NULL DEFAULT 120, note TEXT,
+    status TEXT NOT NULL DEFAULT 'open', expires_at TEXT,
+    appointment_id TEXT, chosen_slot_id TEXT, booked_at TEXT)`],
+  ['time_offer_slots', `CREATE TABLE IF NOT EXISTS time_offer_slots (
+    id TEXT PRIMARY KEY, offer_id TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    start_at TEXT NOT NULL, end_at TEXT NOT NULL)`]
 ];
 
 /* Columns added to tables that already existed. SQLite has no
@@ -119,7 +134,11 @@ const INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_appt_lead ON appointments(lead_id)',
   'CREATE INDEX IF NOT EXISTS idx_block_start ON availability_blocks(start_at)',
   'CREATE INDEX IF NOT EXISTS idx_block_dates ON availability_blocks(start_date)',
-  'CREATE INDEX IF NOT EXISTS idx_sched_ev ON schedule_events(subject_id, created_at)'
+  'CREATE INDEX IF NOT EXISTS idx_sched_ev ON schedule_events(subject_id, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_time_offers_token ON time_offers(token)',
+  'CREATE INDEX IF NOT EXISTS idx_time_offers_status ON time_offers(status)',
+  'CREATE INDEX IF NOT EXISTS idx_offer_slots_offer ON time_offer_slots(offer_id)',
+  'CREATE INDEX IF NOT EXISTS idx_offer_slots_start ON time_offer_slots(start_at)'
 ];
 
 /* Turns the leads that already exist into customers and properties. Only ever
@@ -202,7 +221,8 @@ const isDuplicate = (message) =>
  * the first time a signed-in request needs them: the statements are the
  * same ones setup runs, they are safe to run twice, and the caller is
  * already behind the login. */
-const SCHEDULE_TABLES = ['appointments', 'availability_blocks', 'schedule_events'];
+const SCHEDULE_TABLES = ['appointments', 'availability_blocks', 'schedule_events',
+  'time_offers', 'time_offer_slots'];
 
 export async function ensureScheduleTables(db) {
   if (!db) return false;

@@ -46,7 +46,7 @@
     openClient: null, composeFor: null,
     schedule: null, schedView: 'agenda', schedCursor: null, openAppt: null,
     schedBusy: false, schedErr: '', blockForm: null, schedCovering: null, schedFeed: null,
-    today: null, feedOpen: false, feedHow: false
+    today: null, feedOpen: false, feedHow: false, offers: [], offerForm: null
   };
 
   var OASIS = window.OASIS || {};
@@ -1815,7 +1815,7 @@
     state.composing = false; state.composingLead = false; state.composeFor = null;
     if (state.view === 'settings') { render(); loadSettings(); return; }
     if (state.view === 'schedule') {
-      state.schedule = null; render(); loadSchedule(); loadFeed(); return;
+      state.schedule = null; render(); loadSchedule(); loadFeed(); loadOffers(); return;
     }
     if (state.view === 'clients') { loadClients(); return; }
     if (STAGE_FOR_VIEW[state.view]) { loadPipeline(state.view); return; }
@@ -1892,13 +1892,24 @@
 
   function byDay(from, to) {
     var map = {};
-    for (var d = from; d <= to; d = dAdd(d, 1)) map[d] = { appts: [], blocks: [] };
+    for (var d = from; d <= to; d = dAdd(d, 1)) map[d] = { appts: [], blocks: [], offers: [] };
     var data = state.schedule || {};
     (data.appointments || []).forEach(function (a) {
       datesCovered(a).forEach(function (d) { if (map[d]) map[d].appts.push(a); });
     });
     (data.blocks || []).forEach(function (b) {
       datesCovered(b).forEach(function (d) { if (map[d]) map[d].blocks.push(b); });
+    });
+    /* Times she has offered but nobody has answered yet. They do not hold
+       the diary -- three offers for one job must not black out three slots
+       -- but she has to be able to SEE them, or she books over her own
+       offer and the customer gets turned away by the link she sent. */
+    (state.offers || []).forEach(function (o) {
+      if (o.status !== 'open') return;
+      (o.slots || []).forEach(function (sl) {
+        var d = isoDateET(new Date(sl.start_at));
+        if (map[d]) map[d].offers.push({ offer: o, slot: sl });
+      });
     });
     Object.keys(map).forEach(function (d) {
       map[d].appts.sort(function (x, y) {
@@ -1962,6 +1973,25 @@
     return '<div class="ev__fact"><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>';
   }
 
+  /* A time she has offered somebody. It is not a booking and must never
+     read like one -- it says who it went to and that nobody has answered. */
+  function offerSlotHtml(offer, slot) {
+    var who = offer.customer_name || 'A customer';
+    return '<article class="ev ev--offer">' +
+      '<div class="ev__head ev__head--static">' +
+        '<span class="ev__when">' + esc(rangeOf(slot)) + '</span>' +
+        '<span class="ev__who">' + esc(who) + '</span>' +
+        '<span class="pill pill--offer ev__pill">Offered</span>' +
+        '<span class="ev__meta">Waiting for an answer — not booked</span>' +
+      '</div>' +
+      '<div class="ev__acts">' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-offer-copy="' +
+          esc(offer.url || '') + '">Copy the link</button>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-offer-drop="' +
+          esc(offer.id) + '">Withdraw</button>' +
+      '</div></article>';
+  }
+
   function blockCardHtml(b) {
     var dateFor = b.occurrence_date || b.start_date ||
       (b.start_at ? isoDateET(new Date(b.start_at)) : '');
@@ -2000,15 +2030,23 @@
     /* Blocks and cleanings are the same day to her, so they are one list in
        time order. Listing every block first put a 3pm school run above a
        9am clean. */
-    var items = bucket.blocks.map(function (b) { return { row: b, block: true }; })
-      .concat(bucket.appts.map(function (a) { return { row: a, block: false }; }))
+    var items = bucket.blocks.map(function (b) { return { row: b, kind: 'block' }; })
+      .concat(bucket.appts.map(function (a) { return { row: a, kind: 'appt' }; }))
+      .concat((bucket.offers || []).map(function (o) {
+        return { row: o.slot, kind: 'offer', offer: o.offer }; }))
       .sort(function (x, y) {
         var dx = startMinutes(x.row, date), dy = startMinutes(y.row, date);
         if (dx !== dy) return dx - dy;
-        return x.block === y.block ? 0 : (x.block ? -1 : 1);
+        var rank = { block: 0, appt: 1, offer: 2 };
+        return rank[x.kind] - rank[y.kind];
       })
-      .map(function (it) { return it.block ? blockCardHtml(it.row) : apptCardHtml(it.row); });
+      .map(function (it) {
+        return it.kind === 'block' ? blockCardHtml(it.row)
+          : it.kind === 'offer' ? offerSlotHtml(it.offer, it.row)
+          : apptCardHtml(it.row);
+      });
     var live = bucket.appts.filter(function (a) { return a.status !== 'cancelled'; }).length;
+    var offered = (bucket.offers || []).length;
     if (!items.length && opts.hideEmpty) return '';
     var today = date === isoDateET(new Date());
 
@@ -2025,7 +2063,8 @@
     return '<section class="sday' + (today ? ' is-today' : '') + '">' +
       '<h3 class="sday__k">' + esc(prettyDay(date)) +
         '<span class="sday__n">' +
-          (live ? live + (live === 1 ? ' cleaning' : ' cleanings') : 'Nothing booked') +
+          (live ? live + (live === 1 ? ' cleaning' : ' cleanings')
+            : offered ? 'Nothing booked yet' : 'Nothing booked') +
         '</span>' +
         '<button type="button" class="linkish sday__add" data-block-day="' + esc(date) + '">' +
           'Block time</button>' +
@@ -2150,11 +2189,14 @@
             '+ Cleaning</button>' +
           '<button type="button" class="btn btn--ghost btn--tiny" data-block-new>' +
             'Block time</button>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-offer-new>' +
+            'Offer times</button>' +
         '</div>' +
       '</div>' +
       '<p class="sched__title" data-step="' + step + '">' + esc(title) +
         '<span class="muted sched__tz"> · all times Florida time</span></p>' +
       blockFormHtml() +
+      offerFormHtml() +
       ((state.schedCovering && state.schedCovering.length)
         ? '<div class="bform__clash bform__clash--done">' +
             '<p><strong>Blocked.</strong> It covers ' + state.schedCovering.length +
@@ -2332,6 +2374,121 @@
      "busy" is a complete answer, and so is an address for somewhere she has
      to be that is not a job in the system. Nothing it does can move or
      cancel a cleaning — if it covers one, she is told which. */
+  /* ------------------------------------------------- offering a few times
+     She picks two or three that suit her, the customer taps one, and it
+     books itself. The form is deliberately the same shape as booking a
+     cleaning, because it is the same question asked earlier. */
+  var OFFER_DURATIONS = [
+    [60, '1 hour'], [90, '1½ hours'], [120, '2 hours'], [150, '2½ hours'],
+    [180, '3 hours'], [240, '4 hours'], [300, '5 hours'], [360, '6 hours']
+  ];
+
+  function blankOfferSlot(date) {
+    /* Tomorrow, not today: she opens this in the afternoon and a 9am today
+       is already in the past, so the first thing the form did was offer a
+       time the server would refuse. */
+    var today = isoDateET(new Date());
+    var day = date || dAdd(today, 1);
+    if (day <= today) day = dAdd(today, 1);
+    return { date: day, time: '09:00' };
+  }
+
+  function offerFormHtml() {
+    var f = state.offerForm;
+    if (!f) return '';
+
+    if (f.made) {
+      /* The link is the whole point of the form, so it does not vanish the
+         moment it exists. */
+      return '<section class="bform bform--done" aria-labelledby="oform-title">' +
+        '<div class="bform__head">' +
+          '<h3 class="bform__title" id="oform-title">Send them this link</h3>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-offer-cancel>Done</button>' +
+        '</div>' +
+        '<p class="bform__hint">' + esc(f.made.count) +
+          (f.made.count === 1 ? ' time is' : ' times are') + ' on it. ' +
+          'Nothing is booked until they pick one, and whichever they pick ' +
+          'lands straight on your calendar.</p>' +
+        '<p class="feedbox__url"><code>' + esc(f.made.url) + '</code></p>' +
+        '<div class="feedbox__acts">' +
+          '<button type="button" class="btn btn--primary btn--tiny" data-offer-copy="' +
+            esc(f.made.url) + '">Copy the link</button>' +
+          (f.made.sms
+            ? '<a class="btn btn--ghost btn--tiny" href="' + esc(f.made.sms) + '">Text it</a>' : '') +
+        '</div></section>';
+    }
+
+    var clash = f.clashes || [];
+    return '<section class="bform" aria-labelledby="oform-title">' +
+      '<div class="bform__head">' +
+        '<h3 class="bform__title" id="oform-title">Offer a few times</h3>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-offer-cancel>Cancel</button>' +
+      '</div>' +
+
+      '<label class="bfield"><span>Who is it for?</span>' +
+        '<input type="text" class="bfield__in" data-of="name" value="' + esc(f.name || '') + '" ' +
+          'placeholder="Their name" autocomplete="off"></label>' +
+      '<div class="bform__row">' +
+        '<label class="bfield"><span>Service</span>' +
+          '<input type="text" class="bfield__in" data-of="service" value="' + esc(f.service || '') + '" ' +
+            'placeholder="Deep clean" autocomplete="off"></label>' +
+        '<label class="bfield"><span>Phone</span>' +
+          '<input type="tel" class="bfield__in" data-of="phone" value="' + esc(f.phone || '') + '" ' +
+            'autocomplete="off"></label>' +
+      '</div>' +
+      '<label class="bfield"><span>Address</span>' +
+        '<input type="text" class="bfield__in" data-of="address" value="' + esc(f.address || '') + '" ' +
+          'placeholder="Where the job is" autocomplete="off"></label>' +
+
+      '<label class="bfield"><span>How long will it take?</span>' +
+        '<select class="bfield__in" data-of="duration">' +
+          OFFER_DURATIONS.map(function (d) {
+            return '<option value="' + d[0] + '"' +
+              (Number(f.duration) === d[0] ? ' selected' : '') + '>' + d[1] + '</option>';
+          }).join('') + '</select></label>' +
+
+      '<p class="oform__k">Times to offer</p>' +
+      '<p class="bform__hint">Give them two or three. Each one is checked ' +
+        'against your calendar before it goes out.</p>' +
+      '<ul class="oslots">' + (f.slots || []).map(function (sl, i) {
+        var bad = clash.filter(function (c) { return c.index === i; })[0];
+        return '<li class="oslot' + (bad ? ' oslot--clash' : '') + '">' +
+          '<label class="bfield"><span class="sr-only">Day</span>' +
+            '<input type="date" class="bfield__in" data-of-slot="' + i + '" data-k="date" ' +
+              'value="' + esc(sl.date || '') + '"></label>' +
+          '<label class="bfield"><span class="sr-only">Start time</span>' +
+            '<input type="time" class="bfield__in" data-of-slot="' + i + '" data-k="time" ' +
+              'value="' + esc(sl.time || '') + '"></label>' +
+          ((f.slots.length > 1)
+            ? '<button type="button" class="oslot__x" data-offer-drop-slot="' + i + '" ' +
+              'aria-label="Remove this time" title="Remove this time">&times;</button>' : '') +
+          (bad ? '<p class="oslot__why">' + esc(bad.why) + '</p>' : '') +
+        '</li>';
+      }).join('') + '</ul>' +
+      ((f.slots || []).length < 5
+        ? '<button type="button" class="btn btn--ghost btn--tiny" data-offer-add-slot>' +
+          '+ Another time</button>' : '') +
+
+      '<label class="bfield"><span>A line for them (optional)</span>' +
+        '<input type="text" class="bfield__in" data-of="note" value="' + esc(f.note || '') + '" ' +
+          'placeholder="Whichever suits you best" autocomplete="off"></label>' +
+
+      (f.error ? '<p class="bform__err" role="alert">' + esc(f.error) + '</p>' : '') +
+      (clash.length
+        ? '<div class="bform__clash"><p><strong>Some of those are taken.</strong> ' +
+          'Change them, or send it anyway and they simply will not be offered.</p></div>'
+        : '') +
+
+      '<div class="bform__acts">' +
+        '<button type="button" class="btn btn--primary btn--tiny" data-offer-save' +
+          (f.saving ? ' disabled' : '') + '>' +
+          (f.saving ? 'Making the link…' : 'Make the link') + '</button>' +
+        (clash.length
+          ? '<button type="button" class="btn btn--ghost btn--tiny" data-offer-save="override">' +
+            'Send the free ones anyway</button>' : '') +
+      '</div></section>';
+  }
+
   function blockFormHtml() {
     var f = state.blockForm;
     if (!f) return '';
@@ -2440,6 +2597,70 @@
     render();
     var first = root.querySelector('[data-bf="label"]');
     if (first) first.focus();
+  }
+
+  function loadOffers() {
+    api('/api/admin/offers').then(function (r) {
+      state.offers = (r.ok && r.body.offers) ? r.body.offers : [];
+      render();
+    });
+  }
+
+  function saveOffer(override) {
+    var f = state.offerForm;
+    if (!f || f.saving) return;
+    f.error = ''; f.clashes = [];
+
+    var name = String(f.name || '').trim();
+    if (!name) { f.error = 'Who is it for?'; render(); return; }
+
+    var slots = (f.slots || []).filter(function (sl) { return sl.date && sl.time; });
+    if (!slots.length) { f.error = 'Give them at least one day and time.'; render(); return; }
+
+    f.saving = true; render();
+
+    api('/api/admin/offers', {
+      method: 'POST',
+      body: JSON.stringify({
+        customer_name: name,
+        service_label: String(f.service || '').trim() || undefined,
+        phone: String(f.phone || '').trim() || undefined,
+        address: String(f.address || '').trim() || undefined,
+        note: String(f.note || '').trim() || undefined,
+        duration_minutes: Number(f.duration) || 120,
+        slots: slots.map(function (sl) { return { date: sl.date, time: sl.time }; }),
+        override: override === true
+      })
+    }).then(function (r) {
+      f.saving = false;
+      if (r.ok && r.body.ok) {
+        var url = r.body.url;
+        var phone = String(f.phone || '').replace(/\D/g, '');
+        f.made = {
+          url: url,
+          count: (r.body.offer && r.body.offer.slots || []).length,
+          /* She texts these links, so hand her the text message already
+             written rather than make her paste it somewhere. */
+          sms: phone ? 'sms:+1' + phone + '&body=' + encodeURIComponent(
+            'Hi' + (name ? ' ' + name.split(' ')[0] : '') +
+            ', pick whichever time suits you: ' + url) : ''
+        };
+        state.offers = null;
+        loadOffers();
+        render();
+        return;
+      }
+      /* The server says which ones clash; mark them where she typed them. */
+      if (r.body && r.body.slots) {
+        var idx = 0;
+        f.clashes = r.body.slots.map(function (sl) {
+          return { index: idx++, free: sl.free,
+            why: sl.gone === 'past' ? 'That has already passed.' : 'Already taken.' };
+        }).filter(function (c) { return !c.free; });
+      }
+      f.error = (r.body && r.body.error) || 'That did not save.';
+      render();
+    });
   }
 
   function saveBlock(override) {
@@ -3386,6 +3607,44 @@
       });
       return;
     }
+    if (hit.matches('[data-offer-new]')) {
+      state.blockForm = null;
+      state.offerForm = { name: '', service: '', phone: '', address: '', note: '',
+        duration: 120, slots: [blankOfferSlot(schedCursor())], clashes: [] };
+      render(); return;
+    }
+    if (hit.matches('[data-offer-cancel]')) { state.offerForm = null; render(); return; }
+    if (hit.matches('[data-offer-add-slot]')) {
+      var f0 = state.offerForm;
+      if (f0 && f0.slots.length < 5) {
+        var last = f0.slots[f0.slots.length - 1];
+        f0.slots.push(blankOfferSlot(last ? dAdd(last.date, 1) : schedCursor()));
+        render();
+      }
+      return;
+    }
+    if (hit.matches('[data-offer-drop-slot]')) {
+      var f1 = state.offerForm;
+      if (f1) { f1.slots.splice(Number(hit.getAttribute('data-offer-drop-slot')), 1);
+        f1.clashes = []; render(); }
+      return;
+    }
+    if (hit.matches('[data-offer-save]')) {
+      saveOffer(hit.getAttribute('data-offer-save') === 'override'); return;
+    }
+    if (hit.matches('[data-offer-copy]')) {
+      copyText(hit.getAttribute('data-offer-copy')).then(function () {
+        var was = hit.textContent; hit.textContent = 'Copied';
+        setTimeout(function () { hit.textContent = was; }, 1600);
+      });
+      return;
+    }
+    if (hit.matches('[data-offer-drop]')) {
+      api('/api/admin/offers', { method: 'PATCH',
+        body: JSON.stringify({ id: hit.getAttribute('data-offer-drop') }) })
+        .then(function () { loadOffers(); });
+      return;
+    }
     if (hit.matches('[data-block-new]')) { blockTime(schedCursor(), 'block'); return; }
     if (hit.matches('[data-job-new]')) { blockTime(schedCursor(), 'job'); return; }
     if (hit.matches('[data-block-cancel]')) { state.blockForm = null; render(); return; }
@@ -3548,6 +3807,16 @@
 
   root.addEventListener('change', function (e) {
     if (e.target.matches('[data-pipe-select]')) { goView(e.target.value); return; }
+    if (e.target.matches('[data-of]') && state.offerForm) {
+      state.offerForm[e.target.getAttribute('data-of')] = e.target.value;
+      return;
+    }
+    if (e.target.matches('[data-of-slot]') && state.offerForm) {
+      var osl = state.offerForm.slots[Number(e.target.getAttribute('data-of-slot'))];
+      if (osl) { osl[e.target.getAttribute('data-k')] = e.target.value;
+        state.offerForm.clashes = []; }
+      return;
+    }
     /* Checkboxes and date pickers fire change, not input, in some browsers. */
     if (e.target.matches('[data-bf]') && state.blockForm) {
       var bk = e.target.getAttribute('data-bf');

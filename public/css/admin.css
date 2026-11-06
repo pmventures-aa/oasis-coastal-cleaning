@@ -1532,3 +1532,33 @@ select.pf__v:focus {
 .feedhow__in { display: grid; gap: 0.5rem; padding: 0 0 0.6rem; }
 .feedhow__in p { margin: 0; font-size: 0.82rem; line-height: 1.5; color: var(--oasis-navy); }
 .feedhow__note { color: var(--oasis-muted); }
+
+/* A time she has offered somebody but nobody has answered. It must not read
+   as a booking: dashed, quieter, and it says so in words. */
+.ev--offer { border-style: dashed; background: transparent; }
+.pill--offer { background: #FBEEDA; color: #7A551C; }
+.oform__k {
+  margin: 1rem 0 0.2rem; font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--oasis-teal);
+}
+.oslots { list-style: none; margin: 0.4rem 0 0.6rem; padding: 0; display: grid; gap: 0.5rem; }
+.oslot {
+  display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.4rem; align-items: end;
+}
+.oslot--clash { padding: 0.4rem; border-radius: 10px; background: #FBEEDA; }
+.oslot__x {
+  min-width: 44px; min-height: 44px; cursor: pointer; font-size: 1.3rem; line-height: 1;
+  border: 1.5px solid var(--oasis-line); border-radius: var(--radius-pill);
+  background: var(--oasis-white); color: var(--oasis-muted);
+}
+.oslot__x:hover { border-color: #B23B3B; color: #B23B3B; }
+.oslot__why {
+  grid-column: 1 / -1; margin: 0; font-size: 0.78rem; font-weight: 600; color: #7A551C;
+}
+/* Date, time and the remove button stay on one line even at 375px -- the
+   word "Remove" on its own full-width row read like a main action and cost
+   a third of the form's height. */
+@media (max-width: 560px) {
+  .oslot { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 0.3rem; }
+  .oslot .bfield__in { padding-left: 0.5rem; padding-right: 0.3rem; }
+}

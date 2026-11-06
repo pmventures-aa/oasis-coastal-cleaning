@@ -13,9 +13,12 @@ import { json, clean, newId } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { ensureScheduleTables } from '../../_lib/schema.js';
 import {
-  spanOf, findConflicts, expandBlock, outsideWorkingHours, suggestSlots,
+  spanOf, findConflicts, outsideWorkingHours, suggestSlots,
   localDateOf, addDays, todayLocal
 } from '../../_lib/schedule.js';
+/* One reader for the diary, shared with the offer routes, so nothing can
+   form a second opinion about what is already booked. */
+import { loadWindowFor as loadWindow, conflictsForSpan } from '../../_lib/schedule-db.js';
 
 const SETUP = 'Apply migration 0011 in D1 → oasis → Console.';
 
@@ -34,33 +37,6 @@ async function hasTables(db) {
 }
 
 /** A window wide enough to catch anything that might overlap the edges. */
-async function loadWindow(db, from, to) {
-  const pad = { from: addDays(from, -2), to: addDays(to, 2) };
-  const appts = await db.prepare(
-    `SELECT * FROM appointments
-      WHERE archived_at IS NULL
-        AND ( (all_day = 0 AND start_at < ? AND end_at > ?)
-           OR (all_day = 1 AND start_date <= ? AND COALESCE(end_date, start_date) >= ?) )
-      ORDER BY COALESCE(start_at, start_date)`
-  ).bind(pad.to + 'T23:59:59.999Z', pad.from + 'T00:00:00.000Z', pad.to, pad.from).all();
-
-  /* Repeating blocks are fetched whole and expanded — their rule may reach
-     into this window from a start date long before it. */
-  const blockRows = await db.prepare(
-    `SELECT * FROM availability_blocks WHERE archived_at IS NULL`
-  ).all();
-
-  const blocks = [];
-  for (const b of blockRows.results || []) {
-    for (const occ of expandBlock(b, pad.from, pad.to)) {
-      const span = spanOf(occ);
-      if (!span) continue;
-      blocks.push(occ);
-    }
-  }
-  return { appointments: appts.results || [], blocks };
-}
-
 /**
  * The gate. Returns null to allow, or a 409 body describing exactly what the
  * proposed time runs into and when it could go instead.
@@ -243,11 +219,7 @@ export async function onRequestPost({ request, env }) {
 }
 
 async function conflictsFor(db, timing, ignoreId) {
-  const span = spanOf(timing);
-  if (!span) return [];
-  const date = localDateOf(new Date(span.start));
-  const { appointments, blocks } = await loadWindow(db, addDays(date, -2), addDays(date, 2));
-  return findConflicts(timing, { appointments, blocks, ignoreId }).map((c) => ({
+  return (await conflictsForSpan(db, timing, ignoreId)).map((c) => ({
     kind: c.kind, id: c.id, status: c.status || null, label: c.label,
     all_day: !!c.row.all_day,
     start_at: c.row.start_at || null, end_at: c.row.end_at || null,

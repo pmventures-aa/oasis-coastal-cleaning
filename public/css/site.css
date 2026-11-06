@@ -1503,3 +1503,49 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
 .done__lead { margin: 0 0 0.9rem; line-height: 1.6; }
 .done__lead:empty { display: none; margin: 0; }
 .done__acts { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; }
+
+/* ===================================================================
+   "Pick a time" — the page a customer opens from Kristina's link.
+   One tap per choice, thumb-sized, and a slot that has gone is still
+   shown so they can see it was considered rather than silently missing.
+   =================================================================== */
+.offer__h { font-size: var(--step-1); margin: 0 0 .5rem; }
+.offer__lead { margin: 0 0 .35rem; font-weight: 600; }
+/* A line from Kristina, not a warning. It used the same sand as the error
+   box, so a friendly note and a failure looked alike -- and it outshouted
+   the times, which are the whole point of the page. */
+.offer__note {
+  margin: .6rem 0 .9rem; padding: .1rem 0 .1rem .8rem;
+  border-left: 3px solid var(--oasis-teal);
+  font-size: .95rem; line-height: 1.5; color: var(--oasis-navy);
+}
+.offer__hint { margin: .4rem 0 .9rem; font-size: .9rem; }
+.offer__foot { margin: 1rem 0 0; font-size: .9rem; }
+.offer__err {
+  margin: 0 0 .8rem; padding: .7rem .8rem; border-radius: 10px;
+  background: #FBEEDA; color: #7A551C; font-weight: 600; font-size: .92rem;
+}
+
+.pslots { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.pslot {
+  width: 100%; min-height: 64px; display: flex; flex-wrap: wrap;
+  align-items: center; gap: .15rem .6rem; text-align: left;
+  padding: .75rem .9rem; border-radius: 12px; font: inherit;
+  border: 1.5px solid var(--oasis-line); background: var(--oasis-white);
+}
+.pslot--open { cursor: pointer; }
+.pslot--open:hover { border-color: var(--oasis-teal); }
+.pslot--open:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: 2px; }
+.pslot--open[disabled] { cursor: default; opacity: .6; }
+.pslot__day { flex: 1 1 100%; font-weight: 700; color: var(--oasis-navy); }
+.pslot__time { flex: 1 1 auto; color: var(--oasis-navy); }
+.pslot__tag {
+  flex: none; font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--oasis-muted);
+}
+.pslot__tag--go { color: var(--oasis-teal); }
+/* Gone is said in words as well as in colour. */
+.pslot--gone { opacity: .72; background: transparent; border-style: dashed; }
+.pslot--gone .pslot__day, .pslot--gone .pslot__time {
+  color: var(--oasis-muted); text-decoration: line-through;
+}
