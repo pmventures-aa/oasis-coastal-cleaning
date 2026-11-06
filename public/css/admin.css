@@ -1224,3 +1224,208 @@ select.pf__v:focus {
   font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em;
   text-transform: none; color: var(--oasis-muted);
 }
+
+/* ======================================================== the schedule
+   Read on a phone, often standing in someone's kitchen, so the agenda is
+   the default and every target is a thumb's width. Status is never colour
+   alone: each one carries its word in a pill. */
+.sched { display: grid; gap: 0.75rem; }
+.sched.is-busy { opacity: 0.6; pointer-events: none; }
+
+.sched__bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.sched__views { flex: 1 1 auto; flex-wrap: wrap; }
+.sched__nav { display: flex; align-items: center; gap: 0.3rem; }
+.sched__arrow, .sched__today {
+  min-height: 44px; min-width: 44px; cursor: pointer;
+  font-family: var(--font-body); font-size: 0.78rem; font-weight: 700;
+  letter-spacing: 0.04em; padding: 0 0.8rem; border-radius: var(--radius-pill);
+  border: 1.5px solid var(--oasis-line); background: var(--oasis-white);
+  color: var(--oasis-navy);
+}
+.sched__arrow { font-size: 1.2rem; line-height: 1; padding: 0; }
+.sched__arrow:hover, .sched__today:hover { border-color: var(--oasis-teal); color: var(--oasis-teal); }
+.sched__block { flex: none; min-height: 44px; }
+
+.sched__title {
+  margin: 0; font-family: var(--font-display); font-size: 1.1rem;
+  color: var(--oasis-navy);
+}
+.sched__tz { font-family: var(--font-body); font-size: 0.72rem; font-weight: 400; }
+.sched__warn { margin-top: 0.6rem; font-size: 0.82rem; }
+
+/* ----------------------------------------------------------- a day */
+.sday { margin-bottom: 1rem; }
+.sday__k {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem;
+  margin: 0 0 0.45rem; font-family: var(--font-body); font-size: 0.82rem;
+  font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--oasis-navy);
+  padding-bottom: 0.35rem; border-bottom: 1px solid rgba(9, 64, 69, 0.1);
+}
+.sday.is-today .sday__k { color: var(--oasis-teal); border-bottom-color: var(--oasis-teal); }
+.sday__n {
+  font-weight: 600; letter-spacing: 0.02em; text-transform: none;
+  font-size: 0.78rem; color: var(--oasis-muted);
+}
+.sday__add { margin-left: auto; font-size: 0.76rem; }
+.sday__free { margin: 0 0 0.5rem; font-size: 0.84rem; color: var(--oasis-muted); }
+
+/* --------------------------------------------------------- an entry */
+.ev {
+  border: 1px solid var(--oasis-line); border-radius: 12px;
+  background: var(--oasis-white); margin-bottom: 0.45rem; overflow: hidden;
+}
+.ev--appt { border-left: 3px solid var(--oasis-teal); }
+.ev--tentative { border-left-style: dashed; }
+.ev--cancelled { border-left-color: var(--oasis-muted); opacity: 0.72; }
+.ev--cancelled .ev__who { text-decoration: line-through; }
+.ev--block { border-left: 3px solid var(--oasis-gold); background: #FDF8EF; }
+
+/* On a phone the name is the thing she is looking for, so it gets the
+   width: the time and the status share a line above it. Three columns on
+   a 375px card left "Maria Delgado" wrapping in a 120px gutter. */
+.ev__head {
+  display: grid; grid-template-columns: auto 1fr; gap: 0.15rem 0.6rem;
+  width: 100%; min-height: 56px; padding: 0.6rem 0.7rem;
+  appearance: none; background: none; border: 0; text-align: left;
+  font: inherit; color: inherit; cursor: pointer;
+}
+.ev__head--static { cursor: default; }
+.ev__head:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: -2px; }
+.ev__when {
+  grid-column: 1; grid-row: 1; font-size: 0.8rem; font-weight: 700;
+  color: var(--oasis-teal); white-space: nowrap;
+}
+.ev__pill { grid-column: 2; grid-row: 1; justify-self: start; }
+.ev__who {
+  grid-column: 1 / -1; font-size: 0.98rem; font-weight: 700;
+  color: var(--oasis-navy); line-height: 1.3; margin-top: 0.15rem;
+}
+.ev__meta {
+  grid-column: 1 / -1; font-size: 0.8rem; color: var(--oasis-muted); line-height: 1.4;
+}
+/* With room, the time sits beside the name and the status returns to the
+   right edge where the eye sweeps for it. */
+@media (min-width: 600px) {
+  .ev__head { grid-template-columns: 7.5rem 1fr auto; }
+  .ev__who { grid-column: 2; grid-row: 1; margin-top: 0; }
+  .ev__pill { grid-column: 3; justify-self: end; }
+  .ev__meta { grid-column: 2; }
+}
+.ev__body { padding: 0 0.7rem 0.7rem; border-top: 1px solid rgba(9, 64, 69, 0.08); }
+.ev__facts { display: grid; gap: 0.4rem; margin: 0.7rem 0 0.8rem; }
+.ev__fact { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.6rem; }
+.ev__fact dt {
+  margin: 0; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--oasis-muted); padding-top: 0.15rem;
+}
+.ev__fact dd { margin: 0; font-size: 0.88rem; line-height: 1.45; color: var(--oasis-navy); }
+.ev__acts { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.7rem 0.7rem; }
+.ev__head + .ev__acts { padding-top: 0.1rem; }
+
+/* ------------------------------------------------------- week, month */
+.sweek { display: grid; gap: 0.5rem; }
+@media (min-width: 900px) {
+  .sweek { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem 1.25rem; align-items: start; }
+}
+
+.mgrid { margin-bottom: 1rem; }
+.mgrid__head, .mgrid__cells { display: grid; grid-template-columns: repeat(7, 1fr); }
+.mgrid__head span {
+  text-align: center; padding: 0.3rem 0; font-size: 0.66rem; font-weight: 700;
+  letter-spacing: 0.07em; text-transform: uppercase; color: var(--oasis-muted);
+}
+.mgrid__cells { gap: 2px; background: rgba(9, 64, 69, 0.08); border-radius: 10px; overflow: hidden; }
+.mcell {
+  position: relative; min-height: 56px; display: flex; flex-direction: column;
+  align-items: center; gap: 0.2rem; padding: 0.35rem 0.15rem;
+  appearance: none; border: 0; background: var(--oasis-white); cursor: pointer;
+  font: inherit; color: var(--oasis-navy);
+}
+.mcell.is-out { background: #FAF8F3; color: var(--oasis-muted); }
+.mcell.is-today .mcell__n {
+  background: var(--oasis-teal); color: var(--oasis-cream);
+  border-radius: 50%; width: 1.6rem; height: 1.6rem;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.mcell.is-on { box-shadow: inset 0 0 0 2px var(--oasis-gold); }
+.mcell:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: -2px; }
+.mcell__n { font-size: 0.82rem; font-weight: 600; line-height: 1.6rem; }
+.mcell__dots { display: flex; gap: 2px; align-items: center; }
+.mcell__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--oasis-teal); }
+.mcell__dot--tentative { background: transparent; box-shadow: inset 0 0 0 1.5px var(--oasis-teal); }
+.mcell__more { font-size: 0.6rem; color: var(--oasis-muted); line-height: 1; }
+.mcell__block {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+  background: var(--oasis-gold);
+}
+
+/* ------------------------------------------------- blocking out time
+   The platform's own date and time pickers, because hers are better than
+   anything written here and her thumb already knows them. */
+.bform {
+  border: 1px solid var(--oasis-line); border-radius: 14px;
+  background: var(--oasis-white); padding: 0.9rem; margin-bottom: 0.9rem;
+  display: grid; gap: 0.6rem; box-shadow: var(--oasis-shadow);
+}
+.bform__head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.bform__title {
+  margin: 0; font-family: var(--font-display); font-size: 1.05rem; color: var(--oasis-navy);
+}
+.bform__hint { margin: -0.3rem 0 0; font-size: 0.78rem; color: var(--oasis-muted); line-height: 1.45; }
+.bform__row { display: grid; gap: 0.6rem; grid-template-columns: 1fr 1fr; }
+.bfield { display: grid; gap: 0.25rem; min-width: 0; }
+.bfield > span {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--oasis-muted);
+}
+.bfield__in {
+  width: 100%; min-height: 46px; font: inherit; font-size: 0.95rem;
+  color: var(--oasis-navy); background: #fff;
+  border: 1px solid rgba(10, 46, 68, 0.18); border-radius: var(--radius);
+  padding: 0.5rem 0.65rem;
+}
+.bfield__in:focus {
+  outline: none; border-color: var(--oasis-teal);
+  box-shadow: 0 0 0 3px rgba(39, 189, 206, 0.18);
+}
+.btoggle {
+  display: flex; align-items: center; gap: 0.55rem; min-height: 44px;
+  font-size: 0.9rem; color: var(--oasis-navy); cursor: pointer;
+}
+.btoggle input { width: 20px; height: 20px; flex: none; margin: 0; accent-color: var(--oasis-teal); }
+.bform__acts { display: flex; gap: 0.5rem; }
+.bform__acts .btn { flex: 1; min-height: 48px; }
+
+.bform__clash {
+  background: #FBEEDA; color: #7A551C; border-radius: 10px;
+  padding: 0.7rem 0.8rem; font-size: 0.86rem; line-height: 1.5;
+}
+.bform__clash p { margin: 0 0 0.35rem; }
+.bform__clash ul { margin: 0; padding-left: 1.1rem; }
+.bform__clash--done { margin-bottom: 0.9rem; }
+.bform__clash .linkish { color: #7A551C; margin-top: 0.3rem; }
+
+/* The phone-calendar link. It is a subscription, not sync, and the panel
+   says so where she will read it rather than in a help page. */
+.feedbox {
+  margin-top: 1.25rem; border: 1px solid var(--oasis-line);
+  border-radius: 12px; background: var(--oasis-white);
+}
+.feedbox > summary {
+  cursor: pointer; padding: 0.8rem 0.9rem; min-height: 48px;
+  display: flex; align-items: center;
+  font-size: 0.86rem; font-weight: 700; color: var(--oasis-navy);
+}
+.feedbox > summary::-webkit-details-marker { display: none; }
+.feedbox__in { padding: 0 0.9rem 0.9rem; display: grid; gap: 0.6rem; }
+.feedbox__in p { margin: 0; font-size: 0.84rem; line-height: 1.5; color: var(--oasis-navy); }
+.feedbox__warn {
+  background: #FBEEDA; color: #7A551C; border-radius: 10px; padding: 0.6rem 0.7rem;
+}
+.feedbox__url { overflow-wrap: anywhere; }
+.feedbox__url code {
+  font-size: 0.76rem; background: var(--oasis-sand);
+  padding: 0.4rem 0.5rem; border-radius: 8px; display: block;
+}
+.feedbox__acts { display: flex; flex-wrap: wrap; gap: 0.4rem; }

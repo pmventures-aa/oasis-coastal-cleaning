@@ -25,13 +25,14 @@
     { id: 'pending',  label: 'Awaiting reply' },
     { id: 'accepted', label: 'Accepted' },
     { id: 'paid',     label: 'Done & paid' },
+    { id: 'schedule', label: 'Schedule' },
     { id: 'clients',  label: 'Clients' },
     { id: 'settings', label: 'Settings' }
   ];
 
   function viewCount(id, counts, activeTotal) {
     if (id === 'active') return activeTotal;
-    if (id === 'settings' || id === 'clients') return null;
+    if (id === 'settings' || id === 'clients' || id === 'schedule') return null;
     var p = state.pipelineCounts || {};
     return { quotes: p.drafts, pending: p.pending, accepted: p.accepted, paid: p.paid }[id] || 0;
   }
@@ -42,7 +43,9 @@
     focusQuoteEditor: null, editingQuote: {}, settings: null, settingsFields: [], health: {},
     pipeline: null, pipelineCounts: {}, clients: null, schema: null,
     propertyLookupConfigured: null, emailConfigured: true,
-    openClient: null, composeFor: null
+    openClient: null, composeFor: null,
+    schedule: null, schedView: 'agenda', schedCursor: null, openAppt: null,
+    schedBusy: false, schedErr: '', blockForm: null, schedCovering: null, schedFeed: null
   };
 
   var OASIS = window.OASIS || {};
@@ -591,6 +594,7 @@
       (state.composingLead ? newLeadPanelHtml() : '') +
       (state.composing ? newQuotePanelHtml() : '') +
       (state.view === 'settings' ? settingsHtml()
+        : state.view === 'schedule' ? scheduleHtml()
         : state.view === 'clients' ? clientsHtml()
         : STAGE_FOR_VIEW[state.view] ? pipelineHtml(state.view)
         : state.leads.length
@@ -1771,6 +1775,625 @@
     '</article>';
   }
 
+  /* ====================================================== the schedule
+     She reads this standing in someone's kitchen, so the agenda is the
+     default and the other views are there when she wants to look further
+     out. Everything is in Florida time; the server stores instants and
+     these only ever format them. */
+
+  var SCHED_VIEWS = [
+    { id: 'agenda', label: 'Agenda' },
+    { id: 'day',    label: 'Day' },
+    { id: 'week',   label: 'Week' },
+    { id: 'month',  label: 'Month' }
+  ];
+  var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+                'August', 'September', 'October', 'November', 'December'];
+
+  /* Calendar-day arithmetic on YYYY-MM-DD, kept off Date so a 23-hour day
+     cannot turn into the day before. */
+  function dAdd(date, n) {
+    var p = String(date).split('-').map(Number);
+    var t = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    t.setUTCDate(t.getUTCDate() + n);
+    return t.toISOString().slice(0, 10);
+  }
+  function dDow(date) {
+    var p = String(date).split('-').map(Number);
+    return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
+  }
+  function todayStr() { return FMT.localDate ? FMT.localDate(new Date()) : isoDateET(new Date()); }
+  function isoDateET(d) {
+    var f = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York',
+      year: 'numeric', month: '2-digit', day: '2-digit' });
+    return f.format(d);
+  }
+  function schedCursor() { return state.schedCursor || isoDateET(new Date()); }
+
+  function prettyDay(date) {
+    var p = String(date).split('-').map(Number);
+    var today = isoDateET(new Date());
+    if (date === today) return 'Today';
+    if (date === dAdd(today, 1)) return 'Tomorrow';
+    if (date === dAdd(today, -1)) return 'Yesterday';
+    return DAY_NAMES[dDow(date)] + ' ' + p[2] + ' ' + MONTHS[p[1] - 1].slice(0, 3);
+  }
+  function clockOf(iso) {
+    return new Date(iso).toLocaleTimeString('en-US',
+      { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
+  }
+  /** "9:00 – 11:00 AM", and says so when it runs past midnight. */
+  function rangeOf(row) {
+    if (row.all_day) return 'All day';
+    var a = clockOf(row.start_at), b = clockOf(row.end_at);
+    var over = isoDateET(new Date(row.end_at)) !== isoDateET(new Date(row.start_at));
+    return a + ' – ' + b + (over ? ' (next day)' : '');
+  }
+
+  /* Status is never colour alone: each one carries its word. */
+  var APPT_TONE = { confirmed: 'booked', tentative: 'new', cancelled: 'closed' };
+  var APPT_WORD = { confirmed: 'Confirmed', tentative: 'Tentative', cancelled: 'Cancelled' };
+
+  /** Which local dates a row touches, so it lands on every day it covers. */
+  function datesCovered(row) {
+    if (row.all_day) {
+      var out = [], d = row.start_date, last = row.end_date || row.start_date;
+      while (d <= last) { out.push(d); d = dAdd(d, 1); }
+      return out;
+    }
+    var from = isoDateET(new Date(row.start_at));
+    var to = isoDateET(new Date(new Date(row.end_at).getTime() - 1));
+    var days = [from];
+    while (days[days.length - 1] < to) days.push(dAdd(days[days.length - 1], 1));
+    return days;
+  }
+
+  function byDay(from, to) {
+    var map = {};
+    for (var d = from; d <= to; d = dAdd(d, 1)) map[d] = { appts: [], blocks: [] };
+    var data = state.schedule || {};
+    (data.appointments || []).forEach(function (a) {
+      datesCovered(a).forEach(function (d) { if (map[d]) map[d].appts.push(a); });
+    });
+    (data.blocks || []).forEach(function (b) {
+      datesCovered(b).forEach(function (d) { if (map[d]) map[d].blocks.push(b); });
+    });
+    Object.keys(map).forEach(function (d) {
+      map[d].appts.sort(function (x, y) {
+        if (x.all_day !== y.all_day) return x.all_day ? -1 : 1;
+        return String(x.start_at || '').localeCompare(String(y.start_at || ''));
+      });
+    });
+    return map;
+  }
+
+  function apptCardHtml(a) {
+    var open = state.openAppt === a.id;
+    var where = [a.address, a.city].filter(Boolean).join(', ');
+    var tel = digits(a.phone);
+    return '<article class="ev ev--appt ev--' + esc(a.status) + (open ? ' is-open' : '') + '">' +
+      '<button type="button" class="ev__head" data-open-appt="' + esc(a.id) + '" ' +
+        'aria-expanded="' + (open ? 'true' : 'false') + '">' +
+        '<span class="ev__when">' + esc(rangeOf(a)) + '</span>' +
+        '<span class="ev__who">' + esc(a.customer_name || a.title || 'Cleaning') + '</span>' +
+        '<span class="pill pill--' + esc(APPT_TONE[a.status] || 'new') + ' ev__pill">' +
+          esc(APPT_WORD[a.status] || a.status) + '</span>' +
+        (a.service_label ? '<span class="ev__meta">' + esc(a.service_label) + '</span>' : '') +
+        (where ? '<span class="ev__meta">' + esc(where) + '</span>' : '') +
+      '</button>' +
+      (open
+        ? '<div class="ev__body">' +
+            '<dl class="ev__facts">' +
+              fact('When', prettyDay(a.all_day ? a.start_date : isoDateET(new Date(a.start_at))) +
+                ' · ' + rangeOf(a)) +
+              fact('Service', a.service_label) +
+              fact('Where', where) +
+              fact('Phone', a.phone ? FMT.formatPhone(a.phone) : '') +
+              fact('Status', APPT_WORD[a.status] || a.status) +
+              fact('Notes', a.notes) +
+            '</dl>' +
+            '<div class="ev__acts">' +
+              (tel.length >= 10
+                ? '<a class="btn btn--primary btn--tiny" href="tel:+1' + esc(tel) + '">Call</a>' +
+                  '<a class="btn btn--ghost btn--tiny" href="sms:+1' + esc(tel) + '">Text</a>'
+                : '') +
+              (where
+                ? '<a class="btn btn--ghost btn--tiny" target="_blank" rel="noopener" href="' +
+                  'https://maps.google.com/?q=' + encodeURIComponent(where) + '">Directions</a>'
+                : '') +
+              (a.lead_id
+                ? '<button type="button" class="btn btn--ghost btn--tiny" data-appt-lead="' +
+                  esc(a.lead_id) + '">Open the request</button>' : '') +
+              (a.status === 'cancelled'
+                ? '<button type="button" class="btn btn--ghost btn--tiny" data-appt-action="restore" ' +
+                  'data-appt-id="' + esc(a.id) + '">Put it back</button>'
+                : '<button type="button" class="btn btn--ghost btn--tiny" data-appt-action="cancel" ' +
+                  'data-appt-id="' + esc(a.id) + '">Cancel</button>') +
+            '</div>' +
+          '</div>'
+        : '') +
+    '</article>';
+  }
+
+  function fact(k, v) {
+    if (!v) return '';
+    return '<div class="ev__fact"><dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd></div>';
+  }
+
+  function blockCardHtml(b) {
+    var dateFor = b.occurrence_date || b.start_date ||
+      (b.start_at ? isoDateET(new Date(b.start_at)) : '');
+    return '<article class="ev ev--block">' +
+      '<div class="ev__head ev__head--static">' +
+        '<span class="ev__when">' + esc(rangeOf(b)) + '</span>' +
+        '<span class="ev__who">' + esc(b.note || 'Unavailable') + '</span>' +
+        '<span class="pill pill--closed ev__pill">Unavailable</span>' +
+        (b.occurrence_of ? '<span class="ev__meta">Repeats weekly</span>' : '') +
+      '</div>' +
+      '<div class="ev__acts">' +
+        (b.occurrence_of
+          ? '<button type="button" class="btn btn--ghost btn--tiny" data-block-skip="' +
+            esc(b.occurrence_of) + '" data-date="' + esc(dateFor) + '">Free up just this day</button>' +
+            '<button type="button" class="btn btn--ghost btn--tiny" data-block-del="' +
+            esc(b.occurrence_of) + '">Stop repeating</button>'
+          : '<button type="button" class="btn btn--ghost btn--tiny" data-block-del="' +
+            esc(b.id) + '">Remove</button>') +
+      '</div>' +
+    '</article>';
+  }
+
+  function dayGroupHtml(date, bucket, opts) {
+    opts = opts || {};
+    var items = bucket.blocks.map(blockCardHtml).concat(bucket.appts.map(apptCardHtml));
+    var live = bucket.appts.filter(function (a) { return a.status !== 'cancelled'; }).length;
+    if (!items.length && opts.hideEmpty) return '';
+    return '<section class="sday' + (date === isoDateET(new Date()) ? ' is-today' : '') + '">' +
+      '<h3 class="sday__k">' + esc(prettyDay(date)) +
+        '<span class="sday__n">' +
+          (live ? live + (live === 1 ? ' cleaning' : ' cleanings') : 'Nothing booked') +
+        '</span>' +
+        '<button type="button" class="linkish sday__add" data-block-day="' + esc(date) + '">' +
+          'Block time</button>' +
+      '</h3>' +
+      (items.length ? items.join('') : '<p class="sday__free">Free all day.</p>') +
+    '</section>';
+  }
+
+  function agendaHtml() {
+    var from = schedCursor();
+    var to = dAdd(from, 27);
+    var map = byDay(from, to);
+    var days = Object.keys(map).sort();
+    var shown = days.map(function (d) {
+      return dayGroupHtml(d, map[d], { hideEmpty: d !== from });
+    }).filter(Boolean);
+    if (!shown.length) {
+      return '<div class="empty-state"><h3>Nothing in the next four weeks</h3>' +
+        '<p class="muted">Cleanings you schedule will appear here, newest day first.</p></div>';
+    }
+    return shown.join('');
+  }
+
+  function dayHtml() {
+    var d = schedCursor();
+    return dayGroupHtml(d, byDay(d, d)[d], {});
+  }
+
+  function weekHtml() {
+    var start = dAdd(schedCursor(), -dDow(schedCursor()));
+    var map = byDay(start, dAdd(start, 6));
+    return '<div class="sweek">' + Object.keys(map).sort().map(function (d) {
+      return dayGroupHtml(d, map[d], {});
+    }).join('') + '</div>';
+  }
+
+  function monthHtml() {
+    var cur = schedCursor();
+    var p = cur.split('-').map(Number);
+    var first = p[0] + '-' + String(p[1]).padStart(2, '0') + '-01';
+    var gridStart = dAdd(first, -dDow(first));
+    var map = byDay(gridStart, dAdd(gridStart, 41));
+    var today = isoDateET(new Date());
+
+    var cells = '';
+    for (var i = 0; i < 42; i++) {
+      var d = dAdd(gridStart, i);
+      var b = map[d];
+      var inMonth = Number(d.split('-')[1]) === p[1];
+      var live = b.appts.filter(function (a) { return a.status !== 'cancelled'; });
+      cells += '<button type="button" class="mcell' +
+        (inMonth ? '' : ' is-out') + (d === today ? ' is-today' : '') +
+        (d === cur ? ' is-on' : '') + '" data-sched-date="' + esc(d) + '">' +
+        '<span class="mcell__n">' + Number(d.split('-')[2]) + '</span>' +
+        (b.blocks.length ? '<span class="mcell__block" title="Unavailable"></span>' : '') +
+        (live.length ? '<span class="mcell__dots">' +
+          live.slice(0, 3).map(function (a) {
+            return '<span class="mcell__dot mcell__dot--' + esc(a.status) + '"></span>';
+          }).join('') + (live.length > 3 ? '<span class="mcell__more">+</span>' : '') +
+          '</span>' : '') +
+        '<span class="sr-only">' + esc(prettyDay(d)) + ', ' +
+          (live.length ? live.length + ' cleanings' : 'nothing booked') +
+          (b.blocks.length ? ', unavailable time' : '') + '</span>' +
+      '</button>';
+    }
+    return '<div class="mgrid" role="grid">' +
+      '<div class="mgrid__head">' + DAY_NAMES.map(function (n) {
+        return '<span>' + n + '</span>'; }).join('') + '</div>' +
+      '<div class="mgrid__cells">' + cells + '</div></div>' +
+      dayGroupHtml(cur, byDay(cur, cur)[cur], {});
+  }
+
+  function scheduleHtml() {
+    if (state.schedule && state.schedule.needsSetup) {
+      return '<div class="empty-state"><h3>The schedule is not switched on yet</h3>' +
+        '<p class="muted">' + esc(state.schedule.error || '') + ' ' +
+        esc(state.schedule.setup || '') + '</p></div>';
+    }
+    if (state.schedErr) {
+      return '<div class="empty-state"><h3>The schedule did not load</h3>' +
+        '<p class="muted">' + esc(state.schedErr) + '</p>' +
+        '<p><button type="button" class="btn btn--ghost btn--tiny" data-sched-retry>Try again</button></p>' +
+        '<p class="muted sched__warn">Until it loads, treat nothing here as proof that a day is free.</p></div>';
+    }
+    if (!state.schedule) return '<p class="empty">Loading the diary…</p>';
+
+    var cur = schedCursor();
+    var view = state.schedView;
+    var title = view === 'month'
+      ? MONTHS[Number(cur.split('-')[1]) - 1] + ' ' + cur.split('-')[0]
+      : view === 'week'
+        ? 'Week of ' + prettyDay(dAdd(cur, -dDow(cur)))
+        : prettyDay(cur);
+
+    var step = view === 'month' ? 'month' : view === 'week' ? 7 : view === 'agenda' ? 28 : 1;
+
+    return '<div class="sched' + (state.schedBusy ? ' is-busy' : '') + '">' +
+      '<div class="sched__bar">' +
+        '<div class="vtabs sched__views">' + SCHED_VIEWS.map(function (v) {
+          return '<button type="button" data-sched-view="' + v.id + '"' +
+            (view === v.id ? ' class="is-on"' : '') + '>' + v.label + '</button>';
+        }).join('') + '</div>' +
+        '<div class="sched__nav">' +
+          '<button type="button" class="sched__arrow" data-sched-step="-" ' +
+            'aria-label="Earlier">&#8249;</button>' +
+          '<button type="button" class="sched__today" data-sched-today>Today</button>' +
+          '<button type="button" class="sched__arrow" data-sched-step="+" ' +
+            'aria-label="Later">&#8250;</button>' +
+        '</div>' +
+        '<button type="button" class="btn btn--primary btn--tiny sched__block" data-job-new>' +
+          '+ Cleaning</button>' +
+        '<button type="button" class="btn btn--ghost btn--tiny sched__block" data-block-new>' +
+          'Block time</button>' +
+      '</div>' +
+      '<p class="sched__title" data-step="' + step + '">' + esc(title) +
+        '<span class="muted sched__tz"> · all times Florida time</span></p>' +
+      blockFormHtml() +
+      ((state.schedCovering && state.schedCovering.length)
+        ? '<div class="bform__clash bform__clash--done">' +
+            '<p><strong>Blocked.</strong> It covers ' + state.schedCovering.length +
+            (state.schedCovering.length === 1 ? ' cleaning' : ' cleanings') +
+            ', which nothing has moved or cancelled.</p><ul>' +
+            state.schedCovering.map(function (c) {
+              return '<li>' + esc(c.label) + ' — ' +
+                esc(c.all_day ? 'all day' : clockOf(c.start_at)) + '</li>';
+            }).join('') + '</ul>' +
+            '<button type="button" class="linkish" data-covering-ok>Got it</button></div>'
+        : '') +
+      (view === 'month' ? monthHtml()
+        : view === 'week' ? weekHtml()
+        : view === 'day' ? dayHtml()
+        : agendaHtml()) +
+      feedHtml() +
+    '</div>';
+  }
+
+  /* The phone-calendar link. The wording is deliberate: this is a
+     subscription, not synchronisation, and saying otherwise would have her
+     moving a cleaning in Apple Calendar and expecting it to stick. */
+  function feedHtml() {
+    var f = state.schedFeed;
+    return '<details class="feedbox">' +
+      '<summary>See this on your phone’s calendar</summary>' +
+      '<div class="feedbox__in">' +
+        '<p>This gives you a link Apple Calendar or Google Calendar can follow. ' +
+        'Your cleanings and your blocked time show up there alongside everything else.</p>' +
+        '<p class="feedbox__warn"><strong>It only goes one way.</strong> Changing something ' +
+        'in your phone’s calendar does not change it here — the next refresh puts it ' +
+        'back. Book and block in this portal. Apple usually refreshes within the hour; ' +
+        'Google is often slower, and neither lets us hurry it.</p>' +
+        '<p class="feedbox__warn">Anyone with the link can read your schedule, including ' +
+        'customer names and addresses. Replace it if it goes astray.</p>' +
+        (f && f.enabled
+          ? '<p class="feedbox__url"><code>' + esc(f.url) + '</code></p>' +
+            '<div class="feedbox__acts">' +
+              '<button type="button" class="btn btn--ghost btn--tiny" data-feed-copy ' +
+                'data-link="' + esc(f.url) + '">Copy the link</button>' +
+              '<button type="button" class="btn btn--ghost btn--tiny" data-feed-new>Replace it</button>' +
+              '<button type="button" class="btn btn--ghost btn--tiny" data-feed-off>Turn it off</button>' +
+            '</div>'
+          : '<div class="feedbox__acts">' +
+              '<button type="button" class="btn btn--primary btn--tiny" data-feed-new>' +
+                'Create the link</button></div>') +
+      '</div></details>';
+  }
+
+  function loadFeed() {
+    api('/api/admin/schedule/feed').then(function (r) {
+      state.schedFeed = r.ok ? r.body : null;
+      render();
+    });
+  }
+
+  function schedRange() {
+    var cur = schedCursor();
+    if (state.schedView === 'month') {
+      var p = cur.split('-').map(Number);
+      var first = p[0] + '-' + String(p[1]).padStart(2, '0') + '-01';
+      var gridStart = dAdd(first, -dDow(first));
+      return { from: gridStart, to: dAdd(gridStart, 41) };
+    }
+    if (state.schedView === 'week') {
+      var s = dAdd(cur, -dDow(cur));
+      return { from: s, to: dAdd(s, 6) };
+    }
+    if (state.schedView === 'day') return { from: cur, to: cur };
+    return { from: cur, to: dAdd(cur, 27) };
+  }
+
+  function loadSchedule() {
+    var r = schedRange();
+    state.schedErr = '';
+    api('/api/admin/schedule?from=' + r.from + '&to=' + r.to).then(function (res) {
+      if (!res.ok) {
+        state.schedule = res.body && res.body.needsSetup ? res.body : null;
+        state.schedErr = res.body && res.body.needsSetup ? '' :
+          ((res.body && res.body.error) || 'The connection dropped.');
+      } else {
+        state.schedule = res.body;
+      }
+      render();
+    });
+  }
+
+  /* Blocking time is what she does from a phone, standing up, so it is a
+     short form with the platform's own date and time pickers rather than a
+     chain of questions. Nothing here needs a client: a time and the word
+     "busy" is a complete answer, and so is an address for somewhere she has
+     to be that is not a job in the system. Nothing it does can move or
+     cancel a cleaning — if it covers one, she is told which. */
+  function blockFormHtml() {
+    var f = state.blockForm;
+    if (!f) return '';
+    var job = f.mode === 'job';
+    var conflicts = f.covering || [];
+    return '<section class="bform" aria-labelledby="bform-title">' +
+      '<div class="bform__head">' +
+        '<h3 class="bform__title" id="bform-title">' +
+          (job ? 'Book a cleaning' : 'Block out time') + '</h3>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-block-cancel>Cancel</button>' +
+      '</div>' +
+
+      (job
+        ? '<label class="bfield"><span>Who is it for?</span>' +
+            '<input type="text" class="bfield__in" data-bf="label" value="' + esc(f.label || '') + '" ' +
+              'placeholder="Their name" autocomplete="off"></label>' +
+          '<div class="bform__row">' +
+            '<label class="bfield"><span>Service</span>' +
+              '<input type="text" class="bfield__in" data-bf="service" value="' + esc(f.service || '') + '" ' +
+                'placeholder="Deep clean" autocomplete="off"></label>' +
+            '<label class="bfield"><span>Phone</span>' +
+              '<input type="tel" class="bfield__in" data-bf="phone" value="' + esc(f.phone || '') + '" ' +
+                'autocomplete="off"></label>' +
+          '</div>' +
+          '<label class="bfield"><span>Address</span>' +
+            '<input type="text" class="bfield__in" data-bf="address" value="' + esc(f.address || '') + '" ' +
+              'placeholder="Where the job is" autocomplete="off"></label>' +
+          '<label class="btoggle">' +
+            '<input type="checkbox" data-bf="tentative"' + (f.tentative ? ' checked' : '') + '>' +
+            '<span>Pencil it in — not agreed yet</span></label>'
+        : '<label class="bfield"><span>What is it?</span>' +
+            '<input type="text" class="bfield__in" data-bf="label" value="' + esc(f.label || '') + '" ' +
+              'placeholder="Busy — or an address" autocomplete="off"></label>' +
+          '<p class="bform__hint">A word is enough. Put an address here if you need ' +
+            'directions to it. No client needed.</p>') +
+
+      '<div class="bform__row">' +
+        '<label class="bfield"><span>From</span>' +
+          '<input type="date" class="bfield__in" data-bf="date" value="' + esc(f.date) + '"></label>' +
+        '<label class="bfield"><span>To</span>' +
+          '<input type="date" class="bfield__in" data-bf="endDate" value="' + esc(f.endDate || f.date) + '"></label>' +
+      '</div>' +
+
+      '<label class="btoggle">' +
+        '<input type="checkbox" data-bf="allDay"' + (f.allDay ? ' checked' : '') + '>' +
+        '<span>All day</span></label>' +
+
+      (f.allDay ? '' :
+        '<div class="bform__row">' +
+          '<label class="bfield"><span>Starts</span>' +
+            '<input type="time" class="bfield__in" data-bf="start" value="' + esc(f.start || '09:00') + '" step="900"></label>' +
+          '<label class="bfield"><span>Ends</span>' +
+            '<input type="time" class="bfield__in" data-bf="end" value="' + esc(f.end || '12:00') + '" step="900"></label>' +
+        '</div>') +
+
+      (job ? '' :
+        '<label class="btoggle">' +
+          '<input type="checkbox" data-bf="repeat"' + (f.repeat ? ' checked' : '') + '>' +
+          '<span>Every week on ' + esc(DAY_NAMES[dDow(f.date)]) + '</span></label>') +
+      (!job && f.repeat
+        ? '<label class="bfield"><span>Until</span>' +
+            '<input type="date" class="bfield__in" data-bf="until" value="' +
+            esc(f.until || dAdd(f.date, 84)) + '"></label>'
+        : '') +
+
+      (f.error ? '<p class="qcompose__warn">' + esc(f.error) + '</p>' : '') +
+      (conflicts.length
+        ? '<div class="bform__clash"><p><strong>' +
+            (job
+              ? 'That time is already taken.'
+              : 'This covers ' + conflicts.length +
+                (conflicts.length === 1 ? ' cleaning' : ' cleanings') + '.') + '</strong> ' +
+            (job ? 'Pick another time, or book it anyway on purpose.'
+                 : 'Nothing has been moved or cancelled — reschedule from the request if you need to.') +
+            '</p><ul>' + conflicts.map(function (c) {
+              return '<li>' + esc(c.label) +
+                (c.status ? ' (' + esc(c.status) + ')' : '') + ' — ' +
+                esc(c.all_day ? 'all day' : clockOf(c.start_at)) + '</li>';
+            }).join('') + '</ul>' +
+            ((f.suggestions || []).length
+              ? '<p class="bform__sugg">Free instead: ' + f.suggestions.map(function (iso) {
+                  return '<button type="button" class="linkish" data-sugg="' + esc(iso) + '">' +
+                    esc(prettyDay(isoDateET(new Date(iso))) + ' ' + clockOf(iso)) + '</button>';
+                }).join(' · ') + '</p>'
+              : '') +
+          '</div>'
+        : '') +
+
+      '<div class="bform__acts">' +
+        '<button type="button" class="btn btn--primary" data-block-save' +
+          (f.saving ? ' disabled' : '') + '>' +
+          (f.saving ? 'Saving…' : job ? 'Book it' : 'Block this time') + '</button>' +
+        (job && conflicts.length
+          ? '<button type="button" class="btn btn--ghost" data-block-save data-override="1"' +
+            (f.saving ? ' disabled' : '') + '>Book it anyway</button>'
+          : '') +
+      '</div>' +
+    '</section>';
+  }
+
+  function blockTime(date, mode) {
+    state.blockForm = { mode: mode || 'block', date: date, endDate: date, allDay: false,
+      start: '09:00', end: '12:00', label: '', repeat: false, until: dAdd(date, 84) };
+    state.schedCursor = date;
+    state.schedCovering = null;
+    render();
+    var first = root.querySelector('[data-bf="label"]');
+    if (first) first.focus();
+  }
+
+  function saveBlock(override) {
+    var f = state.blockForm;
+    if (!f || f.saving) return;
+    var job = f.mode === 'job';
+    f.error = '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(f.date)) { f.error = 'Pick a day.'; render(); return; }
+    if (job && !String(f.label || '').trim()) { f.error = 'Who is it for?'; render(); return; }
+
+    /* One token per form, so a double tap or a retry on a dropped
+       connection returns the block already made rather than a second one. */
+    if (!f.token) f.token = 'blk-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+
+    var payload = { client_token: f.token };
+    var label = String(f.label || '').trim();
+    if (job) {
+      payload.customer_name = label;
+      if (String(f.service || '').trim()) payload.service_label = String(f.service).trim();
+      if (String(f.phone || '').trim()) payload.phone = String(f.phone).trim();
+      if (String(f.address || '').trim()) payload.address = String(f.address).trim();
+      payload.status = f.tentative ? 'tentative' : 'confirmed';
+      if (override) payload.override = true;
+    } else {
+      payload.kind = 'block';
+      /* An address is worth directions; anything else is just a label. */
+      if (/\d/.test(label) && label.length > 6) payload.address = label;
+      if (label) payload.note = label;
+    }
+
+    if (f.allDay) {
+      payload.all_day = true;
+      payload.start_date = f.date;
+      payload.end_date = (f.endDate && f.endDate >= f.date) ? f.endDate : f.date;
+    } else {
+      if (!f.start || !f.end) { f.error = 'Give a start and an end.'; render(); return; }
+      var endDay = (f.end <= f.start) ? dAdd(f.date, 1) : f.date;   // runs past midnight
+      payload.start_at = localIso(f.date, f.start);
+      payload.end_at = localIso(endDay, f.end);
+    }
+    if (f.repeat) {
+      payload.repeat_freq = 'weekly';
+      payload.repeat_days = [dDow(f.date)];
+      payload.repeat_until = /^\d{4}-\d{2}-\d{2}$/.test(f.until || '') ? f.until : dAdd(f.date, 84);
+    }
+
+    f.saving = true; render();
+    api('/api/admin/schedule', { method: 'POST', body: JSON.stringify(payload) })
+      .then(function (r) {
+        f.saving = false;
+        if (!r.ok) {
+          /* A clash is not a failure to save — it is an answer. Keep the
+             form, show what it hit and where it could go instead. */
+          f.covering = (r.body && r.body.conflicts) || [];
+          f.suggestions = (r.body && r.body.suggestions) || [];
+          f.error = f.covering.length ? '' :
+            ((r.body && r.body.error) || 'That did not save.') + ' Nothing was changed.';
+          /* A token is per attempt, not per form: a retry after a refusal is
+             a new booking, not the same one twice. */
+          f.token = null;
+          render(); return;
+        }
+        var covering = (r.body && r.body.covering) || [];
+        state.blockForm = null;
+        state.schedCovering = covering;
+        loadSchedule();
+      });
+  }
+
+  function localIsoMinutes(hhmm) {
+    var p = String(hhmm || '0:0').split(':').map(Number);
+    return (p[0] || 0) * 60 + (p[1] || 0);
+  }
+  function clock24(d) {
+    var f = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/New_York',
+      hour: '2-digit', minute: '2-digit', hour12: false });
+    return f.format(d);
+  }
+
+  /** A local wall-clock time as the instant it names, via the server's rules. */
+  function localIso(date, hhmm) {
+    var p = date.split('-').map(Number);
+    var t = hhmm.split(':').map(Number);
+    var naive = Date.UTC(p[0], p[1] - 1, p[2], t[0], t[1], 0);
+    var off = function (ms) {
+      var f = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false,
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      var q = {};
+      f.formatToParts(new Date(ms)).forEach(function (x) { q[x.type] = x.value; });
+      return Date.UTC(q.year, q.month - 1, q.day, q.hour === '24' ? 0 : q.hour, q.minute, q.second) - ms;
+    };
+    var guess = naive - off(naive);
+    return new Date(naive - off(guess)).toISOString();
+  }
+
+  function schedPatch(payload) {
+    state.schedBusy = true; render();
+    api('/api/admin/schedule', { method: 'PATCH', body: JSON.stringify(payload) })
+      .then(function (r) {
+        state.schedBusy = false;
+        if (!r.ok) {
+          var conf = (r.body && r.body.conflicts) || [];
+          window.alert(((r.body && r.body.error) || 'That did not save.') +
+            (conf.length ? '\n\n' + conf.map(function (c) {
+              return '• ' + c.label + (c.all_day ? ' (all day)' : ' at ' + clockOf(c.start_at));
+            }).join('\n') : '') +
+            '\n\nNothing was changed.');
+          render(); return;
+        }
+        loadSchedule();
+      });
+  }
+
+  function apptAction(action, id) {
+    if (action === 'cancel') {
+      if (!window.confirm('Cancel this cleaning?\n\nIt frees the time and stays on the record. ' +
+        'The customer is not emailed.')) return;
+      schedPatch({ id: id, action: 'cancel' });
+      return;
+    }
+    if (action === 'restore') { schedPatch({ id: id, action: 'restore' }); return; }
+  }
+
   function clientsHtml() {
     if (!state.clients) return '<p class="empty">Loading…</p>';
     if (state.clients.error) {
@@ -2421,6 +3044,9 @@
       state.filter = ''; state.followup = false; state.open = null;
       state.composing = false; state.composingLead = false; state.composeFor = null;
       if (state.view === 'settings') { render(); loadSettings(); return; }
+      if (state.view === 'schedule') {
+        state.schedule = null; render(); loadSchedule(); loadFeed(); return;
+      }
       if (state.view === 'clients') { loadClients(); return; }
       if (STAGE_FOR_VIEW[state.view]) { loadPipeline(state.view); return; }
       load(); return;
@@ -2525,6 +3151,113 @@
       var row = hit.closest('.qline');
       var editor = hit.closest('.quote-editor');
       if (editor.querySelectorAll('.qline').length > 1) { row.remove(); updateQuoteTotal(editor); }
+      return;
+    }
+    /* ------------------------------------------------------ the schedule */
+    if (hit.matches('[data-sched-view]')) {
+      state.schedView = hit.getAttribute('data-sched-view');
+      state.openAppt = null;
+      render(); loadSchedule(); return;
+    }
+    if (hit.matches('[data-sched-today]')) {
+      state.schedCursor = isoDateET(new Date());
+      render(); loadSchedule(); return;
+    }
+    if (hit.matches('[data-sched-retry]')) { loadSchedule(); return; }
+    if (hit.matches('[data-sched-date]')) {
+      state.schedCursor = hit.getAttribute('data-sched-date');
+      render(); return;
+    }
+    if (hit.matches('[data-sched-step]')) {
+      var back = hit.getAttribute('data-sched-step') === '-';
+      var cur = schedCursor();
+      if (state.schedView === 'month') {
+        var mp = cur.split('-').map(Number);
+        var m = mp[1] + (back ? -1 : 1), y = mp[0];
+        if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; }
+        state.schedCursor = y + '-' + String(m).padStart(2, '0') + '-01';
+      } else {
+        var days = state.schedView === 'week' ? 7 : state.schedView === 'agenda' ? 28 : 1;
+        state.schedCursor = dAdd(cur, back ? -days : days);
+      }
+      state.openAppt = null;
+      render(); loadSchedule(); return;
+    }
+    if (hit.matches('[data-open-appt]')) {
+      var aid = hit.getAttribute('data-open-appt');
+      state.openAppt = state.openAppt === aid ? null : aid;
+      render(); return;
+    }
+    if (hit.matches('[data-appt-lead]')) {
+      state.view = 'active';
+      state.open = hit.getAttribute('data-appt-lead');
+      state.q = '';
+      load(); return;
+    }
+    if (hit.matches('[data-appt-action]')) {
+      apptAction(hit.getAttribute('data-appt-action'), hit.getAttribute('data-appt-id'));
+      return;
+    }
+    if (hit.matches('[data-feed-new]')) {
+      if (state.schedFeed && state.schedFeed.enabled &&
+          !window.confirm('Replace the link?\n\nThe old one stops working straight away, ' +
+            'and any phone following it stops updating until you give it the new one.')) return;
+      api('/api/admin/schedule/feed', { method: 'POST', body: '{}' }).then(function (r) {
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'Could not make a link.'); return; }
+        state.schedFeed = r.body; render();
+      });
+      return;
+    }
+    if (hit.matches('[data-feed-off]')) {
+      if (!window.confirm('Turn the link off? Any phone following it stops updating.')) return;
+      api('/api/admin/schedule/feed', { method: 'POST', body: JSON.stringify({ action: 'off' }) })
+        .then(function (r) { state.schedFeed = r.ok ? r.body : state.schedFeed; render(); });
+      return;
+    }
+    if (hit.matches('[data-feed-copy]')) {
+      copyText(hit.getAttribute('data-link')).then(function () {
+        var was = hit.textContent; hit.textContent = 'Copied';
+        setTimeout(function () { hit.textContent = was; }, 1600);
+      });
+      return;
+    }
+    if (hit.matches('[data-block-new]')) { blockTime(schedCursor(), 'block'); return; }
+    if (hit.matches('[data-job-new]')) { blockTime(schedCursor(), 'job'); return; }
+    if (hit.matches('[data-block-cancel]')) { state.blockForm = null; render(); return; }
+    if (hit.matches('[data-block-save]')) {
+      saveBlock(hit.getAttribute('data-override') === '1'); return;
+    }
+    if (hit.matches('[data-sugg]')) {
+      var iso = hit.getAttribute('data-sugg');
+      var f2 = state.blockForm;
+      if (f2) {
+        var dt = new Date(iso);
+        var mins = Math.round((localIsoMinutes(f2.end) - localIsoMinutes(f2.start)));
+        f2.date = isoDateET(dt);
+        f2.endDate = f2.date;
+        f2.start = clock24(dt);
+        f2.end = clock24(new Date(dt.getTime() + mins * 60000));
+        f2.covering = []; f2.suggestions = []; f2.token = null;
+        render();
+      }
+      return;
+    }
+    if (hit.matches('[data-covering-ok]')) { state.schedCovering = null; render(); return; }
+    if (hit.matches('[data-block-day]')) { blockTime(hit.getAttribute('data-block-day')); return; }
+    if (hit.matches('[data-block-skip]')) {
+      schedPatch({ kind: 'block', action: 'skip',
+        id: hit.getAttribute('data-block-skip'), date: hit.getAttribute('data-date') });
+      return;
+    }
+    if (hit.matches('[data-block-del]')) {
+      if (!window.confirm('Remove this unavailable time? Nothing booked is affected.')) return;
+      state.schedBusy = true; render();
+      api('/api/admin/schedule?kind=block&id=' + encodeURIComponent(hit.getAttribute('data-block-del')),
+        { method: 'DELETE' }).then(function (r) {
+          state.schedBusy = false;
+          if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not save.'); render(); return; }
+          loadSchedule();
+        });
       return;
     }
     if (hit.matches('[data-open-client]')) {
@@ -2642,6 +3375,13 @@
   });
 
   root.addEventListener('change', function (e) {
+    /* Checkboxes and date pickers fire change, not input, in some browsers. */
+    if (e.target.matches('[data-bf]') && state.blockForm) {
+      var bk = e.target.getAttribute('data-bf');
+      state.blockForm[bk] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      if (bk === 'allDay' || bk === 'repeat' || bk === 'date') render();
+      return;
+    }
     // The teal edge that says "this one repeats" has to follow the dropdown,
     // not just the state the line was drawn in.
     if (e.target.matches('.quote-cadence')) {
@@ -2877,6 +3617,14 @@
     if (e.target.matches('.quote-notes, .quote-price, .quote-qty')) {
       var ned = e.target.closest('.quote-editor');
       if (ned) showNoteMoneyWarning(ned);
+    }
+    if (e.target.matches('[data-bf]') && state.blockForm) {
+      var key = e.target.getAttribute('data-bf');
+      state.blockForm[key] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      /* Only the toggles change what the form shows; re-rendering on every
+         keystroke would take the caret with it. */
+      if (key === 'allDay' || key === 'repeat') render();
+      return;
     }
     if (e.target.matches('[data-svcpick-input]')) {
       svcRender(e.target.closest('[data-svcpick]'));
