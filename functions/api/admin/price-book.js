@@ -30,8 +30,14 @@ export async function onRequestGet({ request, env }) {
   if (!await hasTable(env.DB)) {
     return json({ error: 'The price book is not set up yet.', setup: SETUP, needsSetup: true }, 503);
   }
+  /* The quote builder wants only what she still offers. The Services
+     screen wants everything, because bringing a retired line back is
+     impossible if it cannot be seen. */
+  const all = new URL(request.url).searchParams.get('all') === '1';
   const r = await env.DB.prepare(
-    'SELECT * FROM price_book WHERE active = 1 ORDER BY grp, sort, label'
+    all
+      ? 'SELECT * FROM price_book ORDER BY active DESC, grp, sort, label'
+      : 'SELECT * FROM price_book WHERE active = 1 ORDER BY grp, sort, label'
   ).all().catch(() => ({ results: [] }));
   const items = r.results || [];
   return json({ ok: true, units: UNITS, items,
@@ -106,6 +112,11 @@ export async function onRequestPatch({ request, env }) {
   /* Counting use is how the list sorts itself by what she actually reaches
      for, rather than by whatever order it was typed in. */
   if (body.action === 'used') { sets.push('times_used = times_used + 1'); }
+  /* Her own order within a group, so the things she reaches for are where
+     she put them rather than wherever the alphabet left them. */
+  if (body.sort !== undefined && Number.isFinite(Number(body.sort))) {
+    sets.push('sort = ?'); vals.push(Math.round(Number(body.sort)));
+  }
 
   if (!sets.length) return json({ error: 'Nothing to change.' }, 400);
   sets.push('updated_at = ?'); vals.push(new Date().toISOString());

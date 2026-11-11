@@ -12,7 +12,7 @@ const SECRET = 'price-book-secret';
 const env = (d) => ({ DB: d, SESSION_SECRET: SECRET, ADMIN_PASSWORD: 'shared' });
 const db = () => makeD1(['0011_schedule.sql', '0014_users.sql', '0016_price_book.sql']);
 const owner = async (d) => (await makeSessionCookie(env(d), false)).split(';')[0];
-const get = (c) => new Request('https://x.test/api/admin/price-book', { headers: { Cookie: c } });
+const get = (c, q = '') => new Request('https://x.test/api/admin/price-book' + q, { headers: { Cookie: c } });
 const send = (c, m, b) => new Request('https://x.test/api/admin/price-book',
   { method: m, headers: { Cookie: c, 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
 
@@ -107,6 +107,48 @@ await testAsync('what she charges is hers: staff cannot read or change it', asyn
     assert.equal((await pb.onRequestPost({ request: send(c, 'POST',
       { label: 'Sneak' }), env: env(d) })).status, 403, role);
   }
+});
+
+/* ------------------------------------------------- the Services screen */
+
+await testAsync('the quote builder is offered only what she still does', async () => {
+  const d = db(); const c = await owner(d);
+  d._raw.exec(`INSERT INTO price_book (id, created_at, label, active, sort)
+    VALUES ('a', '2026-11-11', 'Inside the oven', 1, 1),
+           ('b', '2026-11-11', 'Something retired', 0, 2)`);
+  const res = await pb.onRequestGet({ request: get(c), env: env(d) });
+  const items = (await res.json()).items;
+  assert.equal(items.length, 1);
+  assert.equal(items[0].label, 'Inside the oven');
+});
+
+await testAsync('the Services screen is shown the retired ones too', async () => {
+  const d = db(); const c = await owner(d);
+  d._raw.exec(`INSERT INTO price_book (id, created_at, label, active, sort)
+    VALUES ('a', '2026-11-11', 'Inside the oven', 1, 1),
+           ('b', '2026-11-11', 'Something retired', 0, 2)`);
+  const res = await pb.onRequestGet({ request: get(c, '?all=1'), env: env(d) });
+  const items = (await res.json()).items;
+  assert.equal(items.length, 2, 'a line she cannot see is a line she cannot bring back');
+  assert.equal(items[0].active, 1, 'what she still offers comes first');
+});
+
+await testAsync('she can put a line where she wants it', async () => {
+  const d = db(); const c = await owner(d);
+  d._raw.exec(`INSERT INTO price_book (id, created_at, label, sort)
+    VALUES ('a', '2026-11-11', 'Inside the oven', 100)`);
+  await pb.onRequestPatch({ request: send(c, 'PATCH', { id: 'a', sort: 1 }), env: env(d) });
+  assert.equal(d._raw.prepare('SELECT sort FROM price_book WHERE id = ?').get('a').sort, 1);
+});
+
+await testAsync('a retired line comes back with its price intact', async () => {
+  const d = db(); const c = await owner(d);
+  d._raw.exec(`INSERT INTO price_book (id, created_at, label, default_cents, active)
+    VALUES ('a', '2026-11-11', 'Inside the oven', 4500, 0)`);
+  await pb.onRequestPatch({ request: send(c, 'PATCH', { id: 'a', active: true }), env: env(d) });
+  const row = d._raw.prepare('SELECT * FROM price_book WHERE id = ?').get('a');
+  assert.equal(row.active, 1);
+  assert.equal(row.default_cents, 4500);
 });
 
 console.log('\n' + n + ' passed');

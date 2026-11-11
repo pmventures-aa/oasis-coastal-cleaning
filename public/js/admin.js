@@ -30,6 +30,7 @@
     { id: 'schedule', label: 'Schedule' },
     { id: 'money',    label: 'Money' },
     { id: 'clients',  label: 'Clients' },
+    { id: 'catalogue', label: 'Services' },
     { id: 'security', label: 'Security' },
     { id: 'settings', label: 'Settings' }
   ];
@@ -67,6 +68,9 @@
               '<path d="M16 5.6a3.2 3.2 0 0 1 0 6.3"/><path d="M17.2 14.9c2 .6 3.3 2.3 3.3 4.6"/>',
     gear:     '<circle cx="12" cy="12" r="3.1"/>' +
               '<path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M18 6l-1.4 1.4M7.4 16.6 6 18M18 18l-1.4-1.4M7.4 7.4 6 6"/>',
+    list:     '<path d="M8.5 6.5h12M8.5 12h12M8.5 17.5h12"/>' +
+              '<circle cx="4.4" cy="6.5" r="1.1"/><circle cx="4.4" cy="12" r="1.1"/>' +
+              '<circle cx="4.4" cy="17.5" r="1.1"/>',
     shield:   '<path d="M12 3.2 19 6v5.5c0 4.2-2.8 7.4-7 9.3-4.2-1.9-7-5.1-7-9.3V6Z"/>' +
               '<path d="m9.2 12.1 2 2 3.6-3.9"/>',
     menu:     '<path d="M4 7h16M4 12h16M4 17h16"/>'
@@ -79,7 +83,8 @@
 
   var VIEW_ICON = {
     home: 'home', active: 'inbox', quotes: 'doc', schedule: 'calendar',
-    money: 'money', clients: 'people', settings: 'gear', security: 'shield'
+    money: 'money', clients: 'people', settings: 'gear', security: 'shield',
+    catalogue: 'list'
   };
   /* Six slots at 375px is 62px each: room for a 24px icon and a short
      word. The five she touches daily stay on the bar -- money behind More
@@ -95,7 +100,8 @@
   var VIEW_NEEDS = {
     active: 'clientList', quotes: 'money', pending: 'money',
     accepted: 'money', paid: 'money', money: 'money',
-    clients: 'clientList', settings: 'settings', security: 'manageUsers'
+    clients: 'clientList', settings: 'settings', security: 'manageUsers',
+    catalogue: 'priceBook'
   };
 
   function visibleViews() {
@@ -859,6 +865,7 @@
       (state.composing ? newQuotePanelHtml() : '') +
       (state.view === 'home' ? homeHtml()
         : state.view === 'security' ? securityHtml()
+        : state.view === 'catalogue' ? catalogueHtml()
         : state.view === 'settings' ? settingsHtml()
         : state.view === 'schedule' ? scheduleHtml()
         : state.view === 'money' ? moneyHtml()
@@ -2372,6 +2379,10 @@
     state.composing = false; state.composingLead = false; state.composeFor = null;
     if (state.view === 'settings') { render(); loadSettings(); loadUsers(); return; }
     if (state.view === 'security') { render(); loadSecurity(); return; }
+    if (state.view === 'catalogue') {
+      state.catNew = false; state.catEdit = null;
+      render(); loadCatalogue(); return;
+    }
     if (state.view === 'schedule') {
       state.schedule = null; render(); loadSchedule(); loadFeed(); loadJobs(); return;
     }
@@ -3164,7 +3175,10 @@
   function todayBandHtml() {
     /* Today's visits are the body of the Today screen and the whole of the
        diary, so the band above them was the same sentence twice. */
-    if (state.view === 'schedule' || state.view === 'home') return '';
+    /* Her day belongs on the screens about the work. On the ones she opens
+       to change a setting, a price or who can get in, it is furniture. */
+    var NOT_HERE = { schedule: 1, home: 1, settings: 1, security: 1, catalogue: 1 };
+    if (NOT_HERE[state.view]) return '';
     var t = state.today;
     if (!t) return '';
     if (t.error) {
@@ -3623,6 +3637,219 @@
         if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not work.'); return; }
         if (all) { location.reload(); return; }
         loadSecurity();
+      });
+  }
+
+  /* ---------------------------------------------------------- Services
+
+     Her list of what she offers and what she usually charges. The quote
+     builder has been picking from it for a while; this is where she gets
+     to curate it. The same table, not a second one: two lists of services
+     would be two prices for the same job. */
+
+  var UNIT_WORDS = { each: 'each', hour: 'per hour', room: 'per room', sqft: 'per sq ft' };
+
+  function loadCatalogue() {
+    api('/api/admin/price-book?all=1').then(function (r) {
+      state.catalogue = r.ok ? r.body : { error: true, body: r.body || {} };
+      /* The quote builder reads this one, and it must only ever offer what
+         she still does. */
+      if (r.ok) state.priceBook = (r.body.items || []).filter(function (i) { return i.active; });
+      render();
+    });
+  }
+
+  function catalogueHtml() {
+    var c = state.catalogue;
+    if (!c) return '<p class="empty">Loading…</p>';
+    if (c.error) {
+      var b = c.body || {};
+      return '<div class="empty-state"><h3>Your services are not set up yet</h3>' +
+        '<p class="muted">' + esc(b.error || 'They could not be loaded.') +
+        (b.setup ? ' ' + esc(b.setup) : '') + '</p></div>';
+    }
+    var items = c.items || [];
+
+    if (!items.length) {
+      return '<h2 class="sechead">Services</h2>' +
+        '<div class="empty-state"><h3>Nothing on the list yet</h3>' +
+        '<p class="muted">This is what you offer and what you usually charge. ' +
+        'Every price here is a starting point — you can still change any line ' +
+        'on the quote it lands on.</p>' +
+        (c.seedable
+          ? '<p><button type="button" class="btn btn--primary" data-cat-seed>' +
+            'Start from the ' + c.seedable + ' services on your site</button></p>'
+          : '') +
+        '<p><button type="button" class="btn btn--ghost" data-cat-new>Add one myself</button></p>' +
+        '</div>';
+    }
+
+    var groups = {}, order = [];
+    items.forEach(function (i) {
+      var g = i.grp || 'Everything else';
+      if (!groups[g]) { groups[g] = []; order.push(g); }
+      groups[g].push(i);
+    });
+    var live = items.filter(function (i) { return i.active; }).length;
+
+    return '<h2 class="sechead">Services</h2>' +
+      '<div class="cathead">' +
+        '<p class="muted secmini">' + live +
+          (live === 1 ? ' service you offer' : ' services you offer') +
+          (items.length > live ? ' · ' + (items.length - live) + ' retired' : '') +
+          '. A price here is a starting point, not a rate card.</p>' +
+        '<button type="button" class="btn btn--primary btn--tiny" data-cat-new>' +
+          '+ Add a service</button>' +
+      '</div>' +
+      (state.catNew ? catFormHtml(null) : '') +
+      order.map(function (g) {
+        return '<section class="catgrp">' +
+          '<h3 class="catgrp__k">' + esc(g) + '</h3>' +
+          groups[g].map(catRowHtml).join('') +
+        '</section>';
+      }).join('');
+  }
+
+  function catRowHtml(i) {
+    if (state.catEdit === i.id) return catFormHtml(i);
+    return '<div class="catrow' + (i.active ? '' : ' is-off') + '">' +
+      '<button type="button" class="catrow__main" data-cat-edit="' + esc(i.id) + '">' +
+        '<span class="catrow__label">' + esc(i.label) +
+          (i.active ? '' : ' <span class="muted">· retired</span>') + '</span>' +
+        (i.note ? '<span class="catrow__note muted">' + esc(i.note) + '</span>' : '') +
+      '</button>' +
+      '<span class="catrow__price">' +
+        (i.default_cents == null
+          ? '<span class="muted">Quote it</span>'
+          : money(i.default_cents) +
+            (i.unit && i.unit !== 'each'
+              ? '<span class="catrow__unit muted">' + esc(UNIT_WORDS[i.unit] || i.unit) + '</span>'
+              : '')) +
+      '</span>' +
+    '</div>';
+  }
+
+  /* One card for adding and for editing: the same seven decisions either
+     way, so there is no second form to keep in step. */
+  function catFormHtml(i) {
+    var isNew = !i;
+    i = i || {};
+    var units = (state.catalogue && state.catalogue.units) || ['each', 'hour', 'room', 'sqft'];
+    return '<div class="catform" data-cat-form="' + esc(i.id || 'new') + '">' +
+      '<label class="bfield"><span>What is it called?</span>' +
+        '<input type="text" class="bfield__in" data-cf="label" value="' +
+          esc(i.label || '') + '" placeholder="Inside the oven"></label>' +
+      '<label class="bfield"><span>A line for the quote <span class="muted">(optional)</span></span>' +
+        '<input type="text" class="bfield__in" data-cf="note" value="' +
+          esc(i.note || '') + '" placeholder="Racks and door glass"></label>' +
+      '<label class="bfield"><span>Group <span class="muted">(optional)</span></span>' +
+        '<input type="text" class="bfield__in" data-cf="grp" value="' +
+          esc(i.grp || '') + '" placeholder="Kitchen" list="cat-groups"></label>' +
+      catGroupListHtml() +
+      '<div class="catform__pair">' +
+        '<label class="bfield"><span>Usual price</span>' +
+          '<input type="text" inputmode="decimal" class="bfield__in" data-cf="price" value="' +
+            (i.default_cents == null ? '' : esc((i.default_cents / 100).toFixed(2))) +
+            '" placeholder="Leave blank to quote it"></label>' +
+        '<label class="bfield"><span>Per</span>' +
+          '<select class="bfield__in" data-cf="unit">' +
+            units.map(function (u) {
+              return '<option value="' + esc(u) + '"' +
+                ((i.unit || 'each') === u ? ' selected' : '') + '>' +
+                esc(UNIT_WORDS[u] || u) + '</option>'; }).join('') +
+          '</select></label>' +
+      '</div>' +
+      '<p class="muted secmini">A blank price means you quote it fresh each ' +
+        'time, which is a real answer — better than a zero that reads as free.</p>' +
+      '<div class="catform__err form-status form-status--err" hidden role="alert"></div>' +
+      '<div class="catform__acts">' +
+        '<button type="button" class="btn btn--primary" data-cat-save="' +
+          esc(i.id || 'new') + '">' + (isNew ? 'Add it' : 'Save') + '</button>' +
+        '<button type="button" class="btn btn--ghost" data-cat-cancel>Cancel</button>' +
+        (isNew ? ''
+          : '<button type="button" class="btn btn--ghost catform__retire" data-cat-active="' +
+            esc(i.id) + '" data-cat-to="' + (i.active ? '0' : '1') + '">' +
+            (i.active ? 'Retire it' : 'Bring it back') + '</button>') +
+      '</div>' +
+    '</div>';
+  }
+
+  /* Her existing groups, offered as suggestions so a typo does not create
+     a second "Kitchen" sitting beside the first. */
+  function catGroupListHtml() {
+    var seen = {}, out = [];
+    ((state.catalogue && state.catalogue.items) || []).forEach(function (i) {
+      if (i.grp && !seen[i.grp]) { seen[i.grp] = 1; out.push(i.grp); }
+    });
+    return '<datalist id="cat-groups">' +
+      out.map(function (g) { return '<option value="' + esc(g) + '"></option>'; }).join('') +
+      '</datalist>';
+  }
+
+  function catSave(id, btn) {
+    var form = btn.closest('.catform');
+    var err = form.querySelector('.catform__err');
+    var val = function (k) {
+      var el = form.querySelector('[data-cf="' + k + '"]');
+      return el ? el.value : '';
+    };
+    err.hidden = true;
+    var label = String(val('label') || '').trim();
+    if (!label) {
+      err.hidden = false; err.textContent = 'What is it called?';
+      return;
+    }
+    var raw = String(val('price') || '').trim();
+    var body = {
+      label: label,
+      note: val('note'),
+      grp: String(val('grp') || '').trim(),
+      unit: val('unit'),
+      /* Blank stays blank: null is "quote it", and sending 0 would put a
+         free line on her quotes. */
+      default_cents: raw === '' ? null : parseDollars(raw)
+    };
+    var isNew = id === 'new';
+    if (!isNew) body.id = id;
+
+    btn.disabled = true;
+    var was = btn.textContent;
+    btn.textContent = 'Saving…';
+    api('/api/admin/price-book', {
+      method: isNew ? 'POST' : 'PATCH', body: JSON.stringify(body)
+    }).then(function (r) {
+      btn.disabled = false; btn.textContent = was;
+      if (!r.ok) {
+        err.hidden = false;
+        err.textContent = (r.body && r.body.error) || 'That did not save.';
+        return;
+      }
+      state.catNew = false; state.catEdit = null;
+      loadCatalogue();
+    });
+  }
+
+  function catSetActive(id, to, btn) {
+    if (!to && !window.confirm('Retire this service? It stays on past quotes ' +
+      'and you can bring it back any time.')) return;
+    btn.disabled = true;
+    api('/api/admin/price-book', { method: 'PATCH',
+      body: JSON.stringify({ id: id, active: !!to }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not save.'); return; }
+        state.catEdit = null;
+        loadCatalogue();
+      });
+  }
+
+  function catSeed(btn) {
+    btn.disabled = true; btn.textContent = 'Starting it…';
+    api('/api/admin/price-book', { method: 'POST', body: JSON.stringify({ action: 'seed' }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not work.'); return; }
+        loadCatalogue();
       });
   }
 
@@ -4794,6 +5021,23 @@
       state.q = '';
       load(); return;
     }
+    if (hit.matches('[data-cat-new]')) {
+      state.catNew = true; state.catEdit = null; render(); return;
+    }
+    if (hit.matches('[data-cat-edit]')) {
+      state.catEdit = hit.getAttribute('data-cat-edit'); state.catNew = false;
+      render(); return;
+    }
+    if (hit.matches('[data-cat-cancel]')) {
+      state.catNew = false; state.catEdit = null; render(); return;
+    }
+    if (hit.matches('[data-cat-save]')) { catSave(hit.getAttribute('data-cat-save'), hit); return; }
+    if (hit.matches('[data-cat-active]')) {
+      catSetActive(hit.getAttribute('data-cat-active'),
+        hit.getAttribute('data-cat-to') === '1', hit);
+      return;
+    }
+    if (hit.matches('[data-cat-seed]')) { catSeed(hit); return; }
     if (hit.matches('[data-sec-revoke-all]')) { revokeSessions(true, null, hit); return; }
     if (hit.matches('[data-sec-revoke]')) {
       revokeSessions(false, hit.getAttribute('data-sec-revoke'), hit); return;

@@ -2121,3 +2121,48 @@ select.pf__v:focus {
 
 .secpw { display: grid; gap: 0.6rem; }
 .secpw input { font-size: 1rem; min-height: 44px; }
+
+/* ================================================================ Services */
+.cathead {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap; margin: 0 0 1rem;
+}
+.cathead .secmini { margin: 0; flex: 1 1 14rem; }
+
+.catgrp { margin: 0 0 1.1rem; }
+.catgrp__k {
+  margin: 0 0 0.4rem; font-family: var(--font-body);
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--oasis-muted);
+}
+
+.catrow {
+  display: flex; align-items: center; gap: 0.6rem;
+  background: #fff; border: 1px solid rgba(12, 46, 59, 0.12);
+  border-radius: 12px; margin-bottom: 0.4rem; padding-right: 0.8rem;
+}
+.catrow.is-off { opacity: 0.55; }
+.catrow__main {
+  appearance: none; background: none; border: 0; font: inherit; color: inherit;
+  cursor: pointer; text-align: left; flex: 1 1 auto; min-width: 0;
+  display: grid; gap: 0.1rem; min-height: 52px; padding: 0.5rem 0 0.5rem 0.8rem;
+}
+.catrow__main:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: -2px; }
+.catrow__label { font-weight: 600; font-size: 0.9rem; }
+.catrow__note { font-size: 0.78rem; line-height: 1.35; }
+.catrow__price {
+  flex: none; font-weight: 700; font-variant-numeric: tabular-nums;
+  text-align: right; display: grid; gap: 0.05rem; font-size: 0.9rem;
+}
+.catrow__unit { font-size: 0.68rem; font-weight: 600; }
+
+.catform {
+  background: #fff; border: 1px solid var(--oasis-teal);
+  border-radius: 12px; padding: 0.85rem; margin-bottom: 0.5rem;
+  display: grid; gap: 0.6rem;
+}
+.catform__pair { display: flex; gap: 0.5rem; }
+.catform__pair .bfield { flex: 1 1 0; min-width: 0; }
+.catform input, .catform select { font-size: 1rem; min-height: 44px; width: 100%; }
+.catform__acts { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.catform__retire { margin-left: auto; }
