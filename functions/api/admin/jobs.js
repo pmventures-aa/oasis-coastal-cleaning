@@ -203,6 +203,30 @@ export async function onRequestPatch({ request, env }) {
     return json({ ok: true, action });
   }
 
+  /* Put it on hold. Ending is for an arrangement that is over; this is for
+     one that is coming back -- a client away for August. The rule is kept
+     exactly as it is, and the visits ahead are cancelled rather than
+     deleted so the diary is honest about nobody coming. Resuming puts the
+     ones from today forward back. */
+  if (action === 'pause' || action === 'resume') {
+    const pausing = action === 'pause';
+    const from = clean(body.from, 10) || localDateOf(new Date());
+    await env.DB.prepare(
+      `UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?`
+    ).bind(pausing ? 'paused' : 'open', now, id).run();
+    await env.DB.prepare(
+      pausing
+        ? `UPDATE appointments SET status = 'cancelled', updated_at = ?
+             WHERE job_id = ? AND occurrence_date >= ? AND status <> 'cancelled'`
+        /* Only the ones this paused. A visit she cancelled herself for its
+           own reason stays cancelled, which is why resuming asks for the
+           ones from the resume date forward rather than all of them. */
+        : `UPDATE appointments SET status = 'confirmed', updated_at = ?
+             WHERE job_id = ? AND occurrence_date >= ? AND status = 'cancelled'`
+    ).bind(now, id, from).run();
+    return json({ ok: true, action, from });
+  }
+
   /* End it. Visits already past stay as the record of work done; the ones
      still ahead go. */
   if (action === 'end') {

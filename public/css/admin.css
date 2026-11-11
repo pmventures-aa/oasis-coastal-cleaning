@@ -2245,3 +2245,53 @@ select.pf__v:focus {
   text-transform: uppercase; padding: 0.15rem 0.45rem; border-radius: var(--radius-pill);
   background: rgba(201, 162, 39, 0.2); color: #6b5410;
 }
+
+/* ======================================================= what they found */
+.work__issues { display: grid; gap: 0.5rem; }
+.isslist { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.issrow {
+  border: 1px solid rgba(12, 46, 59, 0.14); border-left-width: 3px;
+  border-radius: 10px; padding: 0.6rem 0.7rem; background: #fff;
+}
+.issrow--attention { border-left-color: var(--oasis-gold); }
+.issrow--urgent { border-left-color: #b03a2e; }
+.issrow--note { border-left-color: rgba(12, 46, 59, 0.3); }
+.issrow__top { display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; }
+.issrow__cat { font-weight: 700; font-size: 0.86rem; }
+.issrow__sev { font-size: 0.7rem; font-weight: 700; color: var(--oasis-muted); }
+.issrow--urgent .issrow__sev { color: #b03a2e; }
+.issrow__body { margin: 0.25rem 0 0; font-size: 0.85rem; line-height: 1.45; }
+.issrow__foot {
+  display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap;
+  margin-top: 0.4rem; font-size: 0.76rem;
+}
+/* Whether a client can be told is the thing to be able to read at a
+   glance, so it says which it is rather than relying on the colour. */
+.issrow__ok { color: var(--oasis-teal); font-weight: 700; }
+.issrow__wait { color: var(--oasis-muted); font-weight: 700; }
+.issrow__acts { margin-left: auto; display: flex; gap: 0.7rem; }
+.issrow__acts .linkish, .issadd .linkish {
+  min-height: 44px; display: inline-flex; align-items: center;
+}
+.issadd { margin: 0; }
+.issform {
+  display: grid; gap: 0.55rem; padding: 0.75rem;
+  background: rgba(12, 46, 59, 0.04); border-radius: 12px;
+}
+.issform input, .issform select, .issform textarea {
+  width: 100%; font-size: 1rem; min-height: 44px;
+}
+.issform__acts { display: flex; gap: 0.5rem; }
+
+.icatlist { list-style: none; margin: 0 0 0.6rem; padding: 0; }
+.icat {
+  display: flex; align-items: center; gap: 0.6rem; min-height: 44px;
+  padding: 0.3rem 0; border-top: 1px solid rgba(12, 46, 59, 0.08);
+}
+.icat:first-child { border-top: 0; }
+.icat__l { flex: 1 1 auto; min-width: 0; display: grid; font-size: 0.88rem; }
+.icat__n { font-size: 0.76rem; }
+.icat .linkish { min-height: 44px; display: inline-flex; align-items: center; }
+.icatadd { display: flex; gap: 0.5rem; align-items: center; }
+.icatadd .bfield { flex: 1 1 auto; margin: 0; }
+.icatadd input { font-size: 1rem; min-height: 44px; width: 100%; }

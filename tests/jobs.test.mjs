@@ -222,4 +222,49 @@ await testAsync('a cleaner cannot set up or change an arrangement', async () => 
   assert.equal((await jobs.onRequestGet({ request: read(c), env: env(d) })).status, 403);
 });
 
+/* ------------------------------------------------------------- on hold */
+
+await testAsync('pausing keeps the arrangement and empties the diary ahead', async () => {
+  const d = db(); const c = await owner(d);
+  const r = await jobs.onRequestPost({ request: send(c, 'POST', {
+    customer_name: 'Maria Delgado', service_label: 'Deep clean', address: '12 Ocean Ave',
+    start_date: '2026-11-17', freq: 'weekly', start_time: '09:00', duration_min: 120,
+    until_date: '2026-12-30' }), env: env(d) });
+  const id = (await r.json()).job.id;
+  const before = d._raw.prepare(
+    `SELECT COUNT(*) AS n FROM appointments WHERE job_id = ? AND status <> 'cancelled'`
+  ).get(id).n;
+  assert.ok(before > 1, 'there should be visits to pause');
+
+  await jobs.onRequestPatch({ request: send(c, 'PATCH',
+    { id, action: 'pause', from: '2026-01-01' }), env: env(d) });
+
+  assert.equal(d._raw.prepare('SELECT status FROM jobs WHERE id = ?').get(id).status, 'paused');
+  assert.equal(d._raw.prepare('SELECT freq FROM jobs WHERE id = ?').get(id).freq, 'weekly',
+    'the rule is kept -- this is a hold, not an ending');
+  const after = d._raw.prepare(
+    `SELECT COUNT(*) AS n FROM appointments WHERE job_id = ? AND status <> 'cancelled'`
+  ).get(id).n;
+  assert.equal(after, 0, 'nobody is coming, and the diary should say so');
+});
+
+await testAsync('resuming puts the visits back and reopens the job', async () => {
+  const d = db(); const c = await owner(d);
+  const r = await jobs.onRequestPost({ request: send(c, 'POST', {
+    customer_name: 'Maria Delgado', service_label: 'Deep clean', address: '12 Ocean Ave',
+    start_date: '2026-11-17', freq: 'weekly', start_time: '09:00', duration_min: 120,
+    until_date: '2026-12-30' }), env: env(d) });
+  const id = (await r.json()).job.id;
+  await jobs.onRequestPatch({ request: send(c, 'PATCH',
+    { id, action: 'pause', from: '2026-01-01' }), env: env(d) });
+  await jobs.onRequestPatch({ request: send(c, 'PATCH',
+    { id, action: 'resume', from: '2026-01-01' }), env: env(d) });
+
+  assert.equal(d._raw.prepare('SELECT status FROM jobs WHERE id = ?').get(id).status, 'open');
+  const back = d._raw.prepare(
+    `SELECT COUNT(*) AS n FROM appointments WHERE job_id = ? AND status = 'confirmed'`
+  ).get(id).n;
+  assert.ok(back > 0, 'the visits should come back');
+});
+
 console.log('\n' + n + ' passed');

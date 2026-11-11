@@ -2016,6 +2016,81 @@
       });
   }
 
+  /* The kinds of thing that can go wrong, which are hers. A fixed list
+     would be my guess about her work that she cannot correct. */
+  function issueCatsHtml() {
+    if (!(state.can && state.can.settings)) return '';
+    var box = state.issueCats;
+    var cats = (box && box.categories) || [];
+    return '<details class="card set-group" data-set-group="issuecats">' +
+      '<summary class="set-group__title">What can go wrong</summary>' +
+      '<p class="muted set-group__lead">The kinds of thing a cleaner can report ' +
+        'from a visit. Nothing they report reaches a client until you send it.</p>' +
+      (!box ? '<p class="muted">Loading…</p>'
+        : cats.length
+          ? '<ul class="icatlist">' + cats.map(function (c) {
+              return '<li class="icat">' +
+                '<span class="icat__l">' + esc(c.label) +
+                  (c.note ? '<span class="muted icat__n">' + esc(c.note) + '</span>' : '') +
+                '</span>' +
+                '<button type="button" class="linkish" data-icat-off="' + esc(c.id) + '">' +
+                  'Remove</button>' +
+              '</li>'; }).join('') + '</ul>'
+          : '<p class="muted secmini">None yet. Anything reported goes down as ' +
+            '"Something else" until you add some.</p>') +
+      '<div class="icatadd">' +
+        '<label class="bfield"><span class="sr-only">What to call it</span>' +
+          '<input type="text" class="bfield__in" data-icat-new ' +
+            'placeholder="Damage, pest, left a key out…"></label>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-icat-add>Add</button>' +
+      '</div>' +
+      '<div class="icat__err form-status form-status--err" hidden role="alert"></div>' +
+    '</details>';
+  }
+
+  function loadIssueCats() {
+    if (!(state.can && state.can.settings)) return;
+    api('/api/admin/issues').then(function (r) {
+      state.issueCats = r.ok ? r.body : { categories: [] };
+      render();
+    });
+  }
+
+  function issueCatAdd(btn) {
+    var wrap = btn.closest('details');
+    var input = wrap.querySelector('[data-icat-new]');
+    var err = wrap.querySelector('.icat__err');
+    var label = String(input.value || '').trim();
+    err.hidden = true;
+    if (!label) { err.hidden = false; err.textContent = 'What is it called?'; return; }
+    btn.disabled = true;
+    api('/api/admin/issues', { method: 'POST',
+      body: JSON.stringify({ action: 'category', label: label }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) {
+          err.hidden = false;
+          err.textContent = (r.body && r.body.error) || 'That did not save.';
+          return;
+        }
+        input.value = '';
+        loadIssueCats();
+      });
+  }
+
+  function issueCatOff(id, btn) {
+    if (!window.confirm('Remove this kind? Anything already reported keeps ' +
+      'the wording it was reported with.')) return;
+    btn.disabled = true;
+    api('/api/admin/issues', { method: 'PATCH',
+      body: JSON.stringify({ action: 'category', id: id, active: false }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not save.'); return; }
+        loadIssueCats();
+      });
+  }
+
   function settingsHtml() {
     if (!state.settings) return '<p class="empty">Loading your settings…</p>';
     var fields = {};
@@ -2130,7 +2205,7 @@
       '<span class="setup-cta__msg form-status" role="status" hidden></span>' +
     '</div>';
 
-    return '<div class="settings">' + groups +
+    return '<div class="settings">' + groups + issueCatsHtml() +
       /* Turnstile secrets and webhook signing keys are not settings she
          changes; they are what to read when something is wrong. Folded,
          and folded by default, but it opens itself when there is a
@@ -2547,7 +2622,9 @@
     state.moreNav = false;        // picking a destination closes the sheet
     state.filter = ''; state.followup = false; state.open = null;
     state.composing = false; state.composingLead = false; state.composeFor = null;
-    if (state.view === 'settings') { render(); loadSettings(); loadUsers(); return; }
+    if (state.view === 'settings') {
+      render(); loadSettings(); loadIssueCats(); return;
+    }
     if (state.view === 'security') {
       state.userForm = null;
       render(); loadSecurity(); loadUsers(); return;
@@ -2680,6 +2757,140 @@
     catch { return []; }
   }
 
+  /* ------------------------------------------------- what they found
+
+     A cleaner reports; that is all reporting does. It sits with Kristina
+     until she ticks it through, and telling the client is a third act
+     after that. The server enforces all of it -- this only has to avoid
+     offering a door that is locked. */
+
+  var SEV_WORDS = { note: 'Worth knowing', attention: 'Needs a look', urgent: 'Urgent' };
+  var SEV_ORDER = ['note', 'attention', 'urgent'];
+
+  function loadIssues(apptId) {
+    var q = apptId ? '?appointment_id=' + encodeURIComponent(apptId) : '';
+    api('/api/admin/issues' + q).then(function (r) {
+      if (!r.ok) { state.issues = { error: true, body: r.body || {} }; render(); return; }
+      state.issues = r.body;
+      state.issuesFor = apptId || null;
+      render();
+    });
+  }
+
+  function issuesHtml(a) {
+    var box = state.issues;
+    if (!box || box.error || state.issuesFor !== a.id) return issueAddHtml(a, []);
+    var mine = (box.issues || []).filter(function (i) { return i.appointment_id === a.id; });
+    return (mine.length
+      ? '<ul class="isslist">' + mine.map(function (i) {
+          return issueRowHtml(i, box);
+        }).join('') + '</ul>'
+      : '') + issueAddHtml(a, box.categories || []);
+  }
+
+  function issueRowHtml(i, box) {
+    var approved = !!i.approved_at;
+    return '<li class="issrow issrow--' + esc(i.severity) + '">' +
+      '<div class="issrow__top">' +
+        '<span class="issrow__cat">' + esc(i.category_label) + '</span>' +
+        '<span class="issrow__sev">' + esc(SEV_WORDS[i.severity] || i.severity) + '</span>' +
+      '</div>' +
+      (i.body ? '<p class="issrow__body">' + esc(i.body) + '</p>' : '') +
+      '<div class="issrow__foot">' +
+        (approved
+          ? '<span class="issrow__ok">\u2713 They can be told' +
+            (i.sent_at ? ' · told ' + esc(dayOf(i.sent_at)) : '') + '</span>'
+          : '<span class="issrow__wait">With Kristina</span>') +
+        (box.can_approve
+          ? '<span class="issrow__acts">' +
+              '<button type="button" class="linkish" data-iss="' +
+                (approved ? 'unapprove' : 'approve') + '" data-iss-id="' + esc(i.id) + '">' +
+                (approved ? 'Take it back' : 'Tick it through') + '</button>' +
+              (approved && !i.sent_at
+                ? '<button type="button" class="linkish" data-iss="sent" ' +
+                  'data-iss-id="' + esc(i.id) + '">Told them</button>'
+                : '') +
+            '</span>'
+          : '') +
+      '</div>' +
+    '</li>';
+  }
+
+  function issueAddHtml(a, cats) {
+    if (state.issueFor !== a.id) {
+      return '<p class="issadd"><button type="button" class="linkish" ' +
+        'data-iss-open="' + esc(a.id) + '">+ Something to report</button></p>';
+    }
+    return '<div class="issform">' +
+      '<label class="bfield"><span>What kind of thing?</span>' +
+        '<select class="bfield__in" data-issf="category">' +
+          (cats.length
+            ? cats.map(function (c) {
+                return '<option value="' + esc(c.id) + '">' + esc(c.label) + '</option>';
+              }).join('')
+            : '<option value="">Something else</option>') +
+        '</select></label>' +
+      (cats.length ? '' :
+        '<p class="muted secmini">No kinds set up yet — Kristina adds them in ' +
+        'Settings. This one goes down as "Something else".</p>') +
+      '<label class="bfield"><span>How bad?</span>' +
+        '<select class="bfield__in" data-issf="severity">' +
+          SEV_ORDER.map(function (k) {
+            return '<option value="' + k + '">' + esc(SEV_WORDS[k]) + '</option>';
+          }).join('') + '</select></label>' +
+      '<label class="bfield"><span>What happened</span>' +
+        '<textarea class="bfield__in" rows="2" data-issf="body" ' +
+          'placeholder="Cracked tile in the hall"></textarea></label>' +
+      '<p class="muted secmini">This comes to Kristina. Nothing goes to the ' +
+        'client unless she sends it.</p>' +
+      '<div class="issform__err form-status form-status--err" hidden role="alert"></div>' +
+      '<div class="issform__acts">' +
+        '<button type="button" class="btn btn--primary btn--tiny" ' +
+          'data-iss-save="' + esc(a.id) + '">Report it</button>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-iss-cancel>Cancel</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function issueSave(apptId, btn) {
+    var form = btn.closest('.issform');
+    var err = form.querySelector('.issform__err');
+    var pick = function (k) {
+      var el = form.querySelector('[data-issf="' + k + '"]');
+      return el ? el.value : '';
+    };
+    err.hidden = true;
+    var body = { appointment_id: apptId, severity: pick('severity'), body: pick('body') };
+    var cat = pick('category');
+    if (cat) body.category_id = cat; else body.category_label = 'Something else';
+
+    btn.disabled = true;
+    var was = btn.textContent;
+    btn.textContent = 'Reporting…';
+    api('/api/admin/issues', { method: 'POST', body: JSON.stringify(body) })
+      .then(function (r) {
+        btn.disabled = false; btn.textContent = was;
+        if (!r.ok) {
+          err.hidden = false;
+          err.textContent = (r.body && r.body.error) || 'That did not save.';
+          return;
+        }
+        state.issueFor = null;
+        loadIssues(apptId);
+      });
+  }
+
+  function issueAct(action, id, btn) {
+    btn.disabled = true;
+    api('/api/admin/issues', { method: 'PATCH',
+      body: JSON.stringify({ id: id, action: action }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not save.'); return; }
+        loadIssues(state.issuesFor);
+      });
+  }
+
   function workHtml(a) {
     var items = parseList(a.checklist);
     var done = items.filter(function (i) { return i.done; }).length;
@@ -2732,6 +2943,11 @@
           'data-note-kind="client_summary" placeholder="Goes in the all-done email">' +
           esc(a.client_summary || '') + '</textarea></label>' +
       '<p class="work__saved" data-note-saved="' + esc(a.id) + '" hidden>Saved</p>' +
+
+      '<div class="work__issues">' +
+        '<h4 class="work__k">What you found</h4>' +
+        issuesHtml(a) +
+      '</div>' +
 
       '<div class="work__finish">' +
         (finished
@@ -5191,6 +5407,7 @@
     if (hit.matches('[data-open-appt]')) {
       var aid = hit.getAttribute('data-open-appt');
       state.openAppt = state.openAppt === aid ? null : aid;
+      if (state.openAppt) loadIssues(state.openAppt);
       render(); return;
     }
     if (hit.matches('[data-appt-lead]')) {
@@ -5246,6 +5463,21 @@
     if (hit.matches('[data-more-nav]')) {
       state.moreNav = !state.moreNav;
       render();
+      return;
+    }
+    if (hit.matches('[data-icat-add]')) { issueCatAdd(hit); return; }
+    if (hit.matches('[data-icat-off]')) {
+      issueCatOff(hit.getAttribute('data-icat-off'), hit); return;
+    }
+    if (hit.matches('[data-iss-open]')) {
+      state.issueFor = hit.getAttribute('data-iss-open');
+      render();
+      return;
+    }
+    if (hit.matches('[data-iss-cancel]')) { state.issueFor = null; render(); return; }
+    if (hit.matches('[data-iss-save]')) { issueSave(hit.getAttribute('data-iss-save'), hit); return; }
+    if (hit.matches('[data-iss]')) {
+      issueAct(hit.getAttribute('data-iss'), hit.getAttribute('data-iss-id'), hit);
       return;
     }
     if (hit.matches('[data-ck-build]')) {

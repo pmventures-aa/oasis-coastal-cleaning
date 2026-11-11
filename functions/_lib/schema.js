@@ -13,6 +13,15 @@
  */
 
 const TABLES = [
+  ['issue_categories', `CREATE TABLE IF NOT EXISTS issue_categories (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, label TEXT NOT NULL,
+    note TEXT, sort INTEGER NOT NULL DEFAULT 100, active INTEGER NOT NULL DEFAULT 1)`],
+  ['visit_issues', `CREATE TABLE IF NOT EXISTS visit_issues (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, appointment_id TEXT NOT NULL,
+    customer_id TEXT, category_id TEXT, category_label TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'note', body TEXT, reported_by TEXT,
+    approved_at TEXT, approved_by TEXT, sent_at TEXT,
+    resolved_at TEXT, archived_at TEXT)`],
   ['security_events', `CREATE TABLE IF NOT EXISTS security_events (
     id TEXT PRIMARY KEY, at TEXT NOT NULL, kind TEXT NOT NULL,
     user_id TEXT, email TEXT, detail TEXT, ip TEXT, user_agent TEXT)`],
