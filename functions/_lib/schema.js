@@ -109,7 +109,11 @@ const COLUMNS = [
   ['quotes', 'paid_note', 'TEXT'],
   ['leads', 'archived_at', 'TEXT'],
   ['leads', 'customer_id', 'TEXT'],
-  ['leads', 'property_id', 'TEXT']
+  ['leads', 'property_id', 'TEXT'],
+  /* The facts she re-learns on every visit. See migration 0013. */
+  ['properties', 'parking', 'TEXT'],
+  ['properties', 'pets', 'TEXT'],
+  ['properties', 'preferred_day', 'TEXT']
 ];
 
 const INDEXES = [

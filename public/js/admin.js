@@ -47,7 +47,9 @@
     schedule: null, schedView: 'month', schedCursor: null, openAppt: null,
     schedBusy: false, schedErr: '', blockForm: null, schedCovering: null, schedFeed: null,
     today: null, feedOpen: false, feedHow: false,
-    mailFor: null, mailSent: [], mailPreview: null, mailBusy: false, mailNote: ''
+    mailFor: null, mailSent: [], mailPreview: null, mailBusy: false, mailNote: '',
+    pfactEdit: null, pfactBusy: false, pfactNote: '',
+    profile: null, profileFor: null
   };
 
   var OASIS = window.OASIS || {};
@@ -194,6 +196,14 @@
 
   // Florida time, and it says so. See js/format.js.
   var fullDate = function (iso) { return FMT.formatStamp(iso) || (iso || ''); };
+  /* The day, with no clock and no timezone tail. For facts where the hour
+     is noise and a timezone shift makes the date look wrong. */
+  var dayOnly = function (iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) return iso || '';
+    return d.toLocaleDateString('en-US', { timeZone: 'America/New_York',
+      month: 'long', day: 'numeric', year: 'numeric' });
+  };
   var phone = function (v) { return FMT.formatPhone(v); };
 
   var list = function (json) {
@@ -1800,6 +1810,142 @@
     (reqs.length > 12 ? '<p class="muted cprofile__none">and ' + (reqs.length - 12) + ' older</p>' : '');
   }
 
+  /* ----------------------------------------------- the story of a client
+     Requests, quotes, visits and letters live in four tables. Answering
+     "when did I last hear from her, and what did I send?" used to mean
+     opening all four. One list, newest first. */
+  function loadProfile(id) {
+    if (state.profileFor === id && state.profile) return;
+    state.profileFor = id; state.profile = null;
+    api('/api/admin/customers/' + encodeURIComponent(id)).then(function (r) {
+      if (state.profileFor !== id) return;         // she moved on while it loaded
+      state.profile = r.ok ? r.body : { error: (r.body && r.body.error) || 'Could not load.' };
+      render();
+    });
+  }
+
+  var TL_WORD = {
+    request: 'Request', quote: 'Quote', accepted: 'Accepted', declined: 'Declined',
+    done: 'Done', paid: 'Paid', visit: 'Visit', cancelled: 'Cancelled',
+    mail: 'Emailed', mail_failed: 'Email failed'
+  };
+
+  function timelineHtml() {
+    var p = state.profile;
+    if (!p) return '<p class="muted cprofile__none">Loading their history…</p>';
+    if (p.error) return '<p class="muted cprofile__none">' + esc(p.error) + '</p>';
+    var feed = p.timeline || [];
+    if (!feed.length) {
+      return '<p class="muted cprofile__none">Nothing has happened yet — no requests, ' +
+        'visits or emails.</p>';
+    }
+    /* Twelve is about a screen. The rest are there when she asks. */
+    var all = state.profileAll === state.profileFor;
+    var shown = all ? feed : feed.slice(0, 12);
+    return '<ol class="tl">' + shown.map(function (e) {
+      var inner = '<span class="tl__when">' + esc(when(e.at)) + '</span>' +
+        '<span class="tl__what"><strong>' + esc(e.title) + '</strong>' +
+          (e.detail ? ' <span class="muted">' + esc(e.detail) + '</span>' : '') + '</span>';
+      /* The server already says which record each line is about. Reading a
+         line and then hunting for the thing it refers to is the whole
+         problem this screen exists to solve, so the line opens it. */
+      var go = e.link && e.link.kind === 'lead' ? ' data-open-request="' + esc(e.link.id) + '"'
+        : e.link && e.link.kind === 'appointment' ? ' data-tl-visit="' + esc(e.link.id) + '"'
+        : '';
+      return '<li class="tl__row tl__row--' + esc(e.kind) + (go ? ' tl__row--go' : '') + '">' +
+        (go ? '<button type="button" class="tl__open"' + go + '>' + inner + '</button>' : inner) +
+      '</li>';
+    }).join('') + '</ol>' +
+      (feed.length > 12 && !all
+        ? '<button type="button" class="linkish" data-profile-all="' + esc(state.profileFor) +
+          '">Show all ' + feed.length + '</button>'
+        : '');
+  }
+
+  /* The facts she would otherwise re-learn on the doorstep. Read-only they
+     are worth nothing, because nobody ever typed them in: every block can
+     be opened and filled in right here. */
+  var PFACT_FIELDS = [
+    ['access', 'Getting in', 'Gate code, lockbox, side door'],
+    ['parking', 'Parking', 'Driveway, not the street'],
+    ['pets', 'Pets', 'Biscuit, friendly. Cat hides.'],
+    ['preferred_day', 'Prefers', 'Tuesdays'],
+    ['notes', 'Notes', 'Anything else worth remembering']
+  ];
+
+  function placeFactsHtml() {
+    var p = state.profile;
+    if (!p || p.error) return '';
+    return (p.properties || []).map(function (pr) {
+      var where = esc([pr.label, pr.address, pr.city].filter(Boolean).join(' · ')) || 'This address';
+      var editing = state.pfactEdit === pr.id;
+
+      if (editing) {
+        return '<div class="pfacts pfacts--edit">' +
+          '<p class="pfacts__where">' + where + '</p>' +
+          PFACT_FIELDS.map(function (f) {
+            return '<label class="bfield"><span>' + esc(f[1]) + '</span>' +
+              '<input type="text" class="bfield__in" data-pfact="' + esc(f[0]) + '" ' +
+                'value="' + esc(pr[f[0]] || '') + '" placeholder="' + esc(f[2]) + '" ' +
+                'autocomplete="off"></label>';
+          }).join('') +
+          (state.pfactNote ? '<p class="mail__note" role="alert">' + esc(state.pfactNote) + '</p>' : '') +
+          '<div class="pfacts__acts">' +
+            '<button type="button" class="btn btn--primary btn--tiny" data-pfact-save="' + esc(pr.id) + '"' +
+              (state.pfactBusy ? ' disabled' : '') + '>' +
+              (state.pfactBusy ? 'Saving…' : 'Save') + '</button>' +
+            '<button type="button" class="btn btn--ghost btn--tiny" data-pfact-cancel>Cancel</button>' +
+          '</div></div>';
+      }
+
+      var bits = PFACT_FIELDS.filter(function (f) { return pr[f[0]]; });
+      return '<div class="pfacts">' +
+        '<div class="pfacts__head">' +
+          '<p class="pfacts__where">' + where + '</p>' +
+          '<button type="button" class="linkish" data-pfact-edit="' + esc(pr.id) + '">' +
+            (bits.length ? 'Edit' : 'Add details') + '</button>' +
+        '</div>' +
+        (bits.length
+          ? '<dl class="pfacts__list">' + bits.map(function (f) {
+              return '<div class="pfacts__row"><dt>' + esc(f[1]) + '</dt><dd>' +
+                esc(pr[f[0]]) + '</dd></div>';
+            }).join('') + '</dl>'
+          : '<p class="muted pfacts__none">Nothing saved yet — the gate code, where to park, ' +
+            'the dog’s name.</p>') +
+      '</div>';
+    }).join('');
+  }
+
+  function savePlaceFacts(propertyId) {
+    if (state.pfactBusy) return;
+    var patch = { property_id: propertyId };
+    PFACT_FIELDS.forEach(function (f) {
+      var el = root.querySelector('[data-pfact="' + f[0] + '"]');
+      if (el) patch[f[0]] = el.value;
+    });
+    state.pfactBusy = true; state.pfactNote = ''; render();
+    api('/api/admin/customers', { method: 'PATCH', body: JSON.stringify(patch) })
+      .then(function (r) {
+        state.pfactBusy = false;
+        if (r.ok) {
+          /* Show what was actually stored, by reloading, rather than
+             assuming the save took and painting the typed values back. */
+          state.pfactEdit = null;
+          state.profile = null; state.profileFor = null;
+          loadProfile(propertyIdOwner(propertyId));
+        } else {
+          state.pfactNote = (r.body && r.body.error) || 'That did not save.';
+        }
+        render();
+      });
+  }
+
+  function propertyIdOwner(propertyId) {
+    var p = state.profile;
+    var pr = p && (p.properties || []).filter(function (x) { return x.id === propertyId; })[0];
+    return (pr && pr.customer_id) || state.openClient;
+  }
+
   function clientCard(c) {
     var places = clientPlaces(c);
     var name = c.company ? c.company : c.name;
@@ -1837,11 +1983,17 @@
 
       (open
         ? '<div class="cprofile">' +
+            (placeFactsHtml() ? '<p class="cgroup__k">Good to know</p>' + placeFactsHtml() : '') +
+            '<p class="cgroup__k">Everything so far</p>' +
+            timelineHtml() +
             '<p class="cgroup__k">Their work</p>' +
             clientWorkHtml(c) +
             (c.notes ? '<p class="cgroup__k">Notes</p><p class="cprofile__notes">' + esc(c.notes) + '</p>' : '') +
             '<p class="cgroup__k">Since</p>' +
-            '<p class="muted cprofile__none">First seen ' + esc(fullDate(c.created_at)) + '.' +
+            /* fullDate renders a time too, and in Florida time a record
+               stamped 1 January reads as "Dec 31, 7:00 PM", which looks
+               like the wrong date. A first-seen line wants the day only. */
+            '<p class="muted cprofile__none">First seen ' + esc(dayOnly(c.created_at)) + '.' +
               (c.last_paid_at ? ' Last payment ' + esc(when(c.last_paid_at)) + '.' : '') + '</p>' +
           '</div>'
         : '') +
@@ -2006,6 +2158,20 @@
               fact('Status', APPT_WORD[a.status] || a.status) +
               fact('Notes', a.notes) +
             '</dl>' +
+            /* Read live off the client's profile, so the code she changed
+               there this morning is the code on this card now. */
+            (a.place && (a.place.access || a.place.parking || a.place.pets)
+              ? '<div class="evplace">' +
+                  '<p class="evplace__k">Good to know</p>' +
+                  '<dl class="pfacts__list">' +
+                    (a.place.access ? '<div class="pfacts__row"><dt>Getting in</dt><dd>' +
+                      esc(a.place.access) + '</dd></div>' : '') +
+                    (a.place.parking ? '<div class="pfacts__row"><dt>Parking</dt><dd>' +
+                      esc(a.place.parking) + '</dd></div>' : '') +
+                    (a.place.pets ? '<div class="pfacts__row"><dt>Pets</dt><dd>' +
+                      esc(a.place.pets) + '</dd></div>' : '') +
+                  '</dl></div>'
+              : '') +
             '<div class="ev__acts">' +
               (tel.length >= 10
                 ? '<a class="btn btn--primary btn--tiny" href="tel:+1' + esc(tel) + '">Call</a>' +
@@ -3720,9 +3886,37 @@
         });
       return;
     }
+    /* A visit on the timeline opens the diary on the day it happened. */
+    if (hit.matches('[data-tl-visit]')) {
+      var tlv = (state.profile && (state.profile.timeline || [])
+        .filter(function (e) { return e.link && e.link.id === hit.getAttribute('data-tl-visit'); })[0]);
+      if (tlv) {
+        goView('schedule');
+        state.schedView = 'day';
+        state.schedCursor = isoDateET(new Date(tlv.at));
+        state.openAppt = tlv.link.id;
+        render();
+      }
+      return;
+    }
+    if (hit.matches('[data-pfact-edit]')) {
+      state.pfactEdit = hit.getAttribute('data-pfact-edit');
+      state.pfactNote = ''; render(); return;
+    }
+    if (hit.matches('[data-pfact-cancel]')) {
+      state.pfactEdit = null; state.pfactNote = ''; render(); return;
+    }
+    if (hit.matches('[data-pfact-save]')) {
+      savePlaceFacts(hit.getAttribute('data-pfact-save')); return;
+    }
+    if (hit.matches('[data-profile-all]')) {
+      state.profileAll = hit.getAttribute('data-profile-all'); render(); return;
+    }
     if (hit.matches('[data-open-client]')) {
       var cid = hit.getAttribute('data-open-client');
       state.openClient = state.openClient === cid ? null : cid;
+      if (state.openClient) loadProfile(state.openClient);
+      else { state.profile = null; state.profileFor = null; }
       render();
       return;
     }

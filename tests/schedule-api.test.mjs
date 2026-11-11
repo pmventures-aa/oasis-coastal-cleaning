@@ -161,8 +161,13 @@ test('an override is deliberate and leaves a trail', async () => {
     { customer_name: 'Dan', override: true, ...at('2026-06-08', '10:00', '12:00') }), env: e });
   assert.equal(res.status, 201, 'she can double-book on purpose');
 
+  /* Both rows are written inside the same millisecond, and created_at only
+     has millisecond resolution, so ordering by it alone is a coin toss that
+     came up tails once in a full-suite run. rowid breaks the tie by the
+     order they were actually inserted. */
   const ev = await e.DB.prepare(
-    "SELECT detail FROM schedule_events WHERE kind = 'created' ORDER BY created_at DESC").all();
+    "SELECT detail FROM schedule_events WHERE kind = 'created' " +
+    "ORDER BY created_at DESC, rowid DESC").all();
   const latest = JSON.parse(ev.results[0].detail || '{}');
   assert.equal(latest.override, true, 'and it says so afterwards');
   assert.ok(latest.overrode && latest.overrode.length, 'naming what was overridden');

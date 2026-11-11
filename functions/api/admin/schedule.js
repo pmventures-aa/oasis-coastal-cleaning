@@ -65,6 +65,47 @@ async function checkWrite(db, proposed, { ignoreId = null, override = false } = 
   return null;
 }
 
+/**
+ * The gate code, where to park and what the dog is called, read live off the
+ * property and hung on each visit.
+ *
+ * Read rather than copied: a code she changes on the client's profile is the
+ * code on next week's visit, and on the one already in the diary. Copying it
+ * onto the appointment at booking time would have been simpler and would
+ * have left her standing at a gate with last month's number.
+ *
+ * One query for the whole window, not one per visit.
+ */
+async function attachPlaceFacts(db, appointments) {
+  const ids = [...new Set((appointments || [])
+    .map((a) => a.customer_id).filter(Boolean))];
+  if (!ids.length) return;
+  let rows = [];
+  try {
+    const marks = ids.map(() => '?').join(',');
+    rows = (await db.prepare(
+      `SELECT customer_id, address, access, parking, pets FROM properties
+        WHERE customer_id IN (${marks}) AND archived_at IS NULL`
+    ).bind(...ids).all()).results || [];
+  } catch { return; }          // older database without the columns: no facts, no error
+
+  const norm = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  for (const a of appointments) {
+    if (!a.customer_id) continue;
+    const mine = rows.filter((r) => r.customer_id === a.customer_id);
+    if (!mine.length) continue;
+    /* A client with two addresses gets the one this visit is at. With only
+       one on file, that is the one. With several and no match, none of them
+       -- a gate code for the wrong house is worse than no gate code. */
+    const hit = mine.length === 1 ? mine[0]
+      : mine.find((r) => a.address && norm(r.address) === norm(a.address));
+    if (!hit) continue;
+    if (hit.access || hit.parking || hit.pets) {
+      a.place = { access: hit.access || '', parking: hit.parking || '', pets: hit.pets || '' };
+    }
+  }
+}
+
 async function logEvent(db, kind, subjectKind, subjectId, detail) {
   try {
     await db.prepare(
@@ -90,6 +131,7 @@ export async function onRequestGet({ request, env }) {
 
   try {
     const { appointments, blocks } = await loadWindow(env.DB, from, to);
+    await attachPlaceFacts(env.DB, appointments);
     return json({ ok: true, from, to, today, appointments, blocks });
   } catch (err) {
     return json({ error: 'Could not read the schedule.',

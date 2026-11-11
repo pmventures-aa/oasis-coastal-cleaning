@@ -1668,3 +1668,77 @@ select.pf__v:focus {
   margin: 0; padding: 0.5rem 0.65rem; border-radius: 8px;
   background: #FBEEDA; color: #7A551C; font-size: 0.82rem; font-weight: 600;
 }
+
+/* ------------------------------------------------- the story of a client
+   One column, newest first. The date is the anchor she scans, so it leads
+   and keeps its own width; the kind is said in words, never colour alone. */
+.tl { list-style: none; margin: 0.2rem 0 0.4rem; padding: 0; display: grid; gap: 0.1rem; }
+.tl__row {
+  display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.1rem 0.7rem;
+  align-items: baseline; padding: 0.45rem 0 0.45rem 0.6rem;
+  border-left: 3px solid var(--oasis-line);
+}
+.tl__when { font-size: 0.76rem; color: var(--oasis-muted); white-space: nowrap; }
+.tl__what { font-size: 0.86rem; color: var(--oasis-navy); line-height: 1.45; min-width: 0; }
+.tl__row--paid, .tl__row--accepted { border-left-color: #1B5E34; }
+.tl__row--declined, .tl__row--cancelled, .tl__row--mail_failed { border-left-color: #B23B3B; }
+.tl__row--visit { border-left-color: var(--oasis-teal); }
+.tl__row--mail { border-left-color: #C89C53; }
+@media (max-width: 560px) {
+  /* The date above the line rather than beside it: at 375 a 5.5rem column
+     left the text in a two-word gutter. */
+  .tl__row { grid-template-columns: 1fr; }
+}
+
+/* What she would otherwise re-learn on the doorstep. */
+.pfacts {
+  margin: 0 0 0.6rem; padding: 0.6rem 0.7rem; border-radius: 10px;
+  background: #F4F6F6; border: 1px solid rgba(9, 64, 69, 0.10);
+}
+.pfacts__where {
+  margin: 0 0 0.35rem; font-size: 0.8rem; font-weight: 700; color: var(--oasis-navy);
+}
+.pfacts__list { margin: 0; display: grid; gap: 0.25rem; }
+.pfacts__row { display: grid; grid-template-columns: 6rem 1fr; gap: 0.5rem; align-items: baseline; }
+.pfacts__row dt { font-size: 0.74rem; font-weight: 700; color: var(--oasis-muted); }
+.pfacts__row dd { margin: 0; font-size: 0.84rem; color: var(--oasis-navy); }
+@media (max-width: 560px) {
+  .pfacts__row { grid-template-columns: 1fr; gap: 0; }
+}
+
+/* A timeline line that refers to a record opens it. */
+.tl__row--go { padding: 0; border-left: 0; }
+.tl__open {
+  width: 100%; display: grid; grid-template-columns: 5.5rem 1fr;
+  gap: 0.1rem 0.7rem; align-items: baseline; text-align: left;
+  padding: 0.45rem 0 0.45rem 0.6rem; font: inherit; cursor: pointer;
+  background: none; border: 0; border-left: 3px solid var(--oasis-line);
+  border-radius: 0 6px 6px 0;
+}
+.tl__open:hover { background: rgba(2, 89, 95, 0.05); }
+.tl__open:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: -2px; }
+.tl__row--go.tl__row--visit .tl__open { border-left-color: var(--oasis-teal); }
+.tl__row--go.tl__row--cancelled .tl__open { border-left-color: #B23B3B; }
+.tl__row--go.tl__row--request .tl__open { border-left-color: var(--oasis-navy); }
+/* The two kinds that had no colour of their own and fell back to the
+   default line, which read as "no kind" rather than as a kind. */
+.tl__row--request { border-left-color: var(--oasis-navy); }
+.tl__row--quote { border-left-color: #7A6CC4; }
+@media (max-width: 560px) {
+  .tl__open { grid-template-columns: 1fr; }
+}
+
+.pfacts__head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.pfacts__none { margin: 0; font-size: 0.82rem; }
+.pfacts--edit { display: grid; gap: 0.5rem; }
+.pfacts__acts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+/* The gate code where she needs it: on the visit, on the day. */
+.evplace {
+  margin: 0.5rem 0 0; padding: 0.55rem 0.7rem; border-radius: 10px;
+  background: #F4F6F6; border: 1px solid rgba(9, 64, 69, 0.10);
+}
+.evplace__k {
+  margin: 0 0 0.3rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--oasis-teal);
+}
