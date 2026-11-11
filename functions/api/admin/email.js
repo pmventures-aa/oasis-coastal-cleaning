@@ -14,7 +14,7 @@
 import { json, clean, newId, sendEmail, isEmail } from '../../_lib/util.js';
 import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
-import { ensureScheduleTables } from '../../_lib/schema.js';
+import { applySchema } from '../../_lib/schema.js';
 import { loadSettings } from '../../_lib/settings.js';
 import { buildManualEmail } from '../../_lib/email.js';
 
@@ -39,7 +39,14 @@ const guard = async (request, env) => {
 
 async function hasTable(db) {
   try { await db.prepare('SELECT 1 FROM email_log LIMIT 1').first(); return true; }
-  catch { return ensureScheduleTables(db); }
+  catch {
+    /* Apply everything, then ask again. Saying "yes" because the applier
+       did not throw is how a screen gets past this check and then fails on
+       a table that is still not there. */
+    try { await applySchema(db); } catch { return false; }
+    try { await db.prepare('SELECT 1 FROM email_log LIMIT 1').first(); return true; }
+    catch { return false; }
+  }
 }
 
 /* The facts a letter needs, whichever screen it was sent from. */

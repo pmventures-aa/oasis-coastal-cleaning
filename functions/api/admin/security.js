@@ -7,7 +7,7 @@
  */
 import { json, clean } from '../../_lib/util.js';
 import { gate } from '../../_lib/guard.js';
-import { ensureScheduleTables } from '../../_lib/schema.js';
+import { applySchema } from '../../_lib/schema.js';
 import { hashPassword, verifyPassword, ROLES } from '../../_lib/auth.js';
 import { logSecurity, recentSecurity, KINDS } from '../../_lib/security.js';
 
@@ -15,7 +15,14 @@ const soft = (p) => p.then((r) => r, () => ({ results: [] }));
 
 async function ready(db) {
   try { await db.prepare('SELECT 1 FROM security_events LIMIT 1').first(); return true; }
-  catch { return ensureScheduleTables(db); }
+  catch {
+    /* Apply everything, then ask again. Saying "yes" because the applier
+       did not throw is how a screen gets past this check and then fails on
+       a table that is still not there. */
+    try { await applySchema(db); } catch { return false; }
+    try { await db.prepare('SELECT 1 FROM security_events LIMIT 1').first(); return true; }
+    catch { return false; }
+  }
 }
 
 export async function onRequestGet({ request, env }) {

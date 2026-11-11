@@ -208,4 +208,24 @@ await testAsync('a named person still signs in before 0020 is applied', async ()
   assert.equal(who.email, 'dani@oasis.test');
 });
 
+await testAsync('the screen brings its own schema with it', async () => {
+  /* The database as production has it: everything up to 0018 and nothing
+     after. The route used to fall back to ensureScheduleTables, which only
+     knows the schedule tables, never touches columns, and returned true
+     regardless -- so the screen sailed past its own check and then failed
+     on a table that was never created. */
+  const d = makeD1(['0011_schedule.sql', '0014_users.sql', '0009_settings.sql']);
+  let had = true;
+  try { d._raw.prepare('SELECT 1 FROM security_events').get(); } catch { had = false; }
+  assert.equal(had, false, 'it must start without the table');
+
+  const c = await owner(d);
+  const res = await sec.onRequestGet({ request: req(c, 'GET'), env: env(d) });
+  assert.equal(res.status, 200, 'it should set itself up and answer');
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  d._raw.prepare('SELECT 1 FROM security_events').get();   // throws if absent
+  d._raw.prepare('SELECT sessions_valid_from FROM users').get();
+});
+
 console.log('\n' + n + ' passed');

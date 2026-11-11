@@ -12,13 +12,20 @@
 import { json, clean, newId, isEmail } from '../../_lib/util.js';
 import { gate } from '../../_lib/guard.js';
 import { hashPassword, ROLES } from '../../_lib/auth.js';
-import { ensureScheduleTables } from '../../_lib/schema.js';
+import { applySchema } from '../../_lib/schema.js';
 
 const SETUP = 'Apply migration 0014 in D1 → oasis → Console.';
 
 async function hasTable(db) {
   try { await db.prepare('SELECT 1 FROM users LIMIT 1').first(); return true; }
-  catch { return ensureScheduleTables(db); }
+  catch {
+    /* Apply everything, then ask again. Saying "yes" because the applier
+       did not throw is how a screen gets past this check and then fails on
+       a table that is still not there. */
+    try { await applySchema(db); } catch { return false; }
+    try { await db.prepare('SELECT 1 FROM users LIMIT 1').first(); return true; }
+    catch { return false; }
+  }
 }
 
 /* Never the hash, never the salt. */

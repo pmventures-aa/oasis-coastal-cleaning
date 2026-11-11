@@ -9,7 +9,7 @@
  */
 import { json, clean, newId } from '../../_lib/util.js';
 import { gate } from '../../_lib/guard.js';
-import { ensureScheduleTables } from '../../_lib/schema.js';
+import { applySchema } from '../../_lib/schema.js';
 import { syncQuotePaid } from '../../_lib/money.js';
 import {
   METHODS, cleanMethod, paidTotal, balanceOf, statusFor, checkPayment, live
@@ -19,7 +19,14 @@ const SETUP = 'Apply migration 0017 in D1 → oasis → Console.';
 
 async function hasTables(db) {
   try { await db.prepare('SELECT 1 FROM invoices LIMIT 1').first(); return true; }
-  catch { return ensureScheduleTables(db); }
+  catch {
+    /* Apply everything, then ask again. Saying "yes" because the applier
+       did not throw is how a screen gets past this check and then fails on
+       a table that is still not there. */
+    try { await applySchema(db); } catch { return false; }
+    try { await db.prepare('SELECT 1 FROM invoices LIMIT 1').first(); return true; }
+    catch { return false; }
+  }
 }
 const soft = (p) => p.then((r) => r, () => ({ results: [] }));
 
