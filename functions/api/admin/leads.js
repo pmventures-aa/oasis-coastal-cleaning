@@ -4,6 +4,7 @@
  * PATCH /api/admin/leads          — edit fields, or action: archive | restore | delete
  */
 import { formatPhone } from '../../_lib/format.js';
+import { gate } from '../../_lib/guard.js';
 import { json, clean, newId } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { linkLead } from '../../_lib/customers.js';
@@ -11,7 +12,8 @@ import { linkLead } from '../../_lib/customers.js';
 const STATUSES = ['new', 'contacted', 'quoted', 'booked', 'closed'];
 
 const guard = async (request, env) => {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'clientList');
+  if (_g.response) return _g.response;
   if (!env.DB) {
     return json({
       error: 'No database is connected to this project yet, so there are no ' +

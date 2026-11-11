@@ -7,6 +7,7 @@
  * so each is its own screen rather than a filter she has to remember to set.
  */
 import { json, clean } from '../../_lib/util.js';
+import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { quoteFromRow, attachQuoteEvents } from '../../_lib/quotes.js';
 
@@ -51,7 +52,8 @@ const COUNTS = `
   FROM quotes q`;
 
 export async function onRequestGet({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'money');
+  if (_g.response) return _g.response;
   if (!env.DB) return json({ error: 'No database connected.' }, 503);
 
   const url = new URL(request.url);

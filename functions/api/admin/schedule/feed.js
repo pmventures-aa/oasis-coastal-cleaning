@@ -7,6 +7,7 @@
  * stops updating.
  */
 import { json, newId } from '../../../_lib/util.js';
+import { gate } from '../../../_lib/guard.js';
 import { isSignedIn } from '../../../_lib/auth.js';
 import { readSecret, writeSecret } from '../../../_lib/settings.js';
 
@@ -23,7 +24,8 @@ const keyFor = (kind) => KEYS[kind] || KEYS.mine;
 const urlFor = (request, token) => new URL('/api/calendar/' + token, request.url).toString();
 
 export async function onRequestGet({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'everyoneSchedule');
+  if (_g.response) return _g.response;
   const mine = await readSecret(env.DB, KEYS.mine);
   const staff = await readSecret(env.DB, KEYS.staff);
   const share = await readSecret(env.DB, KEYS.share);
@@ -34,7 +36,8 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'everyoneSchedule');
+  if (_g.response) return _g.response;
 
   let body = {};
   try { body = await request.json(); } catch { /* an empty body means "make me one" */ }

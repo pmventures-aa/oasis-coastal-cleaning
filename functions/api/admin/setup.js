@@ -6,6 +6,7 @@
  * what it did in words rather than in table names.
  */
 import { json } from '../../_lib/util.js';
+import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { applySchema } from '../../_lib/schema.js';
 
@@ -19,7 +20,8 @@ const FRIENDLY = {
 };
 
 export async function onRequestPost({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'settings');
+  if (_g.response) return _g.response;
   if (!env.DB) {
     return json({ error: 'No database is connected to this site yet.' }, 503);
   }

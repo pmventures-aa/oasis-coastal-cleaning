@@ -4,6 +4,7 @@
  * PATCH /api/admin/settings — save any subset
  */
 import { json } from '../../_lib/util.js';
+import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { loadSettings, saveSettings, FIELDS, DEFAULTS } from '../../_lib/settings.js';
 import { hasCustomerTables } from '../../_lib/customers.js';
@@ -11,7 +12,8 @@ import { describeWebhookSecret, readWebhookOutcome } from '../../_lib/webhook.js
 import { checkSchema } from '../../_lib/schema.js';
 
 export async function onRequestGet({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'settings');
+  if (_g.response) return _g.response;
 
   const settings = await loadSettings(env.DB);
 
@@ -55,7 +57,8 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPatch({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'settings');
+  if (_g.response) return _g.response;
   if (!env.DB) return json({ error: 'No database connected.' }, 503);
 
   let body;

@@ -11,10 +11,12 @@
  * things too. Nothing from here is ever rendered to a customer.
  */
 import { json, clean } from '../../../_lib/util.js';
+import { gate } from '../../../_lib/guard.js';
 import { isSignedIn } from '../../../_lib/auth.js';
 
 const guard = async (request, env) => {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'clientList');
+  if (_g.response) return _g.response;
   if (!env.DB) return json({ error: 'No database connected.' }, 503);
   return null;
 };

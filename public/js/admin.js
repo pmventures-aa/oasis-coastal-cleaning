@@ -30,6 +30,23 @@
     { id: 'settings', label: 'Settings' }
   ];
 
+  /* A tab a login cannot open is worse than no tab: she taps it and gets
+     told off by her own portal. The server refuses them anyway -- this is
+     only so nobody is offered a door that is locked. */
+  var VIEW_NEEDS = {
+    active: 'clientList', quotes: 'money', pending: 'money',
+    accepted: 'money', paid: 'money', clients: 'clientList', settings: 'settings'
+  };
+
+  function visibleViews() {
+    var c = state.can;
+    if (!c) return VIEWS;                 // before status lands, show the lot
+    return VIEWS.filter(function (v) {
+      var need = VIEW_NEEDS[v.id];
+      return !need || c[need];
+    });
+  }
+
   function viewCount(id, counts, activeTotal) {
     if (id === 'active') return activeTotal;
     if (id === 'settings' || id === 'clients' || id === 'schedule') return null;
@@ -628,25 +645,29 @@
            calls things: requests come in, quotes get written, they go out and
            wait, someone says yes, the job happens, the money arrives. Each is
            a question she asks at a different moment. */
+        /* A switcher with one thing in it looks broken. A cleaner has only
+           the diary, so she is simply shown the diary. */
+        (visibleViews().length < 2 ? '' :
         '<div class="vtabs vtabs--pipeline">' +
-          VIEWS.map(function (v) {
+          visibleViews().map(function (v) {
             var n = viewCount(v.id, counts, activeTotal);
             return '<button type="button" data-view="' + v.id + '"' +
               (state.view === v.id ? ' class="is-on"' : '') + '>' + esc(v.label) +
               (n === null ? '' : '<b>' + n + '</b>') + '</button>';
           }).join('') +
-        '</div>' +
+        '</div>') +
         /* Eight stages as wrapped pills cost 193px of a 375px screen before
            any work showed. One row of the same eight, as the control phones
            already know how to open. */
+        (visibleViews().length < 2 ? '' :
         '<label class="toolbar__select toolbar__pipe">' +
           '<span class="sr-only">Which list</span><select data-pipe-select>' +
-          VIEWS.map(function (v) {
+          visibleViews().map(function (v) {
             var n = viewCount(v.id, counts, activeTotal);
             return '<option value="' + v.id + '"' +
               (state.view === v.id ? ' selected' : '') + '>' + esc(v.label) +
               (n === null ? '' : ' (' + n + ')') + '</option>';
-          }).join('') + '</select></label>' +
+          }).join('') + '</select></label>') +
         (state.view === 'active'
           ? '<label class="toolbar__select"><span class="sr-only">Status</span><select id="status-filter">' +
             '<option value="">All statuses</option>' +
@@ -1519,6 +1540,121 @@
     extraSpamCheck: ['Turnstile', 'Cloudflare\u2019s human check, on top of the built-in one.']
   };
 
+  /* --------------------------------------------------------- who can sign in
+     Owner only. It lives in Settings rather than behind a tab of its own,
+     because she will come here twice a year. */
+  var ROLE_WORDS = {
+    owner:       ['Owner', 'Everything, including money and who else can sign in.'],
+    staff_admin: ['Office', 'The whole diary and the client list. No prices.'],
+    cleaner:     ['Cleaner', 'Only the visits assigned to them.']
+  };
+
+  function usersHtml() {
+    if (!(state.can && state.can.manageUsers)) return '';
+    var u = state.users;
+    return '<section class="card set-group">' +
+      '<h3 class="set-group__title">Who can sign in</h3>' +
+      '<p class="muted set-group__lead">Your own password always works. ' +
+      'Anyone you add here gets their own.</p>' +
+      (!u ? '<p class="muted">Loading…</p>'
+        : u.error ? '<p class="muted">' + esc(u.error) + '</p>'
+        : (u.users || []).length
+          ? '<ul class="ulist">' + u.users.map(userRowHtml).join('') + '</ul>'
+          : '<p class="muted">Only you, so far.</p>') +
+      (state.userForm ? userFormHtml() :
+        '<button type="button" class="btn btn--ghost btn--tiny" data-user-new>+ Add someone</button>') +
+      (state.userNote ? '<p class="mail__note" role="status">' + esc(state.userNote) + '</p>' : '') +
+    '</section>';
+  }
+
+  function userRowHtml(p) {
+    var words = ROLE_WORDS[p.role] || [p.role, ''];
+    return '<li class="urow' + (p.active ? '' : ' urow--off') + '">' +
+      '<div class="urow__who">' +
+        '<span class="urow__name">' + esc(p.name) + '</span>' +
+        '<span class="muted urow__mail">' + esc(p.email) + '</span>' +
+      '</div>' +
+      '<span class="urow__role">' + esc(words[0]) + (p.active ? '' : ' · switched off') + '</span>' +
+      '<div class="urow__acts">' +
+        '<button type="button" class="linkish" data-user-edit="' + esc(p.id) + '">Change</button>' +
+      '</div>' +
+    '</li>';
+  }
+
+  function userFormHtml() {
+    var f = state.userForm;
+    var editing = !!f.id;
+    return '<div class="uform">' +
+      '<p class="uform__title">' + (editing ? 'Change ' + esc(f.name || 'them') : 'Add someone') + '</p>' +
+      (editing ? '' :
+        '<label class="bfield"><span>Their name</span>' +
+          '<input type="text" class="bfield__in" data-uf="name" value="' + esc(f.name || '') + '" ' +
+            'autocomplete="off"></label>' +
+        '<label class="bfield"><span>Email they sign in with</span>' +
+          '<input type="email" class="bfield__in" data-uf="email" value="' + esc(f.email || '') + '" ' +
+            'autocomplete="off" inputmode="email"></label>') +
+      '<label class="bfield"><span>What they can see</span>' +
+        '<select class="bfield__in" data-uf="role">' +
+          Object.keys(ROLE_WORDS).map(function (k) {
+            return '<option value="' + k + '"' + (f.role === k ? ' selected' : '') + '>' +
+              esc(ROLE_WORDS[k][0]) + ' — ' + esc(ROLE_WORDS[k][1]) + '</option>';
+          }).join('') + '</select></label>' +
+      '<label class="bfield"><span>' + (editing ? 'New password (leave blank to keep it)' : 'Their password') + '</span>' +
+        '<input type="text" class="bfield__in" data-uf="password" value="" ' +
+          'placeholder="At least 8 characters" autocomplete="off"></label>' +
+      (editing
+        ? '<label class="btoggle"><input type="checkbox" data-uf="active"' +
+          (f.active ? ' checked' : '') + '><span>They can sign in</span></label>'
+        : '') +
+      (f.error ? '<p class="bform__err" role="alert">' + esc(f.error) + '</p>' : '') +
+      '<div class="uform__acts">' +
+        '<button type="button" class="btn btn--primary btn--tiny" data-user-save' +
+          (f.saving ? ' disabled' : '') + '>' + (f.saving ? 'Saving…' : 'Save') + '</button>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-user-cancel>Cancel</button>' +
+      '</div></div>';
+  }
+
+  function loadUsers() {
+    if (!(state.can && state.can.manageUsers)) return;
+    api('/api/admin/users').then(function (r) {
+      state.users = r.ok ? r.body : { error: (r.body && r.body.error) || 'Could not load.' };
+      render();
+    });
+  }
+
+  function saveUser() {
+    var f = state.userForm;
+    if (!f || f.saving) return;
+    ['name', 'email', 'role', 'password'].forEach(function (k) {
+      var el = root.querySelector('[data-uf="' + k + '"]');
+      if (el) f[k] = el.value;
+    });
+    var act = root.querySelector('[data-uf="active"]');
+    if (act) f.active = act.checked;
+
+    f.error = ''; f.saving = true; render();
+    var body = { role: f.role };
+    if (f.id) {
+      body.id = f.id;
+      body.active = f.active;
+      if (String(f.password || '').trim()) body.password = f.password;
+    } else {
+      body.name = f.name; body.email = f.email; body.password = f.password;
+    }
+    api('/api/admin/users', { method: f.id ? 'PATCH' : 'POST', body: JSON.stringify(body) })
+      .then(function (r) {
+        f.saving = false;
+        if (r.ok) {
+          state.userForm = null;
+          state.userNote = f.id ? 'Saved.' : (body.name || 'They') + ' can sign in now.';
+          loadUsers();
+        } else {
+          f.error = (r.body && r.body.error) || 'That did not save.';
+        }
+        render();
+      });
+  }
+
   function settingsHtml() {
     if (!state.settings) return '<p class="empty">Loading your settings…</p>';
     var fields = {};
@@ -1629,6 +1765,7 @@
     '</div>';
 
     return '<div class="settings">' + groups +
+      usersHtml() +
       '<section class="card set-group">' +
         '<h3 class="set-group__title">What this site can do</h3>' +
         '<p class="muted set-group__lead">Nothing here is broken — the site works without all of it.</p>' +
@@ -2027,7 +2164,7 @@
     state.view = id;
     state.filter = ''; state.followup = false; state.open = null;
     state.composing = false; state.composingLead = false; state.composeFor = null;
-    if (state.view === 'settings') { render(); loadSettings(); return; }
+    if (state.view === 'settings') { render(); loadSettings(); loadUsers(); return; }
     if (state.view === 'schedule') {
       state.schedule = null; render(); loadSchedule(); loadFeed(); return;
     }
@@ -4452,6 +4589,15 @@
       if (!status.databaseConfigured) { showSetup(status); return; }
       state.propertyLookupConfigured = !!status.propertyLookupConfigured;
       state.emailConfigured = status.emailConfigured !== false;
+      /* Who is signed in and what they may see. The screen mirrors this;
+         every route checks it again for itself. */
+      state.me = status.me || null;
+      state.can = status.can || null;
+      /* A cleaner lands on the diary rather than on a Requests tab that
+         would only answer 403. */
+      if (state.can && VIEW_NEEDS[state.view] && !state.can[VIEW_NEEDS[state.view]]) {
+        state.view = 'schedule';
+      }
       loadPipelineCounts();
       /* Her day, fetched once on sign-in and shown above everything. */
       if (state.today == null) loadToday();

@@ -2,6 +2,7 @@
  * POST /api/admin/quotes/send — email the customer and mark the quote sent.
  */
 import { json, clean, sendEmail } from '../../../_lib/util.js';
+import { gate } from '../../../_lib/guard.js';
 import { isSignedIn } from '../../../_lib/auth.js';
 import { quoteFromRow, proposalUrl, isExpired, logQuoteEvent } from '../../../_lib/quotes.js';
 import { renderQuotePdf } from '../../../_lib/quote-doc.js';
@@ -9,7 +10,8 @@ import { toBase64 } from '../../../_lib/util.js';
 import { buildCustomerQuoteEmail } from '../../../_lib/email.js';
 
 const guard = async (request, env) => {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'money');
+  if (_g.response) return _g.response;
   if (!env.DB) return json({ error: 'No database connected.' }, 503);
   return null;
 };

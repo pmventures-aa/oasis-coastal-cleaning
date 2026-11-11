@@ -6,6 +6,7 @@
  * PATCH /api/admin/customers       — edit a customer or one of their properties
  */
 import { json, clean } from '../../_lib/util.js';
+import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { formatPhone } from '../../_lib/format.js';
 import { newId } from '../../_lib/util.js';
@@ -14,7 +15,8 @@ import { hasCustomerTables } from '../../_lib/customers.js';
 const SETUP = 'Apply migration 0007 (and 0008 to backfill) in D1 → oasis → Console.';
 
 const guard = async (request, env) => {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'clientList');
+  if (_g.response) return _g.response;
   if (!env.DB) return json({ error: 'No database connected.' }, 503);
   if (!await hasCustomerTables(env.DB)) {
     return json({ error: 'Customers are not set up yet.', setup: SETUP }, 503);

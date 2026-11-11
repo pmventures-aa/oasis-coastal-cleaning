@@ -12,6 +12,7 @@
  * the button.
  */
 import { json, clean, newId, sendEmail, isEmail } from '../../_lib/util.js';
+import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { ensureScheduleTables } from '../../_lib/schema.js';
 import { loadSettings } from '../../_lib/settings.js';
@@ -30,7 +31,8 @@ export const KINDS = {
 };
 
 const guard = async (request, env) => {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'sendMail');
+  if (_g.response) return _g.response;
   if (!env.DB) return json({ error: 'No database connected.' }, 503);
   return null;
 };

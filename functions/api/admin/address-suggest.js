@@ -6,11 +6,13 @@
  * - ?q=123 NW 70th&zip=33063 → street suggestions near that ZIP
  */
 import { json, clean } from '../../_lib/util.js';
+import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { resolveFloridaZip, suggestFloridaAddresses } from '../../_lib/address-suggest.js';
 
 export async function onRequestGet({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env);
+  if (_g.response) return _g.response;
 
   const url = new URL(request.url);
   const q = clean(url.searchParams.get('q'), 120);

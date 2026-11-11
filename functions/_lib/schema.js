@@ -76,6 +76,15 @@ const TABLES = [
 
   /* Every customer email she sends, written down once and never rewritten.
      See migration 0012. */
+  /* Named people, alongside the shared password. See migration 0014. */
+  ['users', `CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
+    name TEXT NOT NULL, email TEXT NOT NULL, phone TEXT,
+    role TEXT NOT NULL DEFAULT 'cleaner',
+    password_hash TEXT, password_salt TEXT,
+    iterations INTEGER NOT NULL DEFAULT 600000,
+    active INTEGER NOT NULL DEFAULT 1, last_seen_at TEXT, created_by TEXT)`],
+
   ['email_log', `CREATE TABLE IF NOT EXISTS email_log (
     id TEXT PRIMARY KEY, created_at TEXT NOT NULL, kind TEXT NOT NULL,
     entity_kind TEXT, entity_id TEXT, customer_id TEXT,
@@ -113,7 +122,8 @@ const COLUMNS = [
   /* The facts she re-learns on every visit. See migration 0013. */
   ['properties', 'parking', 'TEXT'],
   ['properties', 'pets', 'TEXT'],
-  ['properties', 'preferred_day', 'TEXT']
+  ['properties', 'preferred_day', 'TEXT'],
+  ['appointments', 'assigned_to', 'TEXT']
 ];
 
 const INDEXES = [
@@ -136,7 +146,10 @@ const INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_block_dates ON availability_blocks(start_date)',
   'CREATE INDEX IF NOT EXISTS idx_sched_ev ON schedule_events(subject_id, created_at)',
   'CREATE INDEX IF NOT EXISTS idx_email_log_entity ON email_log(entity_kind, entity_id, created_at)',
-  'CREATE INDEX IF NOT EXISTS idx_email_log_customer ON email_log(customer_id, created_at)'
+  'CREATE INDEX IF NOT EXISTS idx_email_log_customer ON email_log(customer_id, created_at)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(lower(email))',
+  'CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, active)',
+  'CREATE INDEX IF NOT EXISTS idx_appointments_assigned ON appointments(assigned_to)'
 ];
 
 /* Turns the leads that already exist into customers and properties. Only ever
@@ -220,7 +233,7 @@ const isDuplicate = (message) =>
  * same ones setup runs, they are safe to run twice, and the caller is
  * already behind the login. */
 const SCHEDULE_TABLES = ['appointments', 'availability_blocks', 'schedule_events',
-  'email_log'];
+  'email_log', 'users'];
 
 export async function ensureScheduleTables(db) {
   if (!db) return false;

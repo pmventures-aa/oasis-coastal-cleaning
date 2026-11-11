@@ -1742,3 +1742,23 @@ select.pf__v:focus {
   margin: 0 0 0.3rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--oasis-teal);
 }
+
+/* Who can sign in. */
+.ulist { list-style: none; margin: 0 0 0.7rem; padding: 0; display: grid; gap: 0.4rem; }
+.urow {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.7rem;
+  padding: 0.6rem 0.75rem; border-radius: 10px;
+  border: 1px solid var(--oasis-line); background: var(--oasis-white);
+}
+.urow--off { opacity: 0.68; border-style: dashed; }
+.urow__who { flex: 1 1 11rem; min-width: 0; display: grid; }
+.urow__name { font-weight: 700; color: var(--oasis-navy); font-size: 0.9rem; }
+.urow__mail { font-size: 0.78rem; overflow-wrap: anywhere; }
+.urow__role { font-size: 0.74rem; font-weight: 700; color: var(--oasis-teal); }
+.urow__acts { flex: none; }
+.uform {
+  margin: 0.2rem 0 0.6rem; padding: 0.8rem; border-radius: 12px;
+  background: #F4F6F6; border: 1px solid rgba(9, 64, 69, 0.10); display: grid; gap: 0.5rem;
+}
+.uform__title { margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--oasis-navy); }
+.uform__acts { display: flex; flex-wrap: wrap; gap: 0.4rem; }

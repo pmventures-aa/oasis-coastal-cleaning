@@ -19,14 +19,32 @@ import {
 /* One reader for the diary, shared with the offer routes, so nothing can
    form a second opinion about what is already booked. */
 import { loadWindowFor as loadWindow, conflictsForSpan } from '../../_lib/schedule-db.js';
+import { gate } from '../../_lib/guard.js';
+import { can } from '../../_lib/auth.js';
 
 const SETUP = 'Apply migration 0011 in D1 → oasis → Console.';
 
-const guard = async (request, env) => {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
-  if (!env.DB) return json({ error: 'No database connected.' }, 503);
-  return null;
+/* Reading the diary is allowed to everyone signed in, but a cleaner is
+   shown only what is hers -- see scopeForUser below. Changing the diary is
+   not a cleaner's job, so the writes ask for everyoneSchedule. */
+const guard = async (request, env, capability) => {
+  const g = await gate(request, env, capability || null);
+  return g.response || null;
 };
+const whoFor = async (request, env) => (await gate(request, env)).user || null;
+
+/**
+ * What this person is allowed to see of the diary.
+ *
+ * A cleaner gets the visits assigned to her and nothing else: not the other
+ * cleaners' rounds, and not the owner's blocked-out time, which is her
+ * private business and no use to anyone else.
+ */
+function scopeForUser(user, appointments, blocks) {
+  if (!user || can(user, 'everyoneSchedule')) return { appointments, blocks };
+  const mine = (appointments || []).filter((a) => a.assigned_to && a.assigned_to === user.id);
+  return { appointments: mine, blocks: [] };
+}
 
 /* Builds them if they are not there. She should not have to find a setup
    button before her calendar works — the first time she opens it, it makes
@@ -130,9 +148,12 @@ export async function onRequestGet({ request, env }) {
   const to = clean(url.searchParams.get('to'), 10) || addDays(from, 42);
 
   try {
-    const { appointments, blocks } = await loadWindow(env.DB, from, to);
+    const all = await loadWindow(env.DB, from, to);
+    const me = await whoFor(request, env);
+    const { appointments, blocks } = scopeForUser(me, all.appointments, all.blocks);
     await attachPlaceFacts(env.DB, appointments);
-    return json({ ok: true, from, to, today, appointments, blocks });
+    return json({ ok: true, from, to, today, appointments, blocks,
+      role: me ? me.role : null, mine_only: !!(me && !can(me, 'everyoneSchedule')) });
   } catch (err) {
     return json({ error: 'Could not read the schedule.',
       detail: String(err && err.message || err) }, 503);
@@ -153,7 +174,7 @@ const TIMING = (body) => {
 };
 
 export async function onRequestPost({ request, env }) {
-  const blocked = await guard(request, env);
+  const blocked = await guard(request, env, 'everyoneSchedule');
   if (blocked) return blocked;
   if (!await hasTables(env.DB)) {
     return json({ error: 'The schedule is not set up yet.', setup: SETUP, needsSetup: true }, 503);
@@ -272,7 +293,7 @@ async function conflictsFor(db, timing, ignoreId) {
 /* ----------------------------------------------------------------- update */
 
 export async function onRequestPatch({ request, env }) {
-  const blocked = await guard(request, env);
+  const blocked = await guard(request, env, 'everyoneSchedule');
   if (blocked) return blocked;
 
   let body;
@@ -379,7 +400,7 @@ export async function onRequestPatch({ request, env }) {
 /* ----------------------------------------------------------------- delete */
 
 export async function onRequestDelete({ request, env }) {
-  const blocked = await guard(request, env);
+  const blocked = await guard(request, env, 'everyoneSchedule');
   if (blocked) return blocked;
   const url = new URL(request.url);
   const id = clean(url.searchParams.get('id'), 80);

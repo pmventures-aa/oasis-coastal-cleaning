@@ -1,11 +1,13 @@
 /** GET /api/admin/quotes/pdf?id=… — the quote as a PDF, for Kristina. */
 import { json, clean } from '../../../_lib/util.js';
+import { gate } from '../../../_lib/guard.js';
 import { isSignedIn } from '../../../_lib/auth.js';
 import { quoteFromRow } from '../../../_lib/quotes.js';
 import { renderQuotePdf } from '../../../_lib/quote-doc.js';
 
 export async function onRequestGet({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env, 'money');
+  if (_g.response) return _g.response;
   if (!env.DB) return json({ error: 'No database connected.' }, 503);
 
   const id = clean(new URL(request.url).searchParams.get('id'), 60);

@@ -12,6 +12,7 @@
  * GET returns whether lookup is configured (for the admin UI).
  */
 import { json, clean } from '../../_lib/util.js';
+import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { lookupRentCast, addressKey, readPropertyCache, writePropertyCache } from '../../_lib/rentcast.js';
 
@@ -21,7 +22,8 @@ const RENTCAST_SETUP =
   'add secret RENTCAST_API_KEY, then Redeploy the latest deployment.';
 
 export async function onRequestGet({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env);
+  if (_g.response) return _g.response;
   const configured = Boolean(env.RENTCAST_API_KEY);
   return json({
     ok: true,
@@ -34,7 +36,8 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  if (!await isSignedIn(request, env)) return json({ error: 'Please sign in.' }, 401);
+  const _g = await gate(request, env);
+  if (_g.response) return _g.response;
 
   if (!env.RENTCAST_API_KEY) {
     return json({
