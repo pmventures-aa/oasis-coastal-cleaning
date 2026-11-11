@@ -47,6 +47,45 @@
   ];
   var tabOf = function (v) { return TAB_FOR_VIEW[v] || v; };
 
+  /* The admin page loads format.js, not the public site bundle, so its
+     icons live here. Line art at 24px, stroked in the current colour, so
+     the bar's active item colours the icon with it. */
+  var NAV_ICONS = {
+    home:     '<path d="M3 11.2 12 4l9 7.2"/><path d="M5.6 9.6V20h12.8V9.6"/>' +
+              '<path d="M10 20v-5.2h4V20"/>',
+    inbox:    '<path d="M3.5 13.5 6 5.5h12l2.5 8"/>' +
+              '<path d="M3.5 13.5V18A1.5 1.5 0 0 0 5 19.5h14a1.5 1.5 0 0 0 1.5-1.5v-4.5"/>' +
+              '<path d="M3.5 13.5h5l1 2h5l1-2h5"/>',
+    doc:      '<path d="M14 3H7a1.5 1.5 0 0 0-1.5 1.5v15A1.5 1.5 0 0 0 7 21h10a1.5 1.5 0 0 0 1.5-1.5V7.5Z"/>' +
+              '<path d="M14 3v4.5h4.5"/><path d="M9 12.5h6M9 16h4"/>',
+    calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/>' +
+              '<path d="M3.5 10h17M8 3.5V6.5M16 3.5V6.5"/>',
+    money:    '<path d="M12 3.5v17"/>' +
+              '<path d="M16.2 7.6c0-1.6-1.9-2.6-4.2-2.6S7.8 6 7.8 7.6s1.9 2.3 4.2 2.7 4.2 1.1 4.2 2.7-1.9 2.6-4.2 2.6-4.2-1-4.2-2.6"/>',
+    people:   '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19.5c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/>' +
+              '<path d="M16 5.6a3.2 3.2 0 0 1 0 6.3"/><path d="M17.2 14.9c2 .6 3.3 2.3 3.3 4.6"/>',
+    gear:     '<circle cx="12" cy="12" r="3.1"/>' +
+              '<path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M18 6l-1.4 1.4M7.4 16.6 6 18M18 18l-1.4-1.4M7.4 7.4 6 6"/>',
+    menu:     '<path d="M4 7h16M4 12h16M4 17h16"/>'
+  };
+  function navIcon(name) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ' +
+      'aria-hidden="true">' + (NAV_ICONS[name] || NAV_ICONS.menu) + '</svg>';
+  }
+
+  var VIEW_ICON = {
+    home: 'home', active: 'inbox', quotes: 'doc', schedule: 'calendar',
+    money: 'money', clients: 'people', settings: 'gear'
+  };
+  /* Six slots at 375px is 62px each: room for a 24px icon and a short
+     word. The five she touches daily stay on the bar -- money behind More
+     would be the wrong thing to hide from someone chasing invoices --
+     and the occasional two go in the sheet. */
+  var BAR_MAX = 6;
+  /* The bar wants a shorter word than the page heading does. */
+  var BAR_LABEL = { active: 'Requests', schedule: 'Diary', settings: 'Settings' };
+
   /* A tab a login cannot open is worse than no tab: she taps it and gets
      told off by her own portal. The server refuses them anyway -- this is
      only so nobody is offered a door that is locked. */
@@ -63,6 +102,64 @@
       var need = VIEW_NEEDS[v.id];
       return !need || c[need];
     });
+  }
+
+  /* The bar at the bottom of the phone. Before this the whole of the
+     navigation at 375px was a single select that said only where you
+     already were: nowhere to go that you could see, and a tap and a
+     system menu away from anywhere else. A bar shows the destinations,
+     shows which one you are on, and sits under the thumb rather than up
+     by the signal bars. */
+  function bottomNavHtml() {
+    var views = visibleViews();
+    if (views.length < 2) return '';
+    var on = tabOf(state.view);
+    var primary = views.length > BAR_MAX ? views.slice(0, BAR_MAX - 1) : views;
+    var rest = views.slice(primary.length);
+    var inRest = rest.some(function (v) { return v.id === on; });
+
+    /* A badge should mean "this wants you", not "this exists". Eleven
+       quotes on file is not eleven things to do, and a gold 9+ sitting
+       on the bar all day teaches the eye to stop seeing badges. */
+    var barCount = function (id) {
+      var c = state.counts || {}, pc = state.pipelineCounts || {};
+      if (id === 'active') return c['new'] || 0;
+      if (id === 'quotes') return pc.drafts || 0;
+      return 0;
+    };
+    var item = function (v, isOn) {
+      var n = barCount(v.id);
+      return '<button type="button" class="bnav__i' + (isOn ? ' is-on' : '') + '" ' +
+        'data-view="' + esc(v.id) + '"' + (isOn ? ' aria-current="page"' : '') + '>' +
+        '<span class="bnav__ico">' + navIcon(VIEW_ICON[v.id]) +
+          (n ? '<span class="bnav__n">' + (n > 9 ? '9+' : n) + '</span>' : '') +
+        '</span>' +
+        '<span class="bnav__l">' + esc(BAR_LABEL[v.id] || v.label) + '</span>' +
+      '</button>';
+    };
+
+    return '<nav class="bnav" aria-label="Sections">' +
+      primary.map(function (v) { return item(v, v.id === on); }).join('') +
+      (rest.length
+        ? '<button type="button" class="bnav__i' + (inRest ? ' is-on' : '') + '" ' +
+            'data-more-nav aria-expanded="' + (state.moreNav ? 'true' : 'false') + '">' +
+            '<span class="bnav__ico">' + navIcon('menu') + '</span>' +
+            '<span class="bnav__l">More</span>' +
+          '</button>'
+        : '') +
+    '</nav>' +
+    (state.moreNav && rest.length
+      ? '<div class="morenav" role="dialog" aria-label="More sections">' +
+          '<button type="button" class="morenav__back" data-more-nav aria-label="Close"></button>' +
+          '<div class="morenav__sheet">' +
+            rest.map(function (v) {
+              return '<button type="button" class="morenav__i' +
+                (v.id === on ? ' is-on' : '') + '" data-view="' + esc(v.id) + '">' +
+                navIcon(VIEW_ICON[v.id]) + '<span>' + esc(v.label) + '</span>' +
+              '</button>'; }).join('') +
+          '</div>' +
+        '</div>'
+      : '');
   }
 
   function viewCount(id, counts, activeTotal) {
@@ -700,6 +797,7 @@
       (!state.emailConfigured
         ? '<div class="admin-banner" role="status">Email is not configured yet — save drafts and use <strong>Copy link</strong> to text quotes. Add <code>RESEND_API_KEY</code> in Cloudflare to send from here.</div>'
         : '') +
+      bottomNavHtml() +
       todayBandHtml() +
       '<div class="toolbar">' +
         /* Arranged the way the work moves rather than by what the database
@@ -2265,6 +2363,7 @@
      band. */
   function goView(id) {
     state.view = id;
+    state.moreNav = false;        // picking a destination closes the sheet
     state.filter = ''; state.followup = false; state.open = null;
     state.composing = false; state.composingLead = false; state.composeFor = null;
     if (state.view === 'settings') { render(); loadSettings(); loadUsers(); return; }
@@ -3058,7 +3157,9 @@
      on the page the moment she signs in, whatever tab she is on, and it
      opens the full diary when she taps it. */
   function todayBandHtml() {
-    if (state.view === 'schedule') return '';          // already looking at it
+    /* Today's visits are the body of the Today screen and the whole of the
+       diary, so the band above them was the same sentence twice. */
+    if (state.view === 'schedule' || state.view === 'home') return '';
     var t = state.today;
     if (!t) return '';
     if (t.error) {
@@ -3111,7 +3212,9 @@
     var who = state.me && state.me.name ? state.me.name.split(/\s+/)[0] : '';
     var head = '<div class="home__head">' +
       '<h2 class="home__hi">' + (who ? 'Hello, ' + esc(who) : 'Today') + '</h2>' +
-      '<p class="home__date">' + esc(prettyDay(isoDateET(new Date()))) + '</p>' +
+      '<p class="home__date">' + esc(new Date().toLocaleDateString('en-US',
+        { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric' })) +
+        '</p>' +
     '</div>';
 
     var dayCard =
@@ -4515,6 +4618,11 @@
       state.open = hit.getAttribute('data-appt-lead');
       state.q = '';
       load(); return;
+    }
+    if (hit.matches('[data-more-nav]')) {
+      state.moreNav = !state.moreNav;
+      render();
+      return;
     }
     if (hit.matches('[data-ck-build]')) {
       var bid = hit.getAttribute('data-ck-build');

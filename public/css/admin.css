@@ -1970,3 +1970,104 @@ select.pf__v:focus {
 .work__finish { margin-top: 0.2rem; }
 .work__donep { margin: 0 0 0.4rem; font-weight: 600; color: var(--oasis-teal); }
 .work--done { background: rgba(32, 122, 106, 0.05); border-radius: 12px; padding: 0.9rem; }
+
+/* ===================================================== the bar at the bottom
+   On a phone the whole of the navigation used to be one select that named
+   the screen you were already on. This shows the destinations, says which
+   one you are on, and sits under the thumb. */
+
+.bnav { display: none; }
+.morenav { display: none; }
+
+@media (max-width: 720px) {
+  .bnav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; align-items: stretch;
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgba(12, 46, 59, 0.12);
+    /* The home indicator sits in the bottom of the screen on a modern
+       iPhone; without this the labels are underneath it. */
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .bnav__i {
+    appearance: none; background: none; border: 0; font: inherit;
+    flex: 1 1 0; min-width: 0; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 0.15rem; min-height: 52px; padding: 0.4rem 0.15rem;
+    color: var(--oasis-muted);
+  }
+  .bnav__i.is-on { color: var(--oasis-teal); }
+  .bnav__i:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: -3px; }
+  .bnav__ico { position: relative; display: block; line-height: 0; }
+  .bnav__ico svg { width: 24px; height: 24px; }
+  .bnav__i.is-on .bnav__ico svg { stroke-width: 2; }
+  .bnav__l {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.02em;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .bnav__n {
+    position: absolute; top: -5px; left: 60%;
+    min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 9px; background: var(--oasis-gold); color: #26220a;
+    font-size: 0.6rem; font-weight: 800; line-height: 16px; text-align: center;
+  }
+
+  /* The select and the wide tab row are what the bar replaces. */
+  .toolbar__pipe, .vtabs--pipeline { display: none; }
+
+  /* Nothing should end up underneath the bar. */
+  .adminwrap { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0)); }
+
+  /* More */
+  .morenav { display: block; position: fixed; inset: 0; z-index: 50; }
+  .morenav__back {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    appearance: none; border: 0; cursor: pointer;
+    background: rgba(8, 30, 38, 0.45);
+  }
+  .morenav__sheet {
+    position: absolute; left: 0; right: 0;
+    bottom: calc(52px + env(safe-area-inset-bottom, 0));
+    background: #fff; border-top: 1px solid rgba(12, 46, 59, 0.12);
+    border-radius: 16px 16px 0 0; padding: 0.5rem;
+    display: grid; gap: 0.2rem;
+    box-shadow: 0 -10px 30px rgba(8, 30, 38, 0.18);
+  }
+  .morenav__i {
+    appearance: none; background: none; border: 0; font: inherit; cursor: pointer;
+    display: flex; align-items: center; gap: 0.75rem;
+    min-height: 52px; padding: 0 0.8rem; border-radius: 12px;
+    color: inherit; text-align: left; font-weight: 600;
+  }
+  .morenav__i.is-on { background: rgba(32, 122, 106, 0.1); color: var(--oasis-teal); }
+  .morenav__i svg { width: 22px; height: 22px; flex: none; }
+
+  /* The header was three lines of brand and a stale subtitle, costing a
+     fifth of the screen before any work appeared. */
+  .adminbar { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .adminbar h1 { font-size: 0.7rem; }
+  .adminbar__tag { display: none; }
+  .adminbar__brand img { width: 32px; }
+}
+
+/* The greeting said "Today" directly under a band that said "Today". */
+.home__date { text-transform: none; }
+
+/* Three tiles in a two-wide grid left one stranded on its own row with a
+   column of empty beside it. They are short numbers, so they fit a row. */
+.htiles { grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+.htile { min-height: 0; padding: 0.7rem 0.6rem; }
+.htile__v { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.htile__k { font-size: 0.62rem; letter-spacing: 0.05em; }
+.htile__s { font-size: 0.7rem; line-height: 1.3; }
+@media (min-width: 640px) {
+  .htiles { grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.7rem; }
+  .htile { padding: 0.85rem 0.95rem; }
+  .htile__v { font-size: 1.5rem; }
+}
+
+/* The display serif belongs on the page's own name, not on every section
+   heading and count -- it was shouting a running total in a wedding face. */
+.home__dayhead h3, .pipeline__sum { font-family: var(--font-body); }
+.home__dayhead h3 { font-size: 0.95rem; font-weight: 700; letter-spacing: 0; }
