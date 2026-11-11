@@ -74,17 +74,25 @@ export async function onRequestPost({ request, env }) {
   ).bind(email).first().catch(() => null);
   if (taken) return json({ error: 'Someone already signs in with that address.' }, 409);
 
-  const h = await hashPassword(password);
-  const id = 'usr-' + newId();
-  await env.DB.prepare(
-    `INSERT INTO users (id, created_at, name, email, phone, role,
-       password_hash, password_salt, iterations, active, created_by)
-     VALUES (?,?,?,?,?,?,?,?,?,1,?)`
-  ).bind(id, new Date().toISOString(), name, email, clean(body.phone, 40) || null,
-    role, h.hash, h.salt, h.iterations, g.user.id).run();
+  /* Anything thrown past here reached the browser as an edge error page
+     rather than as an answer, and the screen could only say "that did not
+     save". Say what went wrong instead. */
+  try {
+    const h = await hashPassword(password);
+    const id = 'usr-' + newId();
+    await env.DB.prepare(
+      `INSERT INTO users (id, created_at, name, email, phone, role,
+         password_hash, password_salt, iterations, active, created_by)
+       VALUES (?,?,?,?,?,?,?,?,?,1,?)`
+    ).bind(id, new Date().toISOString(), name, email, clean(body.phone, 40) || null,
+      role, h.hash, h.salt, h.iterations, g.user.id).run();
 
-  const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
-  return json({ ok: true, user: slim(row) }, 201);
+    const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+    return json({ ok: true, user: slim(row) }, 201);
+  } catch (err) {
+    return json({ error: 'Could not save them.',
+      detail: String(err && err.message || err) }, 503);
+  }
 }
 
 export async function onRequestPatch({ request, env }) {

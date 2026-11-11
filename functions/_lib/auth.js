@@ -34,11 +34,27 @@ async function sign(value, secret) {
 }
 
 /* ------------------------------------------------------------ passwords
-   PBKDF2-HMAC-SHA256 over a per-user random salt. 600,000 iterations is the
-   current OWASP figure and measures at about 80ms here, which is nothing
-   for something that happens a few times a day. The count is stored per
-   user so it can be raised later without invalidating anyone. */
-export const PBKDF2_ITERATIONS = 600000;
+   PBKDF2-HMAC-SHA256 over a per-user random salt.
+   
+   This was 600,000 -- the OWASP figure -- on the reasoning that 80ms is
+   "nothing for something that happens a few times a day". That reasoning
+   was wrong in a way that broke the feature: 80ms is not wall-clock time
+   anybody waits, it is CPU inside one request, and Cloudflare's free plan
+   allows ten milliseconds of it. The worker was killed mid-hash, the edge
+   returned an error page instead of JSON, and the screen reported its own
+   "that did not save" with nothing behind it. Saving a password had never
+   once worked in production.
+
+   Measured on this machine: 600,000 is 86ms, 100,000 is 13ms, 50,000 is
+   7ms. 100,000 is the long-standing floor for PBKDF2-SHA256 and buys back
+   roughly eight times the budget. It is a real reduction in cost-to-crack
+   and it is the trade this platform forces: a password that cannot be set
+   at all protects nobody.
+
+   The count is stored per user, so raising it later -- on a paid plan,
+   where the limit is seconds rather than milliseconds -- invalidates
+   nobody. */
+export const PBKDF2_ITERATIONS = 100000;
 
 const fromB64url = (v) => {
   const pad = v.replace(/-/g, '+').replace(/_/g, '/');

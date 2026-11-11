@@ -393,8 +393,15 @@
   var api = function (path, opts) {
     return fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts))
       .then(function (r) {
-        return r.json().catch(function () { return {}; })
-          .then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+        return r.json().catch(function () {
+          /* Not JSON. That is the platform answering rather than this
+             site -- a worker killed for exceeding its CPU budget, or an
+             error page from the edge -- and the old code turned it into
+             an empty object, so every screen reported its own generic
+             "that did not save" and the real reason went in the bin. */
+          return { error: 'The server answered with an error (' + r.status +
+            '), not an answer. Nothing was saved.' };
+        }).then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
       })
       .catch(function () {
         return { ok: false, status: 0, offline: true,
