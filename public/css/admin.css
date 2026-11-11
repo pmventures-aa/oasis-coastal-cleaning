@@ -9,7 +9,14 @@ body.admin-theme {
 .adminbar {
   position: sticky; top: 0; z-index: 50;
   display: flex; align-items: center; gap: 1rem;
-  padding: 0.6rem clamp(1rem, 4vw, 2rem);
+  /* Added to the Home Screen the status bar is translucent and the page runs
+     underneath it, so the clock would sit on top of the title. The insets are
+     0 in a normal tab and on anything that is not a notched phone, so this
+     costs nothing anywhere else. */
+  padding: calc(0.6rem + env(safe-area-inset-top, 0px))
+           calc(clamp(1rem, 4vw, 2rem) + env(safe-area-inset-right, 0px))
+           0.6rem
+           calc(clamp(1rem, 4vw, 2rem) + env(safe-area-inset-left, 0px));
   background: linear-gradient(120deg, var(--oasis-navy) 0%, #0a4a50 58%, #145a42 100%);
   color: var(--oasis-cream);
   overflow: hidden;
@@ -45,7 +52,17 @@ body.admin-theme {
 }
 .adminbar .btn { padding: 0.5em 1.2em; font-size: 0.68rem; color: var(--oasis-cream); position: relative; z-index: 1; }
 
-.adminwrap { max-width: 1100px; margin-inline: auto; padding: clamp(1.25rem, 4vw, 2.5rem); }
+/* The home indicator sits over the foot of the page in standalone mode, so
+   the last card gets room to clear it. */
+.adminwrap {
+  max-width: 1100px; margin-inline: auto;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  /* After the shorthand, not before it: the shorthand resets every side, so
+     declared first this inset was silently thrown away. */
+  padding-bottom: calc(clamp(1.25rem, 4vw, 2.5rem) + env(safe-area-inset-bottom, 0px));
+  padding-left: calc(clamp(1.25rem, 4vw, 2.5rem) + env(safe-area-inset-left, 0px));
+  padding-right: calc(clamp(1.25rem, 4vw, 2.5rem) + env(safe-area-inset-right, 0px));
+}
 .admin-loading { color: var(--oasis-muted); }
 
 /* sign in */

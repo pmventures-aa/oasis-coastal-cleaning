@@ -17,6 +17,9 @@ for f in public/*.html public/admin/index.html; do
   # Strip any existing token first so re-runs do not stack them.
   sed -i -E 's#(href="/(tokens\.css|css/[a-z-]+\.css))(\?v=[0-9a-zA-Z.-]+)?"#\1?v='"$TOKEN"'"#g' "$f"
   sed -i -E 's#(src="/js/[a-z-]+\.js)(\?v=[0-9a-zA-Z.-]+)?"#\1?v='"$TOKEN"'"#g' "$f"
+  # The portal's manifest is a static asset too, so the edge caches it and a
+  # changed start_url or icon would not reach a phone that had seen the old one.
+  sed -i -E 's#(href="/admin/app\.webmanifest)(\?v=[0-9a-zA-Z.-]+)?"#\1?v='"$TOKEN"'"#g' "$f"
 done
 echo "stamped ?v=$TOKEN"
 grep -ho '?v=[0-9a-zA-Z.-]*' public/index.html | sort -u
