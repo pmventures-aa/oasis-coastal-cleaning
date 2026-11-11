@@ -66,7 +66,7 @@
     today: null, feedOpen: false, feedHow: false,
     mailFor: null, mailSent: [], mailPreview: null, mailBusy: false, mailNote: '',
     pfactEdit: null, pfactBusy: false, pfactNote: '',
-    profile: null, profileFor: null, jobs: []
+    profile: null, profileFor: null, jobs: [], priceBook: null, pbOpen: false
   };
 
   var OASIS = window.OASIS || {};
@@ -805,6 +805,39 @@
      Each field is labelled, the price sits where the eye expects it, and every
      line says whether it repeats — the clean can be fortnightly while the oven
      is a one-off, and that is normal rather than an edge case. */
+  /* --------------------------------------------------- her own price list
+     Tap a line, it lands on the quote with its wording and her usual price
+     already in, still editable like any other line. */
+  function loadPriceBook() {
+    api('/api/admin/price-book').then(function (r) {
+      state.priceBook = (r.ok && r.body.items) ? r.body.items : [];
+      render();
+    });
+  }
+
+  function priceBookPickerHtml() {
+    if (!state.pbOpen) return '';
+    var items = state.priceBook || [];
+    if (!items.length) return '';
+    var groups = {};
+    items.forEach(function (i) { (groups[i.grp || 'Everything else'] ||= []).push(i); });
+    return '<div class="pbpick">' +
+      '<div class="pbpick__head">' +
+        '<span class="pbpick__title">Tap one to add it</span>' +
+        '<button type="button" class="linkish" data-pb-close>Close</button>' +
+      '</div>' +
+      Object.keys(groups).map(function (g) {
+        return '<p class="pbpick__g">' + esc(g) + '</p>' +
+          '<div class="pbpick__row">' + groups[g].map(function (i) {
+            return '<button type="button" class="pbpick__item" data-pb-add="' + esc(i.id) + '">' +
+              '<span class="pbpick__label">' + esc(i.label) + '</span>' +
+              '<span class="pbpick__price">' +
+                (i.default_cents == null ? 'Quote it' : money(i.default_cents)) + '</span>' +
+            '</button>';
+          }).join('') + '</div>';
+      }).join('') + '</div>';
+  }
+
   function quoteLineHtml(line) {
     line = line || {};
     var price = line.unit_dollars != null
@@ -1103,9 +1136,16 @@
       /* This was a full-width teal slab — the loudest thing on the screen,
          louder than Send. It is something she presses several times while
          building, not the thing she is building towards. */
+      priceBookPickerHtml() +
       '<div class="quote-lines-actions">' +
         '<button type="button" class="btn btn--add" data-add-line>' +
           '+ Add a line</button>' +
+        /* The list she has already written, one tap per line, so a wording
+           she settled on months ago is not retyped on a phone. */
+        ((state.priceBook && state.priceBook.length)
+          ? '<button type="button" class="btn btn--add" data-pb-open>' +
+              '+ From my list</button>'
+          : '') +
         /* The add-ons this customer ticked on the website, each as its own
            line at $0.00 so the quote reads "Included" against them. The old
            button pasted a sentence listing the whole catalogue into the
@@ -3948,6 +3988,26 @@
       quoteAction(hit, hit.dataset.quoteAction);
       return;
     }
+    if (hit.matches('[data-pb-open]')) { state.pbOpen = true; render(); return; }
+    if (hit.matches('[data-pb-close]')) { state.pbOpen = false; render(); return; }
+    if (hit.matches('[data-pb-add]')) {
+      var pbId = hit.getAttribute('data-pb-add');
+      var item = (state.priceBook || []).filter(function (x) { return x.id === pbId; })[0];
+      var edp = hit.closest('.quote-editor') ||
+        (root.querySelector('.quote-editor'));
+      if (item && edp) {
+        edp.querySelector('.quote-lines').insertAdjacentHTML('beforeend', quoteLineHtml({
+          label: item.label + (item.note ? ' — ' + item.note : ''),
+          qty: 1,
+          unit_price: item.default_cents == null ? '' : item.default_cents
+        }));
+        updateQuoteTotal(edp);
+        /* Counted so the list can learn what she actually reaches for. */
+        api('/api/admin/price-book', { method: 'PATCH',
+          body: JSON.stringify({ id: pbId, action: 'used' }) });
+      }
+      return;
+    }
     if (hit.matches('[data-add-line]')) {
       var ed = hit.closest('.quote-editor');
       ed.querySelector('.quote-lines').insertAdjacentHTML('beforeend', quoteLineHtml({}));
@@ -4689,6 +4749,7 @@
       loadPipelineCounts();
       /* Her day, fetched once on sign-in and shown above everything. */
       if (state.today == null) loadToday();
+      if (state.priceBook == null) loadPriceBook();
       /* The quote editor seeds its note from Settings, so fetch that one
          value early. Kept apart from state.settings, which the Settings
          screen uses to tell "still loading" from "loaded and empty". */

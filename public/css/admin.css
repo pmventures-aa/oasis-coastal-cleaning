@@ -1779,3 +1779,25 @@ select.pf__v:focus {
 }
 .unsched__who { font-weight: 700; color: var(--oasis-navy); font-size: 0.88rem; }
 .unsched__what { flex: 1 1 8rem; font-size: 0.8rem; }
+
+/* Her own list, one tap per line. */
+.pbpick {
+  margin: 0.6rem 0; padding: 0.7rem 0.8rem; border-radius: 12px;
+  background: #F4F6F6; border: 1px solid rgba(9, 64, 69, 0.10);
+}
+.pbpick__head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.pbpick__title { font-size: 0.86rem; font-weight: 700; color: var(--oasis-navy); }
+.pbpick__g {
+  margin: 0.6rem 0 0.25rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--oasis-teal);
+}
+.pbpick__row { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.pbpick__item {
+  display: flex; flex-direction: column; gap: 0.1rem; align-items: flex-start;
+  min-height: 44px; padding: 0.4rem 0.7rem; border-radius: 10px; cursor: pointer;
+  font: inherit; text-align: left;
+  border: 1px solid var(--oasis-line); background: var(--oasis-white);
+}
+.pbpick__item:hover { border-color: var(--oasis-teal); }
+.pbpick__label { font-size: 0.84rem; font-weight: 600; color: var(--oasis-navy); }
+.pbpick__price { font-size: 0.72rem; font-weight: 700; color: var(--oasis-teal); }

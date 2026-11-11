@@ -76,6 +76,13 @@ const TABLES = [
 
   /* Every customer email she sends, written down once and never rewritten.
      See migration 0012. */
+  /* Her own list of what things are and what she charges. Migration 0016. */
+  ['price_book', `CREATE TABLE IF NOT EXISTS price_book (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
+    label TEXT NOT NULL, note TEXT, grp TEXT, default_cents INTEGER,
+    unit TEXT NOT NULL DEFAULT 'each', active INTEGER NOT NULL DEFAULT 1,
+    sort INTEGER NOT NULL DEFAULT 100, times_used INTEGER NOT NULL DEFAULT 0)`],
+
   /* The arrangement, and the visits it is made of. See migration 0015. */
   ['jobs', `CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
@@ -168,7 +175,8 @@ const INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_appointments_assigned ON appointments(assigned_to)',
   'CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, archived_at)',
   'CREATE INDEX IF NOT EXISTS idx_job_exceptions ON job_exceptions(job_id, occurrence_date)',
-  'CREATE INDEX IF NOT EXISTS idx_appointments_job ON appointments(job_id)'
+  'CREATE INDEX IF NOT EXISTS idx_appointments_job ON appointments(job_id)',
+  'CREATE INDEX IF NOT EXISTS idx_price_book_active ON price_book(active, grp, sort)'
 ];
 
 /* Turns the leads that already exist into customers and properties. Only ever
@@ -252,7 +260,7 @@ const isDuplicate = (message) =>
  * same ones setup runs, they are safe to run twice, and the caller is
  * already behind the login. */
 const SCHEDULE_TABLES = ['appointments', 'availability_blocks', 'schedule_events',
-  'email_log', 'users', 'jobs', 'job_exceptions'];
+  'email_log', 'users', 'jobs', 'job_exceptions', 'price_book'];
 
 export async function ensureScheduleTables(db) {
   if (!db) return false;
