@@ -66,7 +66,7 @@
     today: null, feedOpen: false, feedHow: false,
     mailFor: null, mailSent: [], mailPreview: null, mailBusy: false, mailNote: '',
     pfactEdit: null, pfactBusy: false, pfactNote: '',
-    profile: null, profileFor: null
+    profile: null, profileFor: null, jobs: []
   };
 
   var OASIS = window.OASIS || {};
@@ -2166,7 +2166,7 @@
     state.composing = false; state.composingLead = false; state.composeFor = null;
     if (state.view === 'settings') { render(); loadSettings(); loadUsers(); return; }
     if (state.view === 'schedule') {
-      state.schedule = null; render(); loadSchedule(); loadFeed(); return;
+      state.schedule = null; render(); loadSchedule(); loadFeed(); loadJobs(); return;
     }
     if (state.view === 'clients') { loadClients(); return; }
     if (STAGE_FOR_VIEW[state.view]) { loadPipeline(state.view); return; }
@@ -2711,6 +2711,7 @@
       '<p class="sched__title" data-step="' + step + '">' + esc(title) +
         '<span class="muted sched__tz"> · all times Florida time</span></p>' +
       blockFormHtml() +
+      unscheduledHtml() +
       ((state.schedCovering && state.schedCovering.length)
         ? '<div class="bform__clash bform__clash--done">' +
             '<p><strong>Blocked.</strong> It covers ' + state.schedCovering.length +
@@ -2909,6 +2910,39 @@
      "busy" is a complete answer, and so is an address for somewhere she has
      to be that is not a job in the system. Nothing it does can move or
      cancel a cleaning — if it covers one, she is told which. */
+  function minutesBetween(a, b) {
+    var p = String(a || '09:00').split(':').map(Number);
+    var q = String(b || '11:00').split(':').map(Number);
+    var m = (q[0] * 60 + q[1]) - (p[0] * 60 + p[1]);
+    return m > 0 ? m : 120;
+  }
+
+  function loadJobs() {
+    api('/api/admin/jobs').then(function (r) {
+      state.jobs = (r.ok && r.body.jobs) ? r.body.jobs : [];
+      render();
+    });
+  }
+
+  /* An arrangement that is live but has nothing in the diary is the one
+     that falls through the cracks, so it gets its own line rather than
+     being something she has to notice. */
+  function unscheduledHtml() {
+    var list = (state.jobs || []).filter(function (j) { return j.unscheduled; });
+    if (!list.length) return '';
+    return '<section class="unsched">' +
+      '<p class="unsched__k">Nothing booked yet</p>' +
+      '<ul class="unsched__list">' + list.map(function (j) {
+        return '<li class="unsched__row">' +
+          '<span class="unsched__who">' + esc(j.customer_name || 'Someone') + '</span>' +
+          '<span class="muted unsched__what">' +
+            esc([j.service_label, j.rule].filter(Boolean).join(' \u00b7 ')) + '</span>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-job-fill="' +
+            esc(j.id) + '">Put it in the diary</button>' +
+        '</li>';
+      }).join('') + '</ul></section>';
+  }
+
   function blockFormHtml() {
     var f = state.blockForm;
     if (!f) return '';
@@ -4030,6 +4064,12 @@
       });
       return;
     }
+    if (hit.matches('[data-job-fill]')) {
+      api('/api/admin/jobs', { method: 'PATCH', body: JSON.stringify(
+        { id: hit.getAttribute('data-job-fill'), action: 'extend' }) })
+        .then(function () { state.schedule = null; loadSchedule(); loadJobs(); });
+      return;
+    }
     if (hit.matches('[data-block-new]')) { blockTime(schedCursor(), 'block'); return; }
     if (hit.matches('[data-job-new]')) { blockTime(schedCursor(), 'job'); return; }
     if (hit.matches('[data-block-cancel]')) { state.blockForm = null; render(); return; }
@@ -4230,7 +4270,9 @@
     if (e.target.matches('[data-bf]') && state.blockForm) {
       var bk = e.target.getAttribute('data-bf');
       state.blockForm[bk] = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-      if (bk === 'allDay' || bk === 'repeat' || bk === 'date') render();
+      /* repeatJob decides whether the Until field exists at all, so the
+         form has to be redrawn when it changes. */
+      if (bk === 'allDay' || bk === 'repeat' || bk === 'date' || bk === 'repeatJob') render();
       return;
     }
     // The teal edge that says "this one repeats" has to follow the dropdown,
