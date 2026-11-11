@@ -7,6 +7,7 @@
  * so each is its own screen rather than a filter she has to remember to set.
  */
 import { json, clean } from '../../_lib/util.js';
+import { invoicesForQuotes, quoteMoney } from '../../_lib/money.js';
 import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { quoteFromRow, attachQuoteEvents } from '../../_lib/quotes.js';
@@ -74,6 +75,15 @@ export async function onRequestGet({ request, env }) {
 
     const quotes = (rows.results || []).map(quoteFromRow);
     await attachQuoteEvents(env.DB, quotes);
+
+    /* What is owed is worked out from the payment rows, not read off a flag
+       on the quote. The flag is only a cache, and a cache is the thing that
+       was disagreeing with the Money screen. */
+    const { byQuote, byInvoice } = await invoicesForQuotes(
+      env.DB, quotes.map((q) => q.id));
+    for (const q of quotes) {
+      q.money = quoteMoney(q, byQuote[q.id] || [], byInvoice);
+    }
 
     /* Kristina marks a request "quoted" when she has told someone a price,
        which does not always mean she built one here. Those leads belong on

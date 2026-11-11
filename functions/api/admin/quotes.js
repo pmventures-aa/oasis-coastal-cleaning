@@ -219,10 +219,27 @@ export async function onRequestPatch({ request, env }) {
   }
 
   if (action === 'paid' || action === 'unpaid') {
+    /* If this quote has an invoice, the money belongs on the invoice: that
+       is where the amount, the method and the date live, and a second
+       switch here is how the two screens came to disagree. */
+    const billed = await env.DB.prepare(
+      `SELECT id FROM invoices WHERE quote_id = ? AND archived_at IS NULL
+         AND status != 'void' LIMIT 1`
+    ).bind(id).first().catch(() => null);
+    if (billed) {
+      return json({
+        error: 'This one has an invoice, so record the money there — ' +
+               'that way the amount, the method and the date are kept with it.',
+        invoice_id: billed.id
+      }, 409);
+    }
     const at = action === 'paid' ? new Date().toISOString() : null;
     const note = clean(body.note, 200);
-    await env.DB.prepare('UPDATE quotes SET paid_at = ?, paid_note = ?, updated_at = ? WHERE id = ?')
-      .bind(at, at ? (note || null) : null, new Date().toISOString(), id).run();
+    await env.DB.prepare(
+      `UPDATE quotes SET paid_at = ?, paid_note = ?, paid_source = ?, updated_at = ?
+        WHERE id = ?`
+    ).bind(at, at ? (note || null) : null, at ? 'manual' : null,
+      new Date().toISOString(), id).run();
     // Paid work is finished work, whether or not she remembered to say so.
     if (at) {
       await env.DB.prepare(

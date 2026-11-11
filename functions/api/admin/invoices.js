@@ -10,6 +10,7 @@
 import { json, clean, newId } from '../../_lib/util.js';
 import { gate } from '../../_lib/guard.js';
 import { ensureScheduleTables } from '../../_lib/schema.js';
+import { syncQuotePaid } from '../../_lib/money.js';
 import {
   METHODS, cleanMethod, paidTotal, balanceOf, statusFor, checkPayment, live
 } from '../../_lib/invoices.js';
@@ -197,6 +198,9 @@ export async function onRequestPatch({ request, env }) {
    can never disagree with the payment rows. */
 async function finish(env, id) {
   const inv = await env.DB.prepare('SELECT * FROM invoices WHERE id = ?').bind(id).first();
+  /* Money moved, so the quote's cache of "have they paid" is restated from
+     the payment rows rather than left to drift. */
+  if (inv && inv.quote_id) await syncQuotePaid(env.DB, inv.quote_id);
   const pays = ((await paymentsFor(env.DB, [id]))[id]) || [];
   const paid = paidTotal(pays);
   const state = statusFor(inv, pays);

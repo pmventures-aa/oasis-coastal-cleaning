@@ -134,6 +134,8 @@ const TABLES = [
 /* Columns added to tables that already existed. SQLite has no
    ADD COLUMN IF NOT EXISTS, so each is tried and a duplicate is ignored. */
 const COLUMNS = [
+  /* Which of the two ways a quote came to be marked paid (0019). */
+  ['quotes', 'paid_source', 'TEXT'],
   ['quotes', 'email_provider_id', 'TEXT'],
   ['quotes', 'email_status', 'TEXT'],
   ['quotes', 'email_delivered_at', 'TEXT'],
