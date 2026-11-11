@@ -46,7 +46,8 @@
     openClient: null, composeFor: null,
     schedule: null, schedView: 'month', schedCursor: null, openAppt: null,
     schedBusy: false, schedErr: '', blockForm: null, schedCovering: null, schedFeed: null,
-    today: null, feedOpen: false, feedHow: false
+    today: null, feedOpen: false, feedHow: false,
+    mailFor: null, mailSent: [], mailPreview: null, mailBusy: false, mailNote: ''
   };
 
   var OASIS = window.OASIS || {};
@@ -1463,7 +1464,8 @@
     { title: 'Your quotes', keys: ['quote_from_name', 'quote_signoff'] },
     { title: 'How quotes behave', keys: ['quote_expiry_days', 'quote_terms', 'quote_note'] },
     { title: 'What you hear about', keys: ['notify_email', 'notify_on_request', 'notify_on_accept',
-                                           'notify_on_decline', 'notify_on_followup', 'notify_on_view'] }
+                                           'notify_on_decline', 'notify_on_followup', 'notify_on_view'] },
+    { title: 'What you send them', keys: ['review_url'] }
   ];
 
   function settingField(f, value) {
@@ -2016,15 +2018,169 @@
               (a.lead_id
                 ? '<button type="button" class="btn btn--ghost btn--tiny" data-appt-lead="' +
                   esc(a.lead_id) + '">Open the request</button>' : '') +
+              '<button type="button" class="btn btn--ghost btn--tiny" data-mail-open="appointment" ' +
+                'data-mail-id="' + esc(a.id) + '">Email</button>' +
               (a.status === 'cancelled'
                 ? '<button type="button" class="btn btn--ghost btn--tiny" data-appt-action="restore" ' +
                   'data-appt-id="' + esc(a.id) + '">Put it back</button>'
                 : '<button type="button" class="btn btn--ghost btn--tiny" data-appt-action="cancel" ' +
                   'data-appt-id="' + esc(a.id) + '">Cancel</button>') +
             '</div>' +
+            mailDrawerHtml('appointment', a.id) +
           '</div>'
         : '') +
     '</article>';
+  }
+
+  /* ------------------------------------------------------------ letters
+     One drawer, the same on every screen, so there is one thing to learn.
+     Tap a letter, read it, change it if you like, then send it or copy it
+     for a text. Nothing leaves until "Send it" is tapped. */
+  var MAIL_LABELS = {
+    request_received:     'Request received',
+    booking_confirmation: 'Booking confirmation',
+    visit_reminder:       'Reminder',
+    on_my_way:            'On my way',
+    visit_summary:        'All done & review'
+  };
+  var MAIL_FOR = {
+    lead:        ['request_received'],
+    appointment: ['booking_confirmation', 'visit_reminder', 'on_my_way', 'visit_summary']
+  };
+
+  function lastSent(kind) {
+    var hit = (state.mailSent || []).filter(function (r) { return r.kind === kind; })[0];
+    return hit || null;
+  }
+
+  function sentStamp(row) {
+    if (!row) return '';
+    var d = new Date(row.created_at);
+    var when = isNaN(d) ? '' : d.toLocaleString('en-US', { timeZone: 'America/New_York',
+      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    return row.status === 'failed'
+      ? '<span class="mail__stamp mail__stamp--bad">Did not go ' + esc(when) + '</span>'
+      : '<span class="mail__stamp">Sent ' + esc(when) + '</span>';
+  }
+
+  function mailDrawerHtml(entityKind, entityId) {
+    var m = state.mailFor;
+    if (!m || m.kind !== entityKind || m.id !== entityId) return '';
+    var p = state.mailPreview;
+
+    if (p) {
+      return '<section class="mail" aria-label="The letter">' +
+        '<div class="mail__head">' +
+          '<h4 class="mail__title">' + esc(MAIL_LABELS[p.kind] || 'Letter') + '</h4>' +
+          '<button type="button" class="linkish" data-mail-back>Back</button>' +
+        '</div>' +
+        (p.missing_email
+          ? '<p class="mail__warn">No email address on file for them. You can still ' +
+            'copy this and send it as a text.</p>'
+          : '<p class="mail__to">To ' + esc(p.to) + '</p>') +
+        '<label class="bfield"><span>Subject</span>' +
+          '<input type="text" class="bfield__in" data-mail-subject value="' + esc(p.subject) + '"></label>' +
+        '<label class="bfield"><span>Message</span>' +
+          '<textarea class="bfield__in mail__body" rows="7" data-mail-message>' +
+            esc(p.message) + '</textarea></label>' +
+        (state.mailNote
+          ? '<p class="mail__note" role="alert">' + esc(state.mailNote) + '</p>' : '') +
+        '<div class="mail__acts">' +
+          '<button type="button" class="btn btn--primary btn--tiny" data-mail-send' +
+            (state.mailBusy || p.missing_email ? ' disabled' : '') + '>' +
+            (state.mailBusy ? 'Sending…' : 'Send it') + '</button>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-mail-copy>Copy for a text</button>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-mail-back>Do not send</button>' +
+        '</div></section>';
+    }
+
+    var kinds = MAIL_FOR[entityKind] || [];
+    return '<section class="mail" aria-label="Letters">' +
+      '<div class="mail__head">' +
+        '<h4 class="mail__title">Send something</h4>' +
+        '<button type="button" class="linkish" data-mail-close>Close</button>' +
+      '</div>' +
+      '<ul class="mail__list">' + kinds.map(function (k) {
+        var was = lastSent(k);
+        return '<li><button type="button" class="mail__pick" data-mail-pick="' + esc(k) + '">' +
+          '<span class="mail__pickname">' + esc(MAIL_LABELS[k]) + '</span>' +
+          (was ? sentStamp(was) : '<span class="mail__stamp mail__stamp--none">Not sent</span>') +
+        '</button></li>';
+      }).join('') + '</ul>' +
+      (state.mailNote
+        ? '<p class="mail__note mail__note--good" role="status">' + esc(state.mailNote) + '</p>'
+        : '<p class="mail__hint">You will see it before anything goes.</p>') +
+    '</section>';
+  }
+
+  function openMail(kind, id) {
+    state.mailFor = { kind: kind, id: id };
+    state.mailPreview = null; state.mailSent = []; state.mailNote = '';
+    render();
+    api('/api/admin/email?entity_kind=' + encodeURIComponent(kind) +
+        '&entity_id=' + encodeURIComponent(id)).then(function (r) {
+      state.mailSent = (r.ok && r.body.sent) ? r.body.sent : [];
+      render();
+    });
+  }
+
+  function previewMail(kind) {
+    var m = state.mailFor;
+    if (!m) return;
+    state.mailBusy = true; state.mailNote = ''; render();
+    api('/api/admin/email', { method: 'POST', body: JSON.stringify({
+      kind: kind, entity_kind: m.kind, entity_id: m.id }) }).then(function (r) {
+      state.mailBusy = false;
+      if (r.ok && r.body.preview) {
+        state.mailPreview = {
+          kind: kind, to: r.body.to, subject: r.body.subject,
+          message: r.body.message, missing_email: !!r.body.missing_email
+        };
+      } else {
+        state.mailNote = (r.body && r.body.error) || 'That letter could not be opened.';
+      }
+      render();
+    });
+  }
+
+  function sendMail() {
+    var m = state.mailFor, p = state.mailPreview;
+    if (!m || !p || state.mailBusy) return;
+    /* Read the fields themselves rather than trusting that a change event
+       fired. Tapping Send does not always blur first, and losing the line
+       she just typed would be the worst possible moment to lose it. */
+    var subEl = root.querySelector('[data-mail-subject]');
+    var msgEl = root.querySelector('[data-mail-message]');
+    if (subEl) p.subject = subEl.value;
+    if (msgEl) p.message = msgEl.value;
+    state.mailBusy = true; state.mailNote = ''; render();
+    api('/api/admin/email', { method: 'POST', body: JSON.stringify({
+      kind: p.kind, entity_kind: m.kind, entity_id: m.id, send: true,
+      subject: p.subject, message: p.message }) }).then(function (r) {
+      state.mailBusy = false;
+      if (r.ok) {
+        /* Back to the list, where the stamp now reads "Sent Nov 11 at
+           3:10 PM". That line is both the confirmation and the record, so
+           there is no toast to miss and nothing to dismiss. */
+        state.mailPreview = null;
+        state.mailNote = 'Sent to ' + (r.body.to || 'them') + '.';
+      } else {
+        /* Said plainly, and the letter stays on screen so she can try again
+           or copy it instead. */
+        state.mailNote = (r.body && r.body.error) || 'It did not go out.';
+      }
+      openMailRefresh();
+    });
+  }
+
+  function openMailRefresh() {
+    var m = state.mailFor;
+    if (!m) { render(); return; }
+    api('/api/admin/email?entity_kind=' + encodeURIComponent(m.kind) +
+        '&entity_id=' + encodeURIComponent(m.id)).then(function (r) {
+      state.mailSent = (r.ok && r.body.sent) ? r.body.sent : [];
+      render();
+    });
   }
 
   function fact(k, v) {
@@ -3504,6 +3660,27 @@
       });
       return;
     }
+    if (hit.matches('[data-mail-open]')) {
+      openMail(hit.getAttribute('data-mail-open'), hit.getAttribute('data-mail-id'));
+      return;
+    }
+    if (hit.matches('[data-mail-close]')) {
+      state.mailFor = null; state.mailPreview = null; state.mailNote = ''; render(); return;
+    }
+    if (hit.matches('[data-mail-back]')) {
+      state.mailPreview = null; state.mailNote = ''; render(); return;
+    }
+    if (hit.matches('[data-mail-pick]')) { previewMail(hit.getAttribute('data-mail-pick')); return; }
+    if (hit.matches('[data-mail-send]')) { sendMail(); return; }
+    if (hit.matches('[data-mail-copy]')) {
+      var pv = state.mailPreview;
+      if (!pv) return;
+      copyText(pv.message).then(function () {
+        var was = hit.textContent; hit.textContent = 'Copied';
+        setTimeout(function () { hit.textContent = was; }, 1600);
+      });
+      return;
+    }
     if (hit.matches('[data-block-new]')) { blockTime(schedCursor(), 'block'); return; }
     if (hit.matches('[data-job-new]')) { blockTime(schedCursor(), 'job'); return; }
     if (hit.matches('[data-block-cancel]')) { state.blockForm = null; render(); return; }
@@ -3666,6 +3843,12 @@
 
   root.addEventListener('change', function (e) {
     if (e.target.matches('[data-pipe-select]')) { goView(e.target.value); return; }
+    if (e.target.matches('[data-mail-subject]') && state.mailPreview) {
+      state.mailPreview.subject = e.target.value; return;
+    }
+    if (e.target.matches('[data-mail-message]') && state.mailPreview) {
+      state.mailPreview.message = e.target.value; return;
+    }
     /* Checkboxes and date pickers fire change, not input, in some browsers. */
     if (e.target.matches('[data-bf]') && state.blockForm) {
       var bk = e.target.getAttribute('data-bf');
@@ -3893,6 +4076,12 @@
   });
 
   root.addEventListener('input', function (e) {
+    if (e.target.matches('[data-mail-subject]') && state.mailPreview) {
+      state.mailPreview.subject = e.target.value; return;
+    }
+    if (e.target.matches('[data-mail-message]') && state.mailPreview) {
+      state.mailPreview.message = e.target.value; return;
+    }
     if (e.target.id === 'search') { state.q = e.target.value; applySearchFilter(); }
     if (e.target.id === 'client-search') {
       state.clientQ = e.target.value;

@@ -24,7 +24,11 @@ export const DEFAULTS = {
   notify_on_view:       'no',          // off by default: a view is not news
   notify_on_accept:     'yes',
   notify_on_decline:    'yes',
-  notify_on_followup:   'yes'
+  notify_on_followup:   'yes',
+
+  // Where "leave us a review" points. Blank means the visit summary simply
+  // does not ask -- better than a button that goes nowhere.
+  review_url:           ''
 };
 
 /* The calendar feed's token is deliberately not in DEFAULTS. Everything in
@@ -68,6 +72,8 @@ export const FIELDS = [
   { key: 'notify_on_accept', label: 'A customer accepts a quote', type: 'toggle' },
   { key: 'notify_on_decline', label: 'A customer declines a quote', type: 'toggle' },
   { key: 'notify_on_followup', label: 'Someone asks for a call or a visit', type: 'toggle' },
+  { key: 'review_url', label: 'Your review page', type: 'text',
+    hint: 'Where "leave a review" sends them. Leave it blank and the visit summary will not ask.' },
   { key: 'notify_on_view', label: 'A customer opens a quote', type: 'toggle',
     hint: 'Off by default — this one can be noisy.' }
 ];

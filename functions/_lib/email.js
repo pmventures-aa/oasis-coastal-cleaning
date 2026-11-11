@@ -597,6 +597,157 @@ export function buildCustomerQuoteEmail(env, { quote, lead, proposalUrl }) {
   return { customerSubject, customerHtml, customerText, adminSubject, adminHtml, adminText };
 }
 
+/* ======================================================================
+   The letters she sends by hand.
+
+   Every one of these is rendered by the SAME call the preview uses, so
+   what she reads before tapping Send is the letter that goes. There is no
+   second code path that could drift from it.
+
+   None of them is ever sent by a trigger, a cron or a status change. The
+   only thing that sends a customer email is her finger on a button.
+   ====================================================================== */
+
+const WHEN_OPTS = { timeZone: 'America/New_York', weekday: 'long',
+  month: 'long', day: 'numeric' };
+const CLOCK_OPTS = { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' };
+
+export function whenWords(startIso, endIso) {
+  if (!startIso) return '';
+  const d = new Date(startIso);
+  if (isNaN(d)) return '';
+  const day = d.toLocaleDateString('en-US', WHEN_OPTS);
+  const from = d.toLocaleTimeString('en-US', CLOCK_OPTS).replace(':00', '');
+  if (!endIso) return day + ' at ' + from;
+  const e = new Date(endIso);
+  if (isNaN(e)) return day + ' at ' + from;
+  const to = e.toLocaleTimeString('en-US', CLOCK_OPTS).replace(':00', '');
+  return day + ', ' + from + ' to ' + to;
+}
+
+const para = (html) =>
+  `<tr><td style="padding:18px 32px 0"><p style="margin:0;font-family:${FONT_BODY};` +
+  `font-size:15px;line-height:1.65;color:${C.ink}">${html}</p></td></tr>`;
+
+const quiet = (html) =>
+  `<tr><td style="padding:14px 32px 0"><p style="margin:0;font-family:${FONT_BODY};` +
+  `font-size:12px;line-height:1.55;color:${C.muted}">${html}</p></td></tr>`;
+
+/**
+ * One letter, by kind.
+ *
+ * ctx carries whatever the screen knows: customer_name, service_label,
+ * address, city, start_at / end_at, link, note, settings. Anything missing
+ * is simply left out rather than guessed at -- a letter that invents a time
+ * is worse than one that does not mention it.
+ */
+export function buildManualEmail(env, kind, ctx = {}) {
+  const set = ctx.settings || {};
+  const who = firstName(ctx.customer_name);
+  const service = ctx.service_label || 'your clean';
+  const when = whenWords(ctx.start_at, ctx.end_at);
+  const where = [ctx.address, ctx.city].filter(Boolean).join(', ');
+  const signoff = set.quote_signoff || 'Thank you — Kristina';
+
+  const T = {
+    request_received: () => ({
+      subject: 'We got your request — Oasis Coastal Cleaning',
+      title: 'Thanks for getting in touch',
+      lead: `Hi ${escapeHtml(who)},<br><br>` +
+        `We have your request for <strong>${escapeHtml(service)}</strong>` +
+        (where ? ` at ${escapeHtml(where)}` : '') + `. ` +
+        `Kristina will look at it and come back to you with a price, usually ` +
+        `the same day.`,
+      tail: 'Nothing is booked yet — this is just to say it reached us.',
+      cta: null
+    }),
+
+    booking_confirmation: () => ({
+      subject: when ? `You are booked in for ${when.split(',')[0]}` : 'You are booked in',
+      title: 'You are booked in',
+      lead: `Hi ${escapeHtml(who)},<br><br>` +
+        (when ? `We have you down for <strong>${escapeHtml(when)}</strong>` : 'We have you down') +
+        (where ? ` at ${escapeHtml(where)}` : '') + '.' +
+        (service ? `<br><br>${escapeHtml(service)}.` : ''),
+      tail: 'If anything changes, let Kristina know as early as you can.',
+      cta: null
+    }),
+
+    visit_reminder: () => ({
+      subject: when ? `A reminder — ${when}` : 'A reminder about your clean',
+      title: 'See you soon',
+      lead: `Hi ${escapeHtml(who)},<br><br>` +
+        `Just a reminder that we are due` +
+        (when ? ` <strong>${escapeHtml(when)}</strong>` : '') +
+        (where ? ` at ${escapeHtml(where)}` : '') + '.',
+      tail: 'If that no longer suits, reply and we will move it.',
+      cta: null
+    }),
+
+    on_my_way: () => ({
+      subject: 'On my way',
+      title: 'On my way',
+      lead: `Hi ${escapeHtml(who)},<br><br>` +
+        `Heading over to you now` + (where ? ` at ${escapeHtml(where)}` : '') + '.',
+      tail: '',
+      cta: null
+    }),
+
+    visit_summary: () => ({
+      subject: 'All done — thank you',
+      title: 'All done',
+      lead: `Hi ${escapeHtml(who)},<br><br>` +
+        `${escapeHtml(service)}` + (when ? ` on ${escapeHtml(when.split(',')[0])}` : '') +
+        ` is finished. Thank you for having us.`,
+      tail: set.review_url
+        ? 'If it was up to scratch, a short review helps more than you would think.'
+        : '',
+      cta: set.review_url ? { label: 'Leave a review', url: set.review_url } : null
+    })
+  };
+
+  const make = T[kind];
+  if (!make) return null;
+  const t = make();
+
+  /* What she reads in the preview and may rewrite. The template's own
+     wording is the starting point; whatever comes back is what goes out,
+     wrapped in the same brand shell so an edited letter still looks like
+     the others. */
+  const plain = t.lead.replace(/<br>/g, '\n').replace(/<[^>]+>/g, '');
+  const edited = typeof ctx.message === 'string' && ctx.message.trim()
+    && ctx.message.trim() !== plain.trim();
+  const leadHtml = edited
+    ? escapeHtml(ctx.message.trim()).replace(/\n/g, '<br>')
+    : t.lead;
+
+  const body = para(leadHtml) +
+    (ctx.note ? noteBlock('A note from Kristina', ctx.note) : '') +
+    (t.tail ? quiet(escapeHtml(t.tail)) : '') +
+    para(escapeHtml(signoff));
+
+  return {
+    /* The editable parts, handed to the preview so the screen does not have
+       to know anything about how a letter is built. */
+    message: edited ? ctx.message.trim() : plain.trim(),
+    edited: !!edited,
+    subject: typeof ctx.subject === 'string' && ctx.subject.trim()
+      ? ctx.subject.trim() : t.subject,
+    html: shell(env, { preheaderText: t.title, title: t.title,
+      subtitle: service, contentHtml: body,
+      cta: t.cta || (ctx.link ? { label: 'Open', url: ctx.link } : null),
+      internal: false }),
+    text: textShell(env, { title: t.title, subtitle: service,
+      blocks: [
+        edited ? ctx.message.trim() : plain,
+        ctx.note ? `\nA note from Kristina:\n  ${String(ctx.note).replace(/\n/g, '\n  ')}` : '',
+        t.tail ? '\n' + t.tail : '',
+        '\n' + signoff
+      ],
+      cta: t.cta || (ctx.link ? { label: 'Open', url: ctx.link } : null) })
+  };
+}
+
 /**
  * Notify Kristina when a customer accepts a quote online.
  * requestedAddons: catalog rows the customer opted into (pricing TBD).

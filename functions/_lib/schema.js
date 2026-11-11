@@ -74,6 +74,15 @@ const TABLES = [
     subject_kind TEXT NOT NULL, subject_id TEXT NOT NULL,
     kind TEXT NOT NULL, detail TEXT)`],
 
+  /* Every customer email she sends, written down once and never rewritten.
+     See migration 0012. */
+  ['email_log', `CREATE TABLE IF NOT EXISTS email_log (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, kind TEXT NOT NULL,
+    entity_kind TEXT, entity_id TEXT, customer_id TEXT,
+    to_email TEXT NOT NULL, subject TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'sent', error TEXT, sent_by TEXT,
+    edited INTEGER NOT NULL DEFAULT 0)`],
+
 
 ];
 
@@ -121,7 +130,9 @@ const INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_appt_lead ON appointments(lead_id)',
   'CREATE INDEX IF NOT EXISTS idx_block_start ON availability_blocks(start_at)',
   'CREATE INDEX IF NOT EXISTS idx_block_dates ON availability_blocks(start_date)',
-  'CREATE INDEX IF NOT EXISTS idx_sched_ev ON schedule_events(subject_id, created_at)'
+  'CREATE INDEX IF NOT EXISTS idx_sched_ev ON schedule_events(subject_id, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_email_log_entity ON email_log(entity_kind, entity_id, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_email_log_customer ON email_log(customer_id, created_at)'
 ];
 
 /* Turns the leads that already exist into customers and properties. Only ever
@@ -204,7 +215,8 @@ const isDuplicate = (message) =>
  * the first time a signed-in request needs them: the statements are the
  * same ones setup runs, they are safe to run twice, and the caller is
  * already behind the login. */
-const SCHEDULE_TABLES = ['appointments', 'availability_blocks', 'schedule_events'];
+const SCHEDULE_TABLES = ['appointments', 'availability_blocks', 'schedule_events',
+  'email_log'];
 
 export async function ensureScheduleTables(db) {
   if (!db) return false;

@@ -1625,3 +1625,46 @@ select.pf__v:focus {
   margin: 0.2rem 0 0.6rem; padding: 0.55rem 0.7rem; border-radius: 10px;
   background: #E6F4EA; color: #1B5E34; font-size: 0.86rem; font-weight: 600;
 }
+
+/* ------------------------------------------------------ letters she sends
+   One drawer, the same wherever it appears. The list says what each letter
+   is and when it last went; the preview is the letter itself, editable,
+   with the three things she can do about it. */
+/* Neutral, not sand: sand is what warnings are made of here, and a list of
+   letters to send is not a warning. */
+.mail {
+  margin-top: 0.8rem; padding: 0.8rem; border-radius: 12px;
+  background: #F4F6F6; border: 1px solid rgba(9, 64, 69, 0.10);
+  display: grid; gap: 0.5rem;
+}
+.mail__head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.mail__title {
+  margin: 0; font-family: var(--font-body); font-size: 0.88rem; font-weight: 700;
+  letter-spacing: 0; text-transform: none; color: var(--oasis-navy);
+}
+.mail__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.mail__pick {
+  width: 100%; min-height: 52px; display: flex; flex-wrap: wrap;
+  align-items: center; justify-content: space-between; gap: 0.2rem 0.6rem;
+  padding: 0.6rem 0.8rem; border-radius: 10px; font: inherit; cursor: pointer;
+  text-align: left; border: 1px solid var(--oasis-line); background: var(--oasis-white);
+}
+.mail__pick:hover { border-color: var(--oasis-teal); }
+.mail__pickname { font-weight: 700; color: var(--oasis-navy); font-size: 0.9rem; }
+/* Said in words, not only in colour. */
+.mail__stamp { font-size: 0.72rem; font-weight: 700; color: var(--oasis-teal); }
+.mail__stamp--none { color: var(--oasis-muted); font-weight: 600; }
+.mail__stamp--bad { color: #B23B3B; }
+.mail__to { margin: 0; font-size: 0.82rem; color: var(--oasis-muted); }
+.mail__body { min-height: 8rem; line-height: 1.5; resize: vertical; }
+.mail__acts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.mail__hint { margin: 0; font-size: 0.78rem; color: var(--oasis-muted); }
+.mail__note {
+  margin: 0; padding: 0.5rem 0.65rem; border-radius: 8px;
+  background: #FBEEDA; color: #7A551C; font-size: 0.84rem; font-weight: 600;
+}
+.mail__note--good { background: #E6F4EA; color: #1B5E34; }
+.mail__warn {
+  margin: 0; padding: 0.5rem 0.65rem; border-radius: 8px;
+  background: #FBEEDA; color: #7A551C; font-size: 0.82rem; font-weight: 600;
+}
