@@ -34,6 +34,12 @@ body.admin-theme {
   width: 36px; height: 36px; opacity: 0.12; pointer-events: none;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='10' fill='%237A551C'/%3E%3Cg fill='%23EAB308'%3E%3Cellipse cx='32' cy='12' rx='6' ry='12'/%3E%3Cellipse cx='32' cy='52' rx='6' ry='12'/%3E%3Cellipse cx='12' cy='32' rx='12' ry='6'/%3E%3Cellipse cx='52' cy='32' rx='12' ry='6'/%3E%3Cellipse cx='18' cy='18' rx='6' ry='12' transform='rotate(-45 18 18)'/%3E%3Cellipse cx='46' cy='46' rx='6' ry='12' transform='rotate(-45 46 46)'/%3E%3Cellipse cx='46' cy='18' rx='6' ry='12' transform='rotate(45 46 18)'/%3E%3Cellipse cx='18' cy='46' rx='6' ry='12' transform='rotate(45 18 46)'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;
 }
+/* The logo is the way back to the public site, and the logo's own 40x34
+   box left the link short of a thumb at phone width. */
+.adminbar__brand {
+  display: flex; align-items: center;
+  min-height: 44px; min-width: 44px;
+}
 .adminbar__brand img { width: 40px; height: auto; display: block; position: relative; z-index: 1; }
 .adminbar__title-wrap { position: relative; z-index: 1; margin-right: auto; }
 .adminbar h1 {
@@ -145,7 +151,9 @@ body.admin-theme {
 .toolbar .filters { margin-bottom: 0; }
 .toolbar__search {
   margin-left: auto; width: auto; min-width: 15rem; flex: 1 1 15rem;
-  padding: 0.5rem 0.85rem; font-size: var(--step--1);
+  /* 16px: iOS zooms the page on any smaller field taking focus, and this is
+     the search she uses most. The pill stays small by its padding. */
+  padding: 0.5rem 0.85rem; font-size: 1rem; min-height: 44px;
   border-radius: var(--radius-pill);
 }
 
@@ -640,6 +648,8 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .toolbar__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .toolbar__filter {
   cursor: pointer; font-family: var(--font-body); font-size: 0.72rem; font-weight: 600;
+  /* Measured at 32px beside 44px neighbours in the same toolbar. */
+  min-height: 44px;
   letter-spacing: 0.04em; padding: 0.5em 1em; border-radius: var(--radius-pill);
   border: 1.5px solid var(--oasis-line); background: var(--oasis-white); color: var(--oasis-navy);
 }
@@ -914,7 +924,16 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .pcard { display: flex; flex-direction: column; }
 .pcard__acts { margin-top: auto; }
 
-.ccard__reach { margin: 0; font-size: 0.85rem; }
+.ccard__reach {
+  margin: 0; font-size: 0.85rem;
+  display: flex; flex-wrap: wrap; align-items: center;
+}
+/* Call and email are what she opens a client card to tap, with a thumb, from
+   a phone. As plain inline text they measured about 17px tall. */
+.ccard__reach a {
+  display: inline-flex; align-items: center;
+  min-height: 44px; padding: 0 0.15rem;
+}
 .ccard__props { margin: 0.2rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; }
 .ccard__props li { font-size: 0.84rem; line-height: 1.4; }
 .ccard__props-empty { margin: 0; font-size: 0.82rem; }
@@ -1080,6 +1099,9 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
   width: 100%; appearance: none; background: none; border: 0; padding: 0;
   font: inherit; color: inherit; text-align: left; cursor: pointer;
   display: flex; align-items: center; gap: 0.6rem;
+  /* A one-line name gave this about 21px. It is the control that opens the
+     profile, so it is the one thing on the card she taps. */
+  min-height: 44px;
 }
 .ccard__head:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: 3px; border-radius: 8px; }
 .ccard__h { margin: 0; font: inherit; }
