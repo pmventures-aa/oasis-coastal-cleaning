@@ -161,7 +161,13 @@ const COLUMNS = [
   ['properties', 'preferred_day', 'TEXT'],
   ['appointments', 'assigned_to', 'TEXT'],
   ['appointments', 'job_id', 'TEXT'],
-  ['appointments', 'occurrence_date', 'TEXT']
+  ['appointments', 'occurrence_date', 'TEXT'],
+  /* What happens at the house. See migration 0018. */
+  ['appointments', 'checklist', 'TEXT'],
+  ['appointments', 'internal_note', 'TEXT'],
+  ['appointments', 'client_summary', 'TEXT'],
+  ['appointments', 'completed_at', 'TEXT'],
+  ['appointments', 'completed_by', 'TEXT']
 ];
 
 const INDEXES = [

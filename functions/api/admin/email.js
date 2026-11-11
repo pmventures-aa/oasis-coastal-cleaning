@@ -67,7 +67,11 @@ async function loadContext(db, entityKind, entityId) {
     }
     return { to, customer_id: customerId, row: r,
       ctx: { customer_name: r.customer_name, service_label: r.service_label,
-        address: r.address, city: r.city, start_at: r.start_at, end_at: r.end_at } };
+        address: r.address, city: r.city, start_at: r.start_at, end_at: r.end_at,
+        /* The line she wrote FOR THEM after the visit. internal_note is a
+           different column and is deliberately not read here: there is no
+           path from her private note to a customer's inbox. */
+        note: r.client_summary || undefined } };
   }
   return null;
 }

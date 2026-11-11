@@ -21,6 +21,7 @@ import {
 import { loadWindowFor as loadWindow, conflictsForSpan } from '../../_lib/schedule-db.js';
 import { gate } from '../../_lib/guard.js';
 import { can } from '../../_lib/auth.js';
+import { parseChecklist, progressOf, buildChecklist, suggestTemplate } from '../../_lib/checklists.js';
 
 const SETUP = 'Apply migration 0011 in D1 → oasis → Console.';
 
@@ -122,6 +123,55 @@ async function attachPlaceFacts(db, appointments) {
       a.place = { access: hit.access || '', parking: hit.parking || '', pets: hit.pets || '' };
     }
   }
+}
+
+/**
+ * What happened at the house.
+ *
+ * The two notes are kept apart all the way through. internal_note is hers
+ * -- the gate was stuck, the dog was out -- and there is no path from it to
+ * a customer. client_summary is the line that goes in the "all done" email.
+ * Separate columns rather than one field with a rule about it, because a
+ * rule about a field is the kind of thing that gets it wrong once.
+ */
+async function workPatch(env, user, id, body, now) {
+  const sets = [], vals = [];
+
+  if (body.action === 'checklist') {
+    sets.push('checklist = ?');
+    vals.push(JSON.stringify(parseChecklist(body.checklist)));
+  }
+
+  if (body.action === 'notes') {
+    if (body.internal_note !== undefined) {
+      sets.push('internal_note = ?'); vals.push(clean(body.internal_note, 4000));
+    }
+    if (body.client_summary !== undefined) {
+      sets.push('client_summary = ?'); vals.push(clean(body.client_summary, 2000));
+    }
+  }
+
+  if (body.action === 'complete') {
+    sets.push('completed_at = ?', 'completed_by = ?', 'status = ?');
+    vals.push(now, user.id, 'confirmed');
+  }
+  if (body.action === 'uncomplete') {
+    sets.push('completed_at = ?', 'completed_by = ?');
+    vals.push(null, null);
+  }
+
+  if (!sets.length) return json({ error: 'Nothing to change.' }, 400);
+  sets.push('updated_at = ?'); vals.push(now);
+  vals.push(id);
+  try {
+    await env.DB.prepare(`UPDATE appointments SET ${sets.join(', ')} WHERE id = ?`)
+      .bind(...vals).run();
+  } catch (err) {
+    return json({ error: 'Could not save that.',
+      detail: String(err && err.message || err) }, 503);
+  }
+  const row = await env.DB.prepare('SELECT * FROM appointments WHERE id = ?').bind(id).first();
+  return json({ ok: true, row, progress: progressOf(row && row.checklist) });
 }
 
 async function logEvent(db, kind, subjectKind, subjectId, detail) {
@@ -292,15 +342,36 @@ async function conflictsFor(db, timing, ignoreId) {
 
 /* ----------------------------------------------------------------- update */
 
-export async function onRequestPatch({ request, env }) {
-  const blocked = await guard(request, env, 'everyoneSchedule');
-  if (blocked) return blocked;
+/* Doing the work is not the same as changing the diary.
+   Ticking a checklist, writing up what happened and marking a visit done
+   is a cleaner's actual job, so it is allowed on HER OWN visits without
+   letting her move, cancel or create anything. */
+const WORK_ACTIONS = new Set(['checklist', 'notes', 'complete', 'uncomplete']);
 
+export async function onRequestPatch({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return json({ error: 'Unreadable request.' }, 400); }
   const id = clean(body.id, 80);
-  if (!id) return json({ error: 'Which one?' }, 400);
   const now = new Date().toISOString();
+
+  if (WORK_ACTIONS.has(body.action) && body.kind !== 'block') {
+    const g = await gate(request, env);
+    if (g.response) return g.response;
+    if (!id) return json({ error: 'Which one?' }, 400);
+    if (!can(g.user, 'everyoneSchedule')) {
+      const own = await env.DB.prepare(
+        'SELECT assigned_to FROM appointments WHERE id = ?'
+      ).bind(id).first().catch(() => null);
+      if (!own || !own.assigned_to || own.assigned_to !== g.user.id) {
+        return json({ error: 'That is not one of your visits.' }, 403);
+      }
+    }
+    return workPatch(env, g.user, id, body, now);
+  }
+
+  const blocked = await guard(request, env, 'everyoneSchedule');
+  if (blocked) return blocked;
+  if (!id) return json({ error: 'Which one?' }, 400);
 
   try {
     if (body.kind === 'block') {
