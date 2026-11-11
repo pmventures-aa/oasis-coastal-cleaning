@@ -417,7 +417,11 @@ select.pf__v { background-position: right 0.5rem center; padding-right: 2rem; }
 .toolbar__pipe { display: none; }
 
 .toolbar__select select {
-  font-family: var(--font-body); font-size: 0.72rem; font-weight: 600;
+  /* 11.5px, the worst offender on the page, and it is the control that
+     switches lists -- so the zoom fired on the tap she makes most. The
+     pill stays small by padding, not by shrinking the text iOS measures. */
+  font-family: var(--font-body); font-size: 1rem; font-weight: 600;
+  min-height: 44px;   /* measured at 38px: under the thumb-target minimum */
   padding: 0.5rem 2rem 0.5rem 0.85rem; border-radius: var(--radius-pill);
   border: 1.5px solid var(--oasis-line); background: var(--oasis-white); color: var(--oasis-navy);
 }
@@ -1435,7 +1439,11 @@ select.pf__v:focus {
   text-transform: uppercase; color: var(--oasis-muted);
 }
 .bfield__in {
-  width: 100%; min-height: 46px; font: inherit; font-size: 0.95rem;
+  /* 16px exactly. Safari on iOS zooms the whole page in when a field under
+     16px takes focus, and she fills these in the van between jobs: every
+     tap on a date or a time threw the layout and she had to pinch back.
+     Measured at 15.2px before this. */
+  width: 100%; min-height: 46px; font: inherit; font-size: 1rem;
   color: var(--oasis-navy); background: #fff;
   border: 1px solid rgba(10, 46, 68, 0.18); border-radius: var(--radius);
   padding: 0.5rem 0.65rem;
