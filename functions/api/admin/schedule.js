@@ -21,7 +21,8 @@ import {
 import { loadWindowFor as loadWindow, conflictsForSpan } from '../../_lib/schedule-db.js';
 import { gate } from '../../_lib/guard.js';
 import { can } from '../../_lib/auth.js';
-import { parseChecklist, progressOf, buildChecklist, suggestTemplate } from '../../_lib/checklists.js';
+import { parseChecklist, progressOf, buildChecklist, suggestTemplate,
+  TEMPLATES, TEMPLATE_IDS } from '../../_lib/checklists.js';
 
 const SETUP = 'Apply migration 0011 in D1 → oasis → Console.';
 
@@ -142,6 +143,19 @@ async function workPatch(env, user, id, body, now) {
     vals.push(JSON.stringify(parseChecklist(body.checklist)));
   }
 
+  /* Start a list from a template. The service decides which one unless she
+     picks, so the common case is one tap. */
+  if (body.action === 'checklist_template') {
+    let tid = TEMPLATE_IDS.includes(body.template) ? body.template : null;
+    if (!tid) {
+      const row = await env.DB.prepare('SELECT service_label FROM appointments WHERE id = ?')
+        .bind(id).first().catch(() => null);
+      tid = suggestTemplate(row && row.service_label);
+    }
+    sets.push('checklist = ?');
+    vals.push(JSON.stringify(buildChecklist(tid)));
+  }
+
   if (body.action === 'notes') {
     if (body.internal_note !== undefined) {
       sets.push('internal_note = ?'); vals.push(clean(body.internal_note, 4000));
@@ -202,7 +216,10 @@ export async function onRequestGet({ request, env }) {
     const me = await whoFor(request, env);
     const { appointments, blocks } = scopeForUser(me, all.appointments, all.blocks);
     await attachPlaceFacts(env.DB, appointments);
-    return json({ ok: true, from, to, today, appointments, blocks,
+    /* The template names live in one place on the server; the screen
+       offers them rather than keeping its own copy to drift. */
+    const templates = TEMPLATE_IDS.map((id) => ({ id, label: TEMPLATES[id].label }));
+    return json({ ok: true, from, to, today, appointments, blocks, templates,
       role: me ? me.role : null, mine_only: !!(me && !can(me, 'everyoneSchedule')) });
   } catch (err) {
     return json({ error: 'Could not read the schedule.',
@@ -346,7 +363,8 @@ async function conflictsFor(db, timing, ignoreId) {
    Ticking a checklist, writing up what happened and marking a visit done
    is a cleaner's actual job, so it is allowed on HER OWN visits without
    letting her move, cancel or create anything. */
-const WORK_ACTIONS = new Set(['checklist', 'notes', 'complete', 'uncomplete']);
+const WORK_ACTIONS = new Set(['checklist', 'checklist_template', 'notes',
+  'complete', 'uncomplete']);
 
 export async function onRequestPatch({ request, env }) {
   let body;

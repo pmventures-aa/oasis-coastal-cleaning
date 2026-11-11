@@ -186,7 +186,12 @@ await testAsync('the screen offers no door that the server keeps locked', async 
 
 await testAsync('a login parked on a view it may not see is moved, not stranded', async () => {
   assert.match(JS, /VIEW_NEEDS\[state\.view\] && !state\.can\[VIEW_NEEDS\[state\.view\]\]/);
-  assert.match(JS, /state\.view = 'schedule'/);
+  /* It used to land them on the diary. Everyone now lands on Today, which
+     for a cleaner is their jobs for the day and nothing else. */
+  assert.match(JS, /state\.view = 'home'/);
+  // and Today must stay ungated, or the move would stranded them again
+  assert.ok(!/home: '/.test(JS.slice(JS.indexOf('var VIEW_NEEDS'),
+    JS.indexOf('function visibleViews'))));
 });
 
 await testAsync('a hidden tab is still only tidiness, never the lock', async () => {

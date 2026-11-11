@@ -1829,3 +1829,144 @@ select.pf__v:focus {
 .pbpick__item:hover { border-color: var(--oasis-teal); }
 .pbpick__label { font-size: 0.84rem; font-weight: 600; color: var(--oasis-navy); }
 .pbpick__price { font-size: 0.72rem; font-weight: 700; color: var(--oasis-teal); }
+
+/* ======================================================= Today, Money, work
+   Added with the Today screen, the Money screen and the visit panel. Every
+   control here is a thumb target on a phone, so 44px is the floor. */
+
+.home__head { margin: 0 0 1rem; }
+.home__hi { margin: 0; font-size: var(--step-1); }
+.home__date { margin: 0.15rem 0 0; color: var(--oasis-muted); font-size: 0.9rem; }
+
+.htiles {
+  display: grid; gap: 0.7rem; margin: 0 0 1.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+}
+.htile {
+  appearance: none; text-align: left; cursor: pointer;
+  display: grid; gap: 0.15rem; align-content: start;
+  min-height: 5.5rem; padding: 0.85rem 0.95rem;
+  background: var(--oasis-card, #fff); border: 1px solid rgba(12, 46, 59, 0.12);
+  border-radius: 14px; font: inherit; color: inherit;
+}
+.htile:hover { border-color: var(--oasis-teal); }
+.htile:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: 3px; }
+.htile__k {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--oasis-muted);
+}
+.htile__v { font-size: 1.5rem; font-weight: 700; color: var(--oasis-navy); line-height: 1.1; }
+.htile__s { font-size: 0.78rem; color: var(--oasis-muted); }
+
+.home__day { margin-top: 0.4rem; }
+.home__dayhead {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap; margin: 0 0 0.6rem;
+}
+.home__dayhead h3 { margin: 0; font-size: 1rem; }
+
+/* The quote stages, inside the Quotes tab. */
+.stabs { display: flex; gap: 0.4rem; overflow-x: auto; margin: 0 0 1rem; padding-bottom: 0.2rem; }
+.stabs button {
+  appearance: none; cursor: pointer; white-space: nowrap; font: inherit;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  min-height: 44px; padding: 0 0.9rem;
+  background: none; color: var(--oasis-muted);
+  border: 1px solid rgba(12, 46, 59, 0.16); border-radius: var(--radius-pill);
+  font-size: 0.82rem; font-weight: 600;
+}
+.stabs button.is-on {
+  background: var(--oasis-navy); border-color: var(--oasis-navy); color: #fff;
+}
+.stabs button:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: 2px; }
+.stabs b { font-weight: 700; opacity: 0.75; }
+
+/* Money */
+.mhead { margin: 0 0 1.2rem; }
+.mhead__big { display: grid; gap: 0.1rem; }
+.mhead__k {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--oasis-muted);
+}
+.mhead__v { font-size: 2rem; font-weight: 700; color: var(--oasis-navy); line-height: 1.1; }
+.mhead__s { margin: 0.2rem 0 0; color: var(--oasis-muted); font-size: 0.85rem; }
+
+.invlist { display: grid; gap: 0.7rem; }
+.inv { background: #fff; border: 1px solid rgba(12, 46, 59, 0.12); border-radius: 14px; }
+.inv.is-open { border-color: var(--oasis-teal); }
+.inv__head {
+  appearance: none; background: none; border: 0; font: inherit; color: inherit;
+  cursor: pointer; text-align: left; width: 100%;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;
+  min-height: 56px; padding: 0.7rem 0.9rem;
+}
+.inv__head:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: -2px; }
+.inv__who { font-weight: 600; flex: 1 1 8rem; min-width: 0; }
+.inv__tot { font-weight: 700; color: var(--oasis-navy); }
+.inv__due { font-size: 0.8rem; color: var(--oasis-muted); flex-basis: 100%; }
+.inv__body { padding: 0 0.9rem 0.9rem; display: grid; gap: 0.7rem; }
+.inv__lines, .inv__pays { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.inv__lines li, .inv__pays li {
+  display: flex; justify-content: space-between; gap: 0.75rem;
+  font-size: 0.87rem; align-items: center;
+}
+.inv__pays li { color: var(--oasis-muted); }
+.inv__undo { font-size: 0.78rem; }
+.inv__sum {
+  display: flex; justify-content: space-between; gap: 0.75rem;
+  margin: 0; padding-top: 0.5rem; font-weight: 700;
+  border-top: 1px solid rgba(12, 46, 59, 0.12);
+}
+.inv__sum--due { color: var(--oasis-navy); }
+.inv__acts { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.inv__sentat { font-size: 0.8rem; }
+
+.payf {
+  display: grid; gap: 0.5rem; padding: 0.75rem;
+  background: rgba(12, 46, 59, 0.04); border-radius: 12px;
+}
+.payf__k { margin: 0; font-size: 0.78rem; font-weight: 700; color: var(--oasis-muted); }
+.payf__row { display: flex; gap: 0.5rem; }
+.payf__amt { flex: 1 1 7rem; }
+.payf__m { flex: 1 1 8rem; }
+/* 16px so iOS does not zoom the page when she taps into them. */
+.payf input, .payf select, .work__note textarea {
+  width: 100%; font-size: 1rem; min-height: 44px;
+}
+
+/* The visit itself */
+.work {
+  display: grid; gap: 0.7rem; margin-top: 0.9rem; padding-top: 0.9rem;
+  border-top: 1px solid rgba(12, 46, 59, 0.12);
+}
+.work__head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.work__k { margin: 0; font-size: 0.88rem; }
+.work__prog {
+  font-size: 0.78rem; font-weight: 700; color: var(--oasis-muted);
+  padding: 0.2rem 0.55rem; border-radius: var(--radius-pill);
+  background: rgba(12, 46, 59, 0.07);
+}
+.work__prog.is-all { background: rgba(32, 122, 106, 0.14); color: var(--oasis-teal); }
+.work__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; }
+.work__item { display: flex; align-items: flex-start; gap: 0.6rem; }
+/* The whole row is the target, not the 13px box the browser draws. */
+.work__item label {
+  flex: 1; cursor: pointer; font-size: 0.88rem; line-height: 1.4;
+  display: flex; align-items: center; min-height: 44px;
+}
+.work__item input {
+  width: 22px; height: 22px; margin: 11px 0 0; flex: none; cursor: pointer;
+  accent-color: var(--oasis-teal);
+}
+.work__item.is-done label { color: var(--oasis-muted); text-decoration: line-through; }
+.work__reset { margin: 0; }
+.work__start { display: grid; gap: 0.5rem; }
+.work__start .muted { margin: 0; font-size: 0.85rem; }
+.work__tmpl { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+.work__tmpl select { flex: 1 1 10rem; font-size: 1rem; min-height: 44px; }
+.work__note { display: grid; gap: 0.25rem; }
+.work__note > span { font-size: 0.78rem; font-weight: 700; color: var(--oasis-muted); }
+.work__saved { margin: 0; font-size: 0.78rem; color: var(--oasis-teal); font-weight: 600; }
+.work__finish { margin-top: 0.2rem; }
+.work__donep { margin: 0 0 0.4rem; font-weight: 600; color: var(--oasis-teal); }
+.work--done { background: rgba(32, 122, 106, 0.05); border-radius: 12px; padding: 0.9rem; }

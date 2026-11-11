@@ -19,23 +19,41 @@
     revised: 'Quote Revised', reopened: 'Reopened by Kristina'
   };
 
+  /* Eight tabs was one per database list. The four quote stages are one
+     question asked at four moments, so they are one tab with a stage
+     control inside it, and the two screens that were missing -- her day
+     and the money -- are tabs of their own. */
   var VIEWS = [
+    { id: 'home',     label: 'Today' },
     { id: 'active',   label: 'Requests' },
     { id: 'quotes',   label: 'Quotes' },
-    { id: 'pending',  label: 'Awaiting reply' },
-    { id: 'accepted', label: 'Accepted' },
-    { id: 'paid',     label: 'Done & paid' },
     { id: 'schedule', label: 'Schedule' },
+    { id: 'money',    label: 'Money' },
     { id: 'clients',  label: 'Clients' },
     { id: 'settings', label: 'Settings' }
   ];
+
+  /* The four stages still live in state.view, so every bit of pipeline code
+     keeps working; they just are not tabs any more. This says which tab to
+     light up while one of them is showing. */
+  var TAB_FOR_VIEW = {
+    quotes: 'quotes', pending: 'quotes', accepted: 'quotes', paid: 'quotes'
+  };
+  var STAGE_TABS = [
+    { id: 'quotes',   label: 'Drafts' },
+    { id: 'pending',  label: 'Awaiting reply' },
+    { id: 'accepted', label: 'Accepted' },
+    { id: 'paid',     label: 'Done & paid' }
+  ];
+  var tabOf = function (v) { return TAB_FOR_VIEW[v] || v; };
 
   /* A tab a login cannot open is worse than no tab: she taps it and gets
      told off by her own portal. The server refuses them anyway -- this is
      only so nobody is offered a door that is locked. */
   var VIEW_NEEDS = {
     active: 'clientList', quotes: 'money', pending: 'money',
-    accepted: 'money', paid: 'money', clients: 'clientList', settings: 'settings'
+    accepted: 'money', paid: 'money', money: 'money',
+    clients: 'clientList', settings: 'settings'
   };
 
   function visibleViews() {
@@ -49,9 +67,26 @@
 
   function viewCount(id, counts, activeTotal) {
     if (id === 'active') return activeTotal;
-    if (id === 'settings' || id === 'clients' || id === 'schedule') return null;
+    if (id === 'settings' || id === 'clients' || id === 'schedule' ||
+        id === 'home' || id === 'money') return null;
     var p = state.pipelineCounts || {};
-    return { quotes: p.drafts, pending: p.pending, accepted: p.accepted, paid: p.paid }[id] || 0;
+    /* The Quotes tab now stands for four stages, so it counts all four. */
+    if (id === 'quotes') {
+      return (p.drafts || 0) + (p.pending || 0) + (p.accepted || 0) + (p.paid || 0);
+    }
+    return { pending: p.pending, accepted: p.accepted, paid: p.paid }[id] || 0;
+  }
+
+  /* The stage control inside the Quotes tab. */
+  function stageTabsHtml() {
+    var p = state.pipelineCounts || {};
+    var n = { quotes: p.drafts, pending: p.pending, accepted: p.accepted, paid: p.paid };
+    return '<div class="stabs" role="group" aria-label="Which quotes">' +
+      STAGE_TABS.map(function (t) {
+        return '<button type="button" data-view="' + t.id + '"' +
+          (state.view === t.id ? ' class="is-on" aria-current="true"' : '') + '>' +
+          esc(t.label) + '<b>' + (n[t.id] || 0) + '</b></button>';
+      }).join('') + '</div>';
   }
 
   var state = {
@@ -678,7 +713,7 @@
           visibleViews().map(function (v) {
             var n = viewCount(v.id, counts, activeTotal);
             return '<button type="button" data-view="' + v.id + '"' +
-              (state.view === v.id ? ' class="is-on"' : '') + '>' + esc(v.label) +
+              (tabOf(state.view) === v.id ? ' class="is-on"' : '') + '>' + esc(v.label) +
               (n === null ? '' : '<b>' + n + '</b>') + '</button>';
           }).join('') +
         '</div>') +
@@ -691,7 +726,7 @@
           visibleViews().map(function (v) {
             var n = viewCount(v.id, counts, activeTotal);
             return '<option value="' + v.id + '"' +
-              (state.view === v.id ? ' selected' : '') + '>' + esc(v.label) +
+              (tabOf(state.view) === v.id ? ' selected' : '') + '>' + esc(v.label) +
               (n === null ? '' : ' (' + n + ')') + '</option>';
           }).join('') + '</select></label>') +
         (state.view === 'active'
@@ -721,10 +756,12 @@
         : '') +
       (state.composingLead ? newLeadPanelHtml() : '') +
       (state.composing ? newQuotePanelHtml() : '') +
-      (state.view === 'settings' ? settingsHtml()
+      (state.view === 'home' ? homeHtml()
+        : state.view === 'settings' ? settingsHtml()
         : state.view === 'schedule' ? scheduleHtml()
+        : state.view === 'money' ? moneyHtml()
         : state.view === 'clients' ? clientsHtml()
-        : STAGE_FOR_VIEW[state.view] ? pipelineHtml(state.view)
+        : STAGE_FOR_VIEW[state.view] ? stageTabsHtml() + pipelineHtml(state.view)
         : state.leads.length
           ? '<div class="leads">' + state.leads.map(row).join('') + '</div>' +
             '<p id="search-empty" class="empty" hidden>Nothing matches.</p>'
@@ -2277,6 +2314,13 @@
     if (date === dAdd(today, -1)) return 'Yesterday';
     return DAY_NAMES[dDow(date)] + ' ' + p[2] + ' ' + MONTHS[p[1] - 1].slice(0, 3);
   }
+  /* Payments and sent-stamps are full ISO timestamps; prettyDay wants a
+     calendar day in her timezone, not in the browser's. */
+  function dayOf(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : prettyDay(isoDateET(d));
+  }
   function clockOf(iso) {
     return new Date(iso).toLocaleTimeString('en-US',
       { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' });
@@ -2336,6 +2380,121 @@
     return map;
   }
 
+  /* ------------------------------------------------------- the visit itself
+
+     What the person actually doing the job needs while standing in the
+     house: what to clean, somewhere to note what they found, and the one
+     button that says it is done. */
+
+  function parseList(v) {
+    if (Array.isArray(v)) return v;
+    try { var a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; }
+    catch { return []; }
+  }
+
+  function workHtml(a) {
+    var items = parseList(a.checklist);
+    var done = items.filter(function (i) { return i.done; }).length;
+    var all = items.length > 0 && done === items.length;
+    var templates = (state.schedule && state.schedule.templates) || [];
+    var finished = !!a.completed_at;
+
+    return '<section class="work' + (finished ? ' work--done' : '') + '">' +
+      '<div class="work__head">' +
+        '<h4 class="work__k">The clean</h4>' +
+        (items.length
+          ? '<span class="work__prog' + (all ? ' is-all' : '') + '">' +
+            done + ' of ' + items.length + '</span>'
+          : '') +
+      '</div>' +
+
+      (items.length
+        ? '<ul class="work__list">' + items.map(function (it, n) {
+            var cid = 'ck-' + a.id + '-' + n;
+            return '<li class="work__item' + (it.done ? ' is-done' : '') + '">' +
+              '<input type="checkbox" id="' + esc(cid) + '" ' +
+                'data-ck-appt="' + esc(a.id) + '" data-ck-i="' + n + '"' +
+                (it.done ? ' checked' : '') + '>' +
+              '<label for="' + esc(cid) + '">' + esc(it.label) + '</label>' +
+            '</li>'; }).join('') + '</ul>' +
+          '<p class="work__reset"><button type="button" class="linkish" ' +
+            'data-ck-clear="' + esc(a.id) + '">Clear this list</button></p>'
+        : '<div class="work__start">' +
+            '<p class="muted">No list yet.</p>' +
+            '<div class="work__tmpl">' +
+              '<label class="sr-only" for="tm-' + esc(a.id) + '">Which list</label>' +
+              '<select class="bfield__in" id="tm-' + esc(a.id) + '" data-tmpl-for="' +
+                esc(a.id) + '">' +
+                '<option value="">Pick for me</option>' +
+                templates.map(function (t) {
+                  return '<option value="' + esc(t.id) + '">' + esc(t.label) + '</option>';
+                }).join('') +
+              '</select>' +
+              '<button type="button" class="btn btn--ghost btn--tiny" ' +
+                'data-ck-build="' + esc(a.id) + '">Add a list</button>' +
+            '</div>' +
+          '</div>') +
+
+      '<label class="work__note"><span>Notes for us</span>' +
+        '<textarea class="bfield__in" rows="2" data-note-appt="' + esc(a.id) + '" ' +
+          'data-note-kind="internal_note" placeholder="Anything worth remembering">' +
+          esc(a.internal_note || '') + '</textarea></label>' +
+      '<label class="work__note"><span>What to tell them</span>' +
+        '<textarea class="bfield__in" rows="2" data-note-appt="' + esc(a.id) + '" ' +
+          'data-note-kind="client_summary" placeholder="Goes in the all-done email">' +
+          esc(a.client_summary || '') + '</textarea></label>' +
+      '<p class="work__saved" data-note-saved="' + esc(a.id) + '" hidden>Saved</p>' +
+
+      '<div class="work__finish">' +
+        (finished
+          ? '<p class="work__donep">Finished ' + esc(dayOf(a.completed_at)) + '</p>' +
+            '<button type="button" class="btn btn--ghost btn--tiny" ' +
+              'data-work-action="uncomplete" data-work-id="' + esc(a.id) + '">Not done after all</button>'
+          : '<button type="button" class="btn btn--primary btn--block" ' +
+              'data-work-action="complete" data-work-id="' + esc(a.id) + '">Mark this visit done</button>') +
+      '</div>' +
+    '</section>';
+  }
+
+  /* Every change here is one PATCH and a reload, so what the screen shows
+     is what the row says rather than what we hoped it would say. */
+  function workPatch(body, then) {
+    api('/api/admin/schedule', { method: 'PATCH', body: JSON.stringify(body) })
+      .then(function (r) {
+        if (!r.ok) {
+          window.alert((r.body && r.body.error) || 'That did not save.');
+          if (then) then(false);
+          return;
+        }
+        if (then) then(true);
+        loadSchedule();
+        if (state.view === 'home') loadToday();
+      });
+  }
+
+  function toggleCheck(apptId, idx, on) {
+    var a = findAppt(apptId);
+    if (!a) return;
+    var items = parseList(a.checklist);
+    if (!items[idx]) return;
+    items[idx] = { label: items[idx].label, done: !!on };
+    /* Shown at once so the tick does not wait on the network, then
+       reconciled by the reload. */
+    a.checklist = items;
+    render();
+    workPatch({ id: apptId, action: 'checklist', checklist: items });
+  }
+
+  function findAppt(id) {
+    var lists = [state.schedule && state.schedule.appointments,
+                 state.today && state.today.appointments];
+    for (var n = 0; n < lists.length; n++) {
+      var found = (lists[n] || []).filter(function (x) { return x.id === id; })[0];
+      if (found) return found;
+    }
+    return null;
+  }
+
   function apptCardHtml(a) {
     var open = state.openAppt === a.id;
     var where = [a.address, a.city].filter(Boolean).join(', ');
@@ -2375,6 +2534,7 @@
                       esc(a.place.pets) + '</dd></div>' : '') +
                   '</dl></div>'
               : '') +
+            workHtml(a) +
             '<div class="ev__acts">' +
               (tel.length >= 10
                 ? '<a class="btn btn--primary btn--tiny" href="tel:+1' + esc(tel) + '">Call</a>' +
@@ -2926,6 +3086,266 @@
       '<span class="tband__go" aria-hidden="true">›</span>' +
       '<span class="sr-only">Open the schedule</span>' +
     '</button>';
+  }
+
+  /* ---------------------------------------------------------------- Today
+
+     The screen both of them open to. Kristina gets her day plus the two
+     things she asks about between visits: what money is outstanding and
+     what came in that nobody has quoted. A cleaner gets the day and
+     nothing else -- the server already refuses them the rest, and a
+     dashboard of her takings is not a cleaner's screen. */
+
+  function homeHtml() {
+    var c = state.can || {};
+    var owner = !!c.money;
+    var t = state.today;
+
+    var jobs = (t && !t.error ? (t.appointments || []) : [])
+      .filter(function (a) { return a.status !== 'cancelled'; })
+      .sort(function (x, y) {
+        if (x.all_day !== y.all_day) return x.all_day ? -1 : 1;
+        return String(x.start_at || '').localeCompare(String(y.start_at || ''));
+      });
+
+    var who = state.me && state.me.name ? state.me.name.split(/\s+/)[0] : '';
+    var head = '<div class="home__head">' +
+      '<h2 class="home__hi">' + (who ? 'Hello, ' + esc(who) : 'Today') + '</h2>' +
+      '<p class="home__date">' + esc(prettyDay(isoDateET(new Date()))) + '</p>' +
+    '</div>';
+
+    var dayCard =
+      '<section class="home__day">' +
+        '<div class="home__dayhead">' +
+          '<h3>' + (jobs.length
+            ? jobs.length + (jobs.length === 1 ? ' visit today' : ' visits today')
+            : 'Nothing booked today') + '</h3>' +
+          '<button type="button" class="linkish" data-view="schedule">Open the diary</button>' +
+        '</div>' +
+        (t && t.error
+          ? '<p class="empty">The schedule did not load. ' +
+            '<button type="button" class="linkish" data-home-retry>Try again</button></p>'
+          : !t
+            ? '<p class="empty">Loading your day…</p>'
+            : jobs.length
+              ? '<div class="evlist">' + jobs.map(apptCardHtml).join('') + '</div>'
+              : '<p class="empty">A free day. Anything you book shows up here.</p>') +
+      '</section>';
+
+    if (!owner) return head + dayCard;
+
+    /* Her two standing questions, each a real number or nothing at all --
+       a tile that invents a figure is worse than no tile. */
+    var inv = state.invoices;
+    var owed = inv && !inv.error ? (inv.outstanding || 0) : null;
+    var unpaid = inv && !inv.error
+      ? (inv.invoices || []).filter(function (i) {
+          return i.state !== 'void' && i.state !== 'paid' && i.balance > 0; }).length
+      : null;
+
+    var counts = state.counts || {};
+    var fresh = counts['new'] || 0;
+    var pc = state.pipelineCounts || {};
+
+    var tiles = '<div class="htiles">' +
+      '<button type="button" class="htile" data-view="money">' +
+        '<span class="htile__k">Outstanding</span>' +
+        '<span class="htile__v">' + (owed === null ? '\u2014' : money(owed)) + '</span>' +
+        '<span class="htile__s">' + (unpaid === null ? 'Money not loaded'
+          : unpaid ? unpaid + (unpaid === 1 ? ' unpaid invoice' : ' unpaid invoices')
+          : 'All settled') + '</span>' +
+      '</button>' +
+      '<button type="button" class="htile" data-view="active">' +
+        '<span class="htile__k">New requests</span>' +
+        '<span class="htile__v">' + fresh + '</span>' +
+        '<span class="htile__s">' + (fresh ? 'Waiting on a quote' : 'Nothing new') + '</span>' +
+      '</button>' +
+      '<button type="button" class="htile" data-view="pending">' +
+        '<span class="htile__k">Awaiting reply</span>' +
+        '<span class="htile__v">' + (pc.pending || 0) + '</span>' +
+        '<span class="htile__s">' + ((pc.pending || 0) ? 'Quotes they have not answered'
+          : 'Nothing out there') + '</span>' +
+      '</button>' +
+    '</div>';
+
+    return head + tiles + dayCard;
+  }
+
+  /* ---------------------------------------------------------------- Money
+
+     No card gateway: she is paid by Zelle, cash, cheque or a card machine
+     that has nothing to do with this site. So this records money rather
+     than taking it, and every figure is recomputed from the payment rows
+     on each read -- voiding a payment moves the balance back by itself. */
+
+  var INV_WORD = { draft: 'Draft', sent: 'Sent', part_paid: 'Part paid',
+    paid: 'Paid', void: 'Void' };
+  var INV_TONE = { draft: 'new', sent: 'pending', part_paid: 'pending',
+    paid: 'won', void: 'lost' };
+  var METHOD_WORD = { zelle: 'Zelle', cash: 'Cash', card: 'Card',
+    check: 'Check', other: 'Other' };
+
+  function loadInvoices() {
+    api('/api/admin/invoices').then(function (r) {
+      state.invoices = r.ok ? r.body : { error: true, body: r.body || {} };
+      render();
+    });
+  }
+
+  function invoiceCardHtml(i) {
+    var open = state.openInvoice === i.id;
+    var pays = (i.payments || []).filter(function (p) { return !p.voided_at; });
+    var lines = i.line_items || [];
+    return '<article class="inv' + (open ? ' is-open' : '') + '">' +
+      '<button type="button" class="inv__head" data-open-invoice="' + esc(i.id) + '" ' +
+        'aria-expanded="' + (open ? 'true' : 'false') + '">' +
+        '<span class="inv__who">' + esc(i.customer_name || 'No name') + '</span>' +
+        '<span class="pill pill--' + esc(INV_TONE[i.state] || 'new') + ' inv__pill">' +
+          esc(INV_WORD[i.state] || i.state) + '</span>' +
+        '<span class="inv__tot">' + money(i.total) + '</span>' +
+        (i.state !== 'paid' && i.state !== 'void' && i.balance > 0
+          ? '<span class="inv__due">' + money(i.balance) + ' due</span>' : '') +
+      '</button>' +
+      (open
+        ? '<div class="inv__body">' +
+            '<ul class="inv__lines">' +
+              lines.map(function (l) {
+                return '<li><span>' + esc(l.label) +
+                  (l.qty > 1 ? ' <span class="muted">x' + l.qty + '</span>' : '') +
+                  '</span><span>' + money((l.qty || 1) * (l.unit_price || 0)) + '</span></li>';
+              }).join('') +
+            '</ul>' +
+            '<p class="inv__sum"><span>Total</span><span>' + money(i.total) + '</span></p>' +
+            (pays.length
+              ? '<ul class="inv__pays">' + pays.map(function (pay) {
+                  return '<li>' +
+                    '<span>' + esc(pay.method === 'other' && pay.method_note
+                      ? pay.method_note : (METHOD_WORD[pay.method] || 'Payment')) +
+                      ' <span class="muted">' + esc(dayOf(pay.paid_at)) + '</span></span>' +
+                    '<span>' + money(pay.amount) + '</span>' +
+                    '<button type="button" class="linkish inv__undo" ' +
+                      'data-inv-void-pay="' + esc(pay.id) + '" data-inv-id="' + esc(i.id) + '">' +
+                      'Undo</button>' +
+                  '</li>'; }).join('') + '</ul>'
+              : '') +
+            (i.balance > 0 && i.state !== 'void'
+              ? '<p class="inv__sum inv__sum--due"><span>Still due</span><span>' +
+                money(i.balance) + '</span></p>'
+              : '') +
+            (i.state === 'void' ? '<p class="muted">This invoice was voided.</p>' : '') +
+            '<div class="inv__err form-status form-status--err" hidden role="alert"></div>' +
+            (i.state === 'void' ? '' : payFormHtml(i)) +
+            '<div class="inv__acts">' +
+              (i.sent_at ? '<span class="muted inv__sentat">Sent ' + esc(dayOf(i.sent_at)) +
+                '</span>'
+                : '<button type="button" class="btn btn--ghost btn--tiny" ' +
+                  'data-inv-action="sent" data-inv-id="' + esc(i.id) + '">Mark as sent</button>') +
+              (i.state === 'void' ? ''
+                : '<button type="button" class="btn btn--ghost btn--tiny" ' +
+                  'data-inv-action="void" data-inv-id="' + esc(i.id) + '">Void it</button>') +
+            '</div>' +
+          '</div>'
+        : '') +
+    '</article>';
+  }
+
+  /* One row: how much, how paid, done. Everything else about a payment is
+     a rarity and lives behind Other. */
+  function payFormHtml(i) {
+    if (i.balance <= 0) return '';
+    var m = state.payMethod || 'zelle';
+    return '<div class="payf">' +
+      '<p class="payf__k">Record a payment</p>' +
+      '<div class="payf__row">' +
+        '<label class="payf__amt"><span class="sr-only">Amount</span>' +
+          '<input type="text" inputmode="decimal" class="bfield__in" data-pay-amount ' +
+            'value="' + esc((i.balance / 100).toFixed(2)) + '" aria-label="Amount"></label>' +
+        '<label class="payf__m"><span class="sr-only">How they paid</span>' +
+          '<select class="bfield__in" data-pay-method>' +
+            Object.keys(METHOD_WORD).map(function (k) {
+              return '<option value="' + k + '"' + (m === k ? ' selected' : '') + '>' +
+                METHOD_WORD[k] + '</option>'; }).join('') +
+          '</select></label>' +
+      '</div>' +
+      '<label class="payf__note"' + (m === 'other' ? '' : ' hidden') + '>' +
+        '<span class="sr-only">How they paid</span>' +
+        '<input type="text" class="bfield__in" data-pay-note ' +
+          'placeholder="How did they pay?"></label>' +
+      '<button type="button" class="btn btn--primary btn--block" ' +
+        'data-inv-action="pay" data-inv-id="' + esc(i.id) + '">Mark paid</button>' +
+    '</div>';
+  }
+
+  function moneyHtml() {
+    var inv = state.invoices;
+    if (!inv) return '<p class="empty">Loading…</p>';
+    if (inv.error) {
+      var b = inv.body || {};
+      return '<div class="empty-state"><h3>Invoices are not switched on yet</h3>' +
+        '<p class="muted">' + esc(b.error || 'They could not be loaded.') +
+        (b.setup ? ' ' + esc(b.setup) : '') + '</p></div>';
+    }
+    var list = inv.invoices || [];
+    if (!list.length) {
+      return '<div class="empty-state"><h3>No invoices yet</h3>' +
+        '<p class="muted">Accept a quote and you can raise its invoice here, ' +
+        'then record the money as it comes in.</p></div>';
+    }
+    var owing = list.filter(function (i) {
+      return i.state !== 'void' && i.balance > 0; });
+    return '<div class="mhead">' +
+        '<div class="mhead__big"><span class="mhead__k">Outstanding</span>' +
+          '<span class="mhead__v">' + money(inv.outstanding || 0) + '</span></div>' +
+        '<p class="mhead__s">' + (owing.length
+          ? owing.length + (owing.length === 1 ? ' invoice' : ' invoices') + ' unpaid'
+          : 'Everything is settled') + '</p>' +
+      '</div>' +
+      '<div class="invlist">' + list.map(invoiceCardHtml).join('') + '</div>';
+  }
+
+  function invAction(action, id, btn) {
+    var card = btn.closest('.inv');
+    var err = card ? card.querySelector('.inv__err') : null;
+    var say = function (m) {
+      if (!err) { window.alert(m); return; }
+      err.hidden = false; err.textContent = m;
+    };
+    if (err) err.hidden = true;
+
+    var body = { id: id, action: action };
+    if (action === 'pay') {
+      var amtEl = card && card.querySelector('[data-pay-amount]');
+      var mEl = card && card.querySelector('[data-pay-method]');
+      var nEl = card && card.querySelector('[data-pay-note]');
+      body.amount = parseDollars(amtEl ? amtEl.value : '');
+      body.method = mEl ? mEl.value : 'zelle';
+      if (nEl && body.method === 'other') body.method_note = nEl.value;
+      if (!body.amount) { say('How much came in?'); return; }
+    }
+    if (action === 'void' &&
+        !window.confirm('Void this invoice? It stays on the list, marked void.')) return;
+
+    btn.disabled = true;
+    var was = btn.textContent;
+    btn.textContent = 'Saving…';
+    api('/api/admin/invoices', { method: 'PATCH', body: JSON.stringify(body) })
+      .then(function (r) {
+        btn.disabled = false; btn.textContent = was;
+        if (!r.ok) { say((r.body && r.body.error) || 'That did not save.'); return; }
+        loadInvoices();
+      });
+  }
+
+  function voidPayment(payId, invId, btn) {
+    if (!window.confirm('Undo this payment? The balance goes back up.')) return;
+    btn.disabled = true;
+    api('/api/admin/invoices', { method: 'PATCH', body: JSON.stringify(
+      { id: invId, action: 'void_payment', payment_id: payId }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not save.'); return; }
+        loadInvoices();
+      });
   }
 
   function loadToday() {
@@ -4096,6 +4516,49 @@
       state.q = '';
       load(); return;
     }
+    if (hit.matches('[data-ck-build]')) {
+      var bid = hit.getAttribute('data-ck-build');
+      var sel = document.querySelector('[data-tmpl-for="' + bid + '"]');
+      hit.disabled = true; hit.textContent = 'Adding…';
+      workPatch({ id: bid, action: 'checklist_template',
+        template: sel && sel.value ? sel.value : undefined });
+      return;
+    }
+    if (hit.matches('[data-ck-clear]')) {
+      if (!window.confirm('Clear this list? The ticks go with it.')) return;
+      workPatch({ id: hit.getAttribute('data-ck-clear'), action: 'checklist', checklist: [] });
+      return;
+    }
+    if (hit.matches('[data-work-action]')) {
+      var act = hit.getAttribute('data-work-action');
+      var wid = hit.getAttribute('data-work-id');
+      if (act === 'complete') {
+        var ap = findAppt(wid);
+        var left = parseList(ap && ap.checklist).filter(function (i) { return !i.done; }).length;
+        /* Finishing with things unticked is allowed -- she knows what she
+           did -- but it should be deliberate. */
+        if (left && !window.confirm(left + (left === 1 ? ' item is' : ' items are') +
+          ' still unticked. Mark the visit done anyway?')) return;
+      }
+      hit.disabled = true;
+      workPatch({ id: wid, action: act });
+      return;
+    }
+    if (hit.matches('[data-open-invoice]')) {
+      var iid = hit.getAttribute('data-open-invoice');
+      state.openInvoice = state.openInvoice === iid ? null : iid;
+      render();
+      return;
+    }
+    if (hit.matches('[data-inv-action]')) {
+      invAction(hit.getAttribute('data-inv-action'), hit.getAttribute('data-inv-id'), hit);
+      return;
+    }
+    if (hit.matches('[data-inv-void-pay]')) {
+      voidPayment(hit.getAttribute('data-inv-void-pay'), hit.getAttribute('data-inv-id'), hit);
+      return;
+    }
+    if (hit.matches('[data-home-retry]')) { state.today = null; loadToday(); render(); return; }
     if (hit.matches('[data-appt-action]')) {
       apptAction(hit.getAttribute('data-appt-action'), hit.getAttribute('data-appt-id'));
       return;
@@ -4751,6 +5214,46 @@
     });
   }
 
+  /* "Other" is the only method that needs a word with it, so the box
+     appears when it is chosen rather than sitting there empty. */
+  root.addEventListener('change', function (e) {
+    var box = e.target.closest ? e.target.closest('[data-ck-appt]') : null;
+    if (box) {
+      toggleCheck(box.getAttribute('data-ck-appt'),
+        Number(box.getAttribute('data-ck-i')), box.checked);
+      return;
+    }
+    var sel = e.target.closest ? e.target.closest('[data-pay-method]') : null;
+    if (!sel) return;
+    state.payMethod = sel.value;
+    var form = sel.closest('.payf');
+    var note = form && form.querySelector('.payf__note');
+    if (note) note.hidden = sel.value !== 'other';
+  });
+
+  /* Notes save on the way out of the box. Saving per keystroke would
+     re-render under her cursor; a Save button is one more thing to forget. */
+  root.addEventListener('focusout', function (e) {
+    var box = e.target.closest ? e.target.closest('[data-note-appt]') : null;
+    if (!box) return;
+    var id = box.getAttribute('data-note-appt');
+    var kind = box.getAttribute('data-note-kind');
+    var a = findAppt(id);
+    if (a && String(a[kind] || '') === String(box.value || '')) return;
+    if (a) a[kind] = box.value;
+    var body = { id: id, action: 'notes' };
+    body[kind] = box.value;
+    api('/api/admin/schedule', { method: 'PATCH', body: JSON.stringify(body) })
+      .then(function (r) {
+        var flag = document.querySelector('[data-note-saved="' + id + '"]');
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That note did not save.'); return; }
+        if (flag) {
+          flag.hidden = false;
+          window.setTimeout(function () { flag.hidden = true; }, 1600);
+        }
+      });
+  });
+
   signout.addEventListener('click', function () {
     api('/api/admin/logout', { method: 'POST' }).then(function () { showSignIn(''); });
   });
@@ -4769,9 +5272,13 @@
       state.can = status.can || null;
       /* A cleaner lands on the diary rather than on a Requests tab that
          would only answer 403. */
+      /* Everyone lands on Today. A cleaner's Today is their jobs, which is
+         the whole of what they came for. */
+      if (!state.landed) { state.landed = true; state.view = 'home'; }
       if (state.can && VIEW_NEEDS[state.view] && !state.can[VIEW_NEEDS[state.view]]) {
-        state.view = 'schedule';
+        state.view = 'home';
       }
+      if (state.can && state.can.money && state.invoices == null) loadInvoices();
       loadPipelineCounts();
       /* Her day, fetched once on sign-in and shown above everything. */
       if (state.today == null) loadToday();
