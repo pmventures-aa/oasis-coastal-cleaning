@@ -145,7 +145,11 @@ const CUSTOMER_FIELDS = { name: 120, company: 160, phone: 40, email: 160,
 const PROPERTY_FIELDS = { label: 80, address: 200, city: 80, zip: 12, property_type: 80,
                           bedrooms: 20, bathrooms: 20, size_label: 140, access: 200, notes: 2000,
                           /* The things she re-learns on the doorstep otherwise. */
-                          parking: 200, pets: 200, preferred_day: 60 };
+                          parking: 200, pets: 200, preferred_day: 60,
+                          /* What a cleaner who has never been there needs.
+                             Longer than the others because "do not touch"
+                             and "careful" are lists, not labels. */
+                          bins: 300, supplies: 300, do_not_touch: 400, warnings: 400 };
 
 export async function onRequestPatch({ request, env }) {
   const blocked = await guard(request, env);

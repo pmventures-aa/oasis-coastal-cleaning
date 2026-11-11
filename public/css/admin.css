@@ -2218,3 +2218,30 @@ select.pf__v:focus {
 .urow__seen { font-size: 0.74rem; flex: 0 0 auto; }
 .urow__acts { display: flex; gap: 0.75rem; align-items: center; }
 .urow__acts .linkish { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* A loose step or an alarm that arms itself is not another line of
+   trivia. It goes first, and it is marked. */
+.evplace__warn {
+  margin: 0 0 0.6rem; padding: 0.6rem 0.75rem;
+  background: rgba(176, 58, 46, 0.09);
+  border: 1px solid rgba(176, 58, 46, 0.32);
+  border-radius: 10px; font-size: 0.85rem; line-height: 1.45;
+}
+.evplace__warn strong { color: #8e2f25; }
+
+/* Settings fold. She sets these once; the screen should not make her
+   scroll past all of them every time she comes back for one. */
+.set-group > .set-group__title {
+  cursor: pointer; list-style: none; display: flex; align-items: center;
+  gap: 0.5rem; min-height: 44px; margin: 0;
+}
+.set-group > .set-group__title::-webkit-details-marker { display: none; }
+.set-group > .set-group__title::after {
+  content: '＋'; margin-left: auto; font-weight: 700; color: var(--oasis-muted);
+}
+.set-group[open] > .set-group__title::after { content: '－'; }
+.set-group__flag {
+  font-size: 0.64rem; font-weight: 800; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 0.15rem 0.45rem; border-radius: var(--radius-pill);
+  background: rgba(201, 162, 39, 0.2); color: #6b5410;
+}

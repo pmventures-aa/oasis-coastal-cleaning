@@ -152,6 +152,29 @@ await testAsync('the gate code rides along with the visit', async () => {
   assert.equal(b.appointments[0].place.pets, 'Biscuit');
 });
 
+await testAsync('the gate code survives a database without the newer columns', async () => {
+  /* bins, supplies, do_not_touch and warnings arrive with 0021. This is a
+     database at the state production is in before it runs: asking for them
+     throws, and throwing used to mean no facts at all, so every gate code
+     would have vanished from every visit until the migration landed. */
+  const d = schedDb();
+  try { d._raw.prepare('ALTER TABLE properties DROP COLUMN bins').run(); } catch { /* never had it */ }
+  try { d._raw.prepare('ALTER TABLE properties DROP COLUMN supplies').run(); } catch { /* ditto */ }
+  try { d._raw.prepare('ALTER TABLE properties DROP COLUMN do_not_touch').run(); } catch { /* ditto */ }
+  try { d._raw.prepare('ALTER TABLE properties DROP COLUMN warnings').run(); } catch { /* ditto */ }
+  let gone = false;
+  try { d._raw.prepare('SELECT warnings FROM properties').get(); } catch { gone = true; }
+  assert.equal(gone, true, 'the column must really be absent for this to mean anything');
+
+  d._raw.prepare(`INSERT INTO properties (id,customer_id,address,access,parking,pets)
+    VALUES ('p1','c1','12 Ocean Ave','Gate code 4417','Driveway','Biscuit')`).run();
+  d._raw.prepare(`INSERT INTO appointments (id,created_at,status,all_day,start_at,end_at,
+    customer_id,address) VALUES ('a1','2026-03-01','confirmed',0,
+    '2026-03-10T14:00:00Z','2026-03-10T16:00:00Z','c1','12 Ocean Ave')`).run();
+  const b = await (await sched.onRequestGet({ request: await schedReq(), env: env(d) })).json();
+  assert.equal(b.appointments[0].place.access, 'Gate code 4417');
+});
+
 /* A code for the wrong house is worse than no code. */
 await testAsync('two addresses and no match means no facts, not the wrong ones', async () => {
   const d = schedDb();

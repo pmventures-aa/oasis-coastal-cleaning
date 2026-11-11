@@ -137,6 +137,11 @@ const TABLES = [
 /* Columns added to tables that already existed. SQLite has no
    ADD COLUMN IF NOT EXISTS, so each is tried and a duplicate is ignored. */
 const COLUMNS = [
+  /* What the cleaner reads at the door (0021). */
+  ['properties', 'bins', 'TEXT'],
+  ['properties', 'supplies', 'TEXT'],
+  ['properties', 'do_not_touch', 'TEXT'],
+  ['properties', 'warnings', 'TEXT'],
   /* Sign everyone out, for a stateless cookie (0020). */
   ['users', 'sessions_valid_from', 'INTEGER NOT NULL DEFAULT 0'],
   /* Which of the two ways a quote came to be marked paid (0019). */

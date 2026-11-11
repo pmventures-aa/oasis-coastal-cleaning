@@ -1821,13 +1821,37 @@
      behave, what she wants to hear about — rather than the way they are
      stored. Every field says what it is for underneath, so nothing needs
      explaining twice. */
+  /* Four questions, not eleven boxes. Each one folds, and only the first
+     is open, because the screen was 2,342px of settings she changes once
+     and then never opens again. */
   var SETTING_GROUPS = [
-    { title: 'Your quotes', keys: ['quote_from_name', 'quote_signoff'] },
-    { title: 'How quotes behave', keys: ['quote_expiry_days', 'quote_terms', 'quote_note'] },
-    { title: 'What you hear about', keys: ['notify_email', 'notify_on_request', 'notify_on_accept',
-                                           'notify_on_decline', 'notify_on_followup', 'notify_on_view'] },
-    { title: 'What you send them', keys: ['review_url'] }
+    { title: 'Your quotes', id: 'quotes',
+      lead: 'How a quote reads when it reaches them.',
+      keys: ['quote_from_name', 'quote_signoff', 'quote_expiry_days',
+             'quote_terms', 'quote_note'] },
+    { title: 'What you hear about', id: 'alerts',
+      lead: 'Where your alerts go, and which ones are worth one.',
+      keys: ['notify_email', 'notify_on_request', 'notify_on_accept',
+             'notify_on_decline', 'notify_on_followup', 'notify_on_view'] },
+    { title: 'After the job', id: 'after',
+      lead: 'Where to send someone who wants to leave a review.',
+      keys: ['review_url'] }
   ];
+
+  /* Which ones she left open. Private browsing and cleared site data both
+     make this throw, and a settings screen must not fall over for it. */
+  function setGroupOpen(id, first) {
+    try {
+      var v = window.localStorage.getItem('oasis.set.' + id);
+      if (v === '1') return true;
+      if (v === '0') return false;
+    } catch (e) { /* no memory of it, so fall back to the default */ }
+    return !!first;
+  }
+  function rememberSetGroup(id, open) {
+    try { window.localStorage.setItem('oasis.set.' + id, open ? '1' : '0'); }
+    catch (e) { /* not remembering is survivable; failing to save is not */ }
+  }
 
   function settingField(f, value) {
     var id = 'set-' + f.key;
@@ -2011,13 +2035,18 @@
       : SETTING_GROUPS;
 
     var groups = anyFields
-      ? allGroups.map(function (g) {
+      ? allGroups.map(function (g, i) {
           var body = g.keys.map(function (k) {
             return fields[k] ? settingField(fields[k], state.settings[k]) : '';
           }).join('');
           if (!body) return '';
-          return '<section class="card set-group">' +
-            '<h3 class="set-group__title">' + esc(g.title) + '</h3>' + body + '</section>';
+          var gid = g.id || g.title;
+          var open = setGroupOpen(gid, i === 0);
+          return '<details class="card set-group"' + (open ? ' open' : '') +
+              ' data-set-group="' + esc(gid) + '">' +
+            '<summary class="set-group__title">' + esc(g.title) + '</summary>' +
+            (g.lead ? '<p class="muted set-group__lead">' + esc(g.lead) + '</p>' : '') +
+            body + '</details>';
         }).join('')
       : state.settingsBroke
         ? '<section class="card set-group"><h3 class="set-group__title">Your settings</h3>' +
@@ -2102,13 +2131,23 @@
     '</div>';
 
     return '<div class="settings">' + groups +
-      '<section class="card set-group">' +
-        '<h3 class="set-group__title">What this site can do</h3>' +
+      /* Turnstile secrets and webhook signing keys are not settings she
+         changes; they are what to read when something is wrong. Folded,
+         and folded by default, but it opens itself when there is a
+         warning in it, because a problem behind a closed door is a
+         problem nobody sees. */
+      '<details class="card set-group set-group--tech"' +
+          ((turnstileWarning || webhookWarning) ? ' open' : '') +
+          ' data-set-group="tech">' +
+        '<summary class="set-group__title">The technical bits' +
+          ((turnstileWarning || webhookWarning)
+            ? '<span class="set-group__flag">needs a look</span>' : '') +
+        '</summary>' +
         '<p class="muted set-group__lead">Nothing here is broken — the site works without all of it.</p>' +
         setupPanel +
         '<ul class="health-list">' + health + '</ul>' +
         turnstileWarning + webhookWarning +
-      '</section>' +
+      '</details>' +
       /* Nothing to save when there are no fields, and a Save button that can
          only fail is worse than no button. */
       (anyFields
@@ -2338,10 +2377,17 @@
   /* The facts she would otherwise re-learn on the doorstep. Read-only they
      are worth nothing, because nobody ever typed them in: every block can
      be opened and filled in right here. */
+  /* What somebody standing at the door needs to know, in the order they
+     need it: how to get in, where to put the van, what is alive in there,
+     then the four things a new cleaner has no way to guess. */
   var PFACT_FIELDS = [
     ['access', 'Getting in', 'Gate code, lockbox, side door'],
     ['parking', 'Parking', 'Driveway, not the street'],
     ['pets', 'Pets', 'Biscuit, friendly. Cat hides.'],
+    ['bins', 'Bins', 'Kerb Tuesday night, green is recycling'],
+    ['supplies', 'Supplies', 'Under the sink. Hoover in the hall cupboard.'],
+    ['do_not_touch', 'Do not touch', "The study desk. Her mother's china."],
+    ['warnings', 'Careful', 'Loose step on the deck. Alarm arms at 6.'],
     ['preferred_day', 'Prefers', 'Tuesdays'],
     ['notes', 'Notes', 'Anything else worth remembering']
   ];
@@ -2737,6 +2783,35 @@
     return null;
   }
 
+  /* What the place needs, as the person at the door reads it. A warning
+     goes first and is marked: a loose step or an alarm that arms itself is
+     not another line of trivia, and finding it at the bottom of a list is
+     finding it too late. */
+  var PLACE_ROWS = [
+    ['access', 'Getting in'], ['parking', 'Parking'], ['pets', 'Pets'],
+    ['bins', 'Bins'], ['supplies', 'Supplies'], ['do_not_touch', 'Do not touch']
+  ];
+
+  function placePanelHtml(place) {
+    if (!place) return '';
+    var rows = PLACE_ROWS.filter(function (r) { return place[r[0]]; });
+    if (!rows.length && !place.warnings) return '';
+    return '<div class="evplace">' +
+      (place.warnings
+        ? '<p class="evplace__warn"><strong>Careful:</strong> ' +
+          esc(place.warnings) + '</p>'
+        : '') +
+      (rows.length
+        ? '<p class="evplace__k">Good to know</p>' +
+          '<dl class="pfacts__list">' +
+            rows.map(function (r) {
+              return '<div class="pfacts__row"><dt>' + esc(r[1]) + '</dt><dd>' +
+                esc(place[r[0]]) + '</dd></div>'; }).join('') +
+          '</dl>'
+        : '') +
+    '</div>';
+  }
+
   function apptCardHtml(a) {
     var open = state.openAppt === a.id;
     var where = [a.address, a.city].filter(Boolean).join(', ');
@@ -2764,18 +2839,7 @@
             '</dl>' +
             /* Read live off the client's profile, so the code she changed
                there this morning is the code on this card now. */
-            (a.place && (a.place.access || a.place.parking || a.place.pets)
-              ? '<div class="evplace">' +
-                  '<p class="evplace__k">Good to know</p>' +
-                  '<dl class="pfacts__list">' +
-                    (a.place.access ? '<div class="pfacts__row"><dt>Getting in</dt><dd>' +
-                      esc(a.place.access) + '</dd></div>' : '') +
-                    (a.place.parking ? '<div class="pfacts__row"><dt>Parking</dt><dd>' +
-                      esc(a.place.parking) + '</dd></div>' : '') +
-                    (a.place.pets ? '<div class="pfacts__row"><dt>Pets</dt><dd>' +
-                      esc(a.place.pets) + '</dd></div>' : '') +
-                  '</dl></div>'
-              : '') +
+            placePanelHtml(a.place) +
             workHtml(a) +
             '<div class="ev__acts">' +
               (tel.length >= 10
@@ -5901,6 +5965,12 @@
 
   /* Notes save on the way out of the box. Saving per keystroke would
      re-render under her cursor; a Save button is one more thing to forget. */
+  root.addEventListener('toggle', function (e) {
+    var d = e.target;
+    if (!d || !d.hasAttribute || !d.hasAttribute('data-set-group')) return;
+    rememberSetGroup(d.getAttribute('data-set-group'), d.open);
+  }, true);     /* toggle does not bubble, so this listens on the way down */
+
   root.addEventListener('focusout', function (e) {
     var box = e.target.closest ? e.target.closest('[data-note-appt]') : null;
     if (!box) return;

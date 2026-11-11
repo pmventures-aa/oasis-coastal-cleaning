@@ -101,13 +101,23 @@ async function attachPlaceFacts(db, appointments) {
     .map((a) => a.customer_id).filter(Boolean))];
   if (!ids.length) return;
   let rows = [];
+  const marks = ids.map(() => '?').join(',');
+  const read = (cols) => db.prepare(
+    `SELECT customer_id, address, ${cols} FROM properties
+      WHERE customer_id IN (${marks}) AND archived_at IS NULL`
+  ).bind(...ids).all();
   try {
-    const marks = ids.map(() => '?').join(',');
-    rows = (await db.prepare(
-      `SELECT customer_id, address, access, parking, pets FROM properties
-        WHERE customer_id IN (${marks}) AND archived_at IS NULL`
-    ).bind(...ids).all()).results || [];
-  } catch { return; }          // older database without the columns: no facts, no error
+    rows = (await read('access, parking, pets, bins, supplies, do_not_touch, warnings')).results || [];
+  } catch {
+    /* bins, supplies, do_not_touch and warnings arrive with 0021. Before
+       that this query throws, and throwing used to mean no facts at all --
+       so every gate code would have disappeared from every visit in the
+       window between this deploying and the migration running. Ask again
+       for the ones that have always been there. */
+    try {
+      rows = (await read('access, parking, pets')).results || [];
+    } catch { return; }       // no properties table at all: no facts, no error
+  }
 
   const norm = (v) => String(v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   for (const a of appointments) {
@@ -120,9 +130,14 @@ async function attachPlaceFacts(db, appointments) {
     const hit = mine.length === 1 ? mine[0]
       : mine.find((r) => a.address && norm(r.address) === norm(a.address));
     if (!hit) continue;
-    if (hit.access || hit.parking || hit.pets) {
-      a.place = { access: hit.access || '', parking: hit.parking || '', pets: hit.pets || '' };
-    }
+    const place = {
+      access: hit.access || '', parking: hit.parking || '', pets: hit.pets || '',
+      bins: hit.bins || '', supplies: hit.supplies || '',
+      do_not_touch: hit.do_not_touch || '', warnings: hit.warnings || ''
+    };
+    /* Only attach it when there is something to say, so the card can use
+       "is there a place?" to decide whether to draw the panel at all. */
+    if (Object.keys(place).some((k) => place[k])) a.place = place;
   }
 }
 
