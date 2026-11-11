@@ -69,7 +69,12 @@ export async function makeSessionCookie(env, secure = true, userId = null) {
   /* "u:<id>:<expires>" for a named person, a bare stamp for the shared
      password. The bare form is also what every session issued before this
      existed looks like, which is why it is still understood. */
-  const payload = userId ? `u:${userId}:${expires}` : String(expires);
+  /* The moment it was issued rides along, so a session can be refused
+     later without the server keeping a list of them. An older cookie has
+     no fourth field and reads as issued at 0, which means the first time
+     she signs everyone out, it goes too. That is the right answer. */
+  const issued = Date.now();
+  const payload = userId ? `u:${userId}:${expires}:${issued}` : `${expires}.i${issued}`;
   const mac = await sign(payload, env.SESSION_SECRET);
   const value = `${payload}.${mac}`;
   const bits = [
@@ -108,11 +113,15 @@ async function readCookie(request, env) {
     const bits = payload.split(':');
     const expires = Number(bits[2]);
     if (!Number.isFinite(expires) || expires <= Date.now()) return null;
-    return { userId: bits[1], expires };
+    return { userId: bits[1], expires, issued: Number(bits[3]) || 0 };
   }
-  const expires = Number(payload);
+  /* The shared password: "<expires>" before this, "<expires>.i<issued>"
+     after. The signature covers the whole thing either way. */
+  const dot = payload.indexOf('.i');
+  const expires = Number(dot === -1 ? payload : payload.slice(0, dot));
+  const issued = dot === -1 ? 0 : Number(payload.slice(dot + 2)) || 0;
   if (!Number.isFinite(expires) || expires <= Date.now()) return null;
-  return { userId: null, expires };     // the shared password, or a legacy session
+  return { userId: null, expires, issued };
 }
 
 export async function isSignedIn(request, env) {
@@ -138,15 +147,35 @@ export const OWNER = Object.freeze({
 export async function currentUser(request, env) {
   const session = await readCookie(request, env);
   if (!session) return null;
+
+  /* Signed out of everywhere: anything issued before the line is refused,
+     whoever it belongs to. Read once, cheaply, and a missing or unreadable
+     setting never locks anyone out. */
+  const floor = await sessionsValidFrom(env);
+  if (floor && (session.issued || 0) < floor) return null;
+
   if (!session.userId) return OWNER;
   if (!env.DB) return null;
   let row = null;
   try {
     row = await env.DB.prepare(
-      'SELECT id, name, email, role, active FROM users WHERE id = ?'
+      'SELECT id, name, email, role, active, sessions_valid_from FROM users WHERE id = ?'
     ).bind(session.userId).first();
-  } catch { return null; }
+  } catch {
+    /* sessions_valid_from arrives with 0020. Until that migration is
+       applied the column is not there and this query throws -- and the
+       old behaviour was to treat a throw as "not signed in", which would
+       have locked every named person out of a live portal the moment
+       this shipped. Ask again without it. */
+    try {
+      row = await env.DB.prepare(
+        'SELECT id, name, email, role, active FROM users WHERE id = ?'
+      ).bind(session.userId).first();
+    } catch { return null; }
+  }
   if (!row || !row.active) return null;
+  /* And this one person's own line, for signing just them out. */
+  if ((session.issued || 0) < (Number(row.sessions_valid_from) || 0)) return null;
   return { id: row.id, name: row.name, email: row.email,
     role: ROLES.includes(row.role) ? row.role : 'cleaner', shared: false };
 }
@@ -171,3 +200,16 @@ export function can(user, what) {
 
 /** True when the portal has everything it needs to let someone in. */
 export const authConfigured = (env) => Boolean(env.ADMIN_PASSWORD && env.SESSION_SECRET);
+
+
+/* The moment before which no session is valid, for anybody. Stored as a
+   setting so revoking costs one write rather than a row per session. */
+export async function sessionsValidFrom(env) {
+  if (!env.DB) return 0;
+  try {
+    const row = await env.DB.prepare(
+      `SELECT value FROM settings WHERE key = 'sessions_valid_from'`
+    ).first();
+    return Number(row && row.value) || 0;
+  } catch { return 0; }
+}

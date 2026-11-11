@@ -30,6 +30,7 @@
     { id: 'schedule', label: 'Schedule' },
     { id: 'money',    label: 'Money' },
     { id: 'clients',  label: 'Clients' },
+    { id: 'security', label: 'Security' },
     { id: 'settings', label: 'Settings' }
   ];
 
@@ -66,6 +67,8 @@
               '<path d="M16 5.6a3.2 3.2 0 0 1 0 6.3"/><path d="M17.2 14.9c2 .6 3.3 2.3 3.3 4.6"/>',
     gear:     '<circle cx="12" cy="12" r="3.1"/>' +
               '<path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M18 6l-1.4 1.4M7.4 16.6 6 18M18 18l-1.4-1.4M7.4 7.4 6 6"/>',
+    shield:   '<path d="M12 3.2 19 6v5.5c0 4.2-2.8 7.4-7 9.3-4.2-1.9-7-5.1-7-9.3V6Z"/>' +
+              '<path d="m9.2 12.1 2 2 3.6-3.9"/>',
     menu:     '<path d="M4 7h16M4 12h16M4 17h16"/>'
   };
   function navIcon(name) {
@@ -76,7 +79,7 @@
 
   var VIEW_ICON = {
     home: 'home', active: 'inbox', quotes: 'doc', schedule: 'calendar',
-    money: 'money', clients: 'people', settings: 'gear'
+    money: 'money', clients: 'people', settings: 'gear', security: 'shield'
   };
   /* Six slots at 375px is 62px each: room for a 24px icon and a short
      word. The five she touches daily stay on the bar -- money behind More
@@ -92,7 +95,7 @@
   var VIEW_NEEDS = {
     active: 'clientList', quotes: 'money', pending: 'money',
     accepted: 'money', paid: 'money', money: 'money',
-    clients: 'clientList', settings: 'settings'
+    clients: 'clientList', settings: 'settings', security: 'manageUsers'
   };
 
   function visibleViews() {
@@ -855,6 +858,7 @@
       (state.composingLead ? newLeadPanelHtml() : '') +
       (state.composing ? newQuotePanelHtml() : '') +
       (state.view === 'home' ? homeHtml()
+        : state.view === 'security' ? securityHtml()
         : state.view === 'settings' ? settingsHtml()
         : state.view === 'schedule' ? scheduleHtml()
         : state.view === 'money' ? moneyHtml()
@@ -2367,6 +2371,7 @@
     state.filter = ''; state.followup = false; state.open = null;
     state.composing = false; state.composingLead = false; state.composeFor = null;
     if (state.view === 'settings') { render(); loadSettings(); loadUsers(); return; }
+    if (state.view === 'security') { render(); loadSecurity(); return; }
     if (state.view === 'schedule') {
       state.schedule = null; render(); loadSchedule(); loadFeed(); loadJobs(); return;
     }
@@ -3448,6 +3453,176 @@
         btn.disabled = false;
         if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not save.'); return; }
         loadInvoices();
+      });
+  }
+
+  /* ------------------------------------------------------- Security Centre
+
+     Who can get in, what has been tried, and the two things she needs when
+     something is wrong: change the password, and end a session that is
+     already out there. */
+
+  function loadSecurity() {
+    api('/api/admin/security').then(function (r) {
+      state.security = r.ok ? r.body : { error: true, body: r.body || {} };
+      render();
+    });
+  }
+
+  function whenWords(iso) {
+    if (!iso) return 'never';
+    var t = new Date(iso).getTime();
+    if (!t) return '';
+    var mins = Math.round((Date.now() - t) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + (mins === 1 ? ' minute ago' : ' minutes ago');
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + (hrs === 1 ? ' hour ago' : ' hours ago');
+    return dayOf(iso);
+  }
+
+  function securityHtml() {
+    var sc = state.security;
+    if (!sc) return '<p class="empty">Loading…</p>';
+    if (sc.error) {
+      return '<div class="empty-state"><h3>Security is not switched on yet</h3>' +
+        '<p class="muted">' + esc((sc.body && sc.body.error) || 'It could not be loaded.') +
+        '</p></div>';
+    }
+    var you = sc.you || {};
+    var people = sc.people || [];
+    var events = sc.events || [];
+
+    return '<h2 class="sechead">Security</h2>' +
+
+      /* The one number worth a glance, and only when it is not zero. */
+      (sc.failed_today
+        ? '<div class="secnote secnote--warn" role="status">' +
+            '<strong>' + sc.failed_today +
+            (sc.failed_today === 1 ? ' sign-in was refused' : ' sign-ins were refused') +
+            ' in the last day.</strong> ' +
+            '<span class="muted">Worth a look below if that was not you.</span>' +
+          '</div>'
+        : '') +
+
+      '<section class="seccard">' +
+        '<h3>You</h3>' +
+        '<p class="secyou">' + esc(you.name || 'Owner') +
+          (you.email ? ' <span class="muted">' + esc(you.email) + '</span>' : '') + '</p>' +
+        (you.shared
+          ? '<p class="muted secmini">You are signed in with the shared password, ' +
+            'which lives in Cloudflare rather than here. Add yourself as a person ' +
+            'below and sign in as yourself to get your own password.</p>'
+          : passwordFormHtml()) +
+      '</section>' +
+
+      '<section class="seccard">' +
+        '<div class="seccard__head"><h3>Who can get in</h3>' +
+          '<button type="button" class="linkish" data-view="settings">Add or edit people</button>' +
+        '</div>' +
+        (people.length
+          ? '<ul class="seclist">' + people.map(function (p) {
+              return '<li class="secperson' + (p.active ? '' : ' is-off') + '">' +
+                '<span class="secperson__who">' +
+                  '<strong>' + esc(p.name || p.email) + '</strong>' +
+                  '<span class="muted">' + esc(ROLE_WORDS[p.role] || p.role) +
+                    (p.active ? '' : ' · switched off') + '</span>' +
+                '</span>' +
+                '<span class="secperson__seen muted">Last in ' + esc(whenWords(p.last_seen_at)) +
+                '</span>' +
+                (p.active
+                  ? '<button type="button" class="btn btn--ghost btn--tiny" ' +
+                    'data-sec-revoke="' + esc(p.id) + '">Sign out</button>'
+                  : '') +
+              '</li>'; }).join('') + '</ul>'
+          : '<p class="muted secmini">Nobody has their own sign-in yet. ' +
+            'The shared password is the only way in.</p>') +
+        (sc.shared_password_active
+          ? '<p class="muted secmini">The shared password still works, on purpose: ' +
+            'if something goes wrong here it is how you get back in.</p>'
+          : '') +
+      '</section>' +
+
+      '<section class="seccard">' +
+        '<div class="seccard__head"><h3>Recent activity</h3></div>' +
+        (events.length
+          ? '<ul class="secev">' + events.slice(0, 25).map(function (e) {
+              var bad = e.kind === 'sign_in_failed';
+              return '<li class="secev__i' + (bad ? ' is-bad' : '') + '">' +
+                '<span class="secev__k">' + esc((sc.kinds || {})[e.kind] || e.kind) + '</span>' +
+                '<span class="secev__w">' +
+                  esc(e.email || (e.detail === 'shared password' ? 'shared password' : '—')) +
+                  (e.detail && e.detail !== 'shared password'
+                    ? ' <span class="muted">' + esc(e.detail) + '</span>' : '') +
+                '</span>' +
+                '<span class="secev__t muted">' + esc(whenWords(e.at)) + '</span>' +
+              '</li>'; }).join('') + '</ul>'
+          : '<p class="muted secmini">Nothing recorded yet.</p>') +
+      '</section>' +
+
+      '<section class="seccard seccard--danger">' +
+        '<h3>Sign everyone out</h3>' +
+        '<p class="muted secmini">Ends every session on every device, including ' +
+          'this one. Use it if a phone goes missing. Everyone signs in again ' +
+          'with the password they already have.</p>' +
+        '<button type="button" class="btn btn--ghost btn--block" data-sec-revoke-all>' +
+          'Sign everyone out</button>' +
+      '</section>';
+  }
+
+  function passwordFormHtml() {
+    return '<div class="secpw">' +
+      '<label class="bfield"><span>Your current password</span>' +
+        '<input type="password" class="bfield__in" data-pw-current ' +
+          'autocomplete="current-password"></label>' +
+      '<label class="bfield"><span>New password</span>' +
+        '<input type="password" class="bfield__in" data-pw-next ' +
+          'autocomplete="new-password"></label>' +
+      '<p class="muted secmini">At least 10 characters. Changing it signs you ' +
+        'out everywhere, which is the point if someone else had it.</p>' +
+      '<div class="secpw__err form-status form-status--err" hidden role="alert"></div>' +
+      '<button type="button" class="btn btn--primary" data-pw-save>Change my password</button>' +
+    '</div>';
+  }
+
+  function changePassword(btn) {
+    var box = btn.closest('.secpw');
+    var err = box.querySelector('.secpw__err');
+    var cur = box.querySelector('[data-pw-current]').value;
+    var next = box.querySelector('[data-pw-next]').value;
+    err.hidden = true;
+    if (next.length < 10) {
+      err.hidden = false; err.textContent = 'Make it at least 10 characters.';
+      return;
+    }
+    btn.disabled = true; btn.textContent = 'Changing…';
+    api('/api/admin/security', { method: 'PATCH', body: JSON.stringify(
+      { action: 'password', current: cur, password: next }) })
+      .then(function (r) {
+        btn.disabled = false; btn.textContent = 'Change my password';
+        if (!r.ok) {
+          err.hidden = false;
+          err.textContent = (r.body && r.body.error) || 'That did not work.';
+          return;
+        }
+        window.alert('Password changed. You will need to sign in again.');
+        location.reload();
+      });
+  }
+
+  function revokeSessions(all, id, btn) {
+    var ask = all
+      ? 'Sign everyone out of every device, including this one?'
+      : 'Sign this person out of wherever they are signed in?';
+    if (!window.confirm(ask)) return;
+    btn.disabled = true;
+    api('/api/admin/security', { method: 'PATCH', body: JSON.stringify(
+      all ? { action: 'revoke_all' } : { action: 'revoke_user', user_id: id }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not work.'); return; }
+        if (all) { location.reload(); return; }
+        loadSecurity();
       });
   }
 
@@ -4619,6 +4794,11 @@
       state.q = '';
       load(); return;
     }
+    if (hit.matches('[data-sec-revoke-all]')) { revokeSessions(true, null, hit); return; }
+    if (hit.matches('[data-sec-revoke]')) {
+      revokeSessions(false, hit.getAttribute('data-sec-revoke'), hit); return;
+    }
+    if (hit.matches('[data-pw-save]')) { changePassword(hit); return; }
     if (hit.matches('[data-more-nav]')) {
       state.moreNav = !state.moreNav;
       render();

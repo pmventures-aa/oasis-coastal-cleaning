@@ -2071,3 +2071,53 @@ select.pf__v:focus {
    heading and count -- it was shouting a running total in a wedding face. */
 .home__dayhead h3, .pipeline__sum { font-family: var(--font-body); }
 .home__dayhead h3 { font-size: 0.95rem; font-weight: 700; letter-spacing: 0; }
+
+/* ============================================================ Security Centre */
+.sechead { margin: 0 0 0.9rem; font-size: var(--step-1); }
+.seccard {
+  background: #fff; border: 1px solid rgba(12, 46, 59, 0.12);
+  border-radius: 14px; padding: 0.9rem; margin: 0 0 0.8rem;
+}
+.seccard h3 { margin: 0 0 0.5rem; font-size: 0.9rem; font-family: var(--font-body); }
+.seccard__head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap;
+}
+.seccard__head h3 { margin: 0 0 0.5rem; }
+.seccard--danger { border-color: rgba(176, 58, 46, 0.3); }
+.secmini { font-size: 0.8rem; line-height: 1.45; margin: 0.4rem 0 0; }
+.secyou { margin: 0; font-weight: 600; }
+
+/* The refusal count, which is only drawn when it is not zero, so its being
+   there means something rather than becoming furniture. */
+.secnote {
+  padding: 0.7rem 0.85rem; border-radius: 12px; margin: 0 0 0.8rem;
+  font-size: 0.85rem; line-height: 1.45;
+}
+.secnote--warn { background: rgba(201, 162, 39, 0.14); border: 1px solid rgba(201, 162, 39, 0.4); }
+
+.seclist, .secev { list-style: none; margin: 0; padding: 0; }
+.secperson {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  padding: 0.55rem 0; border-top: 1px solid rgba(12, 46, 59, 0.08);
+  min-height: 44px;
+}
+.secperson:first-child { border-top: 0; }
+.secperson.is-off { opacity: 0.6; }
+.secperson__who { display: grid; flex: 1 1 10rem; min-width: 0; font-size: 0.88rem; }
+.secperson__who .muted { font-size: 0.76rem; }
+.secperson__seen { font-size: 0.76rem; }
+
+.secev__i {
+  display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap;
+  padding: 0.45rem 0; border-top: 1px solid rgba(12, 46, 59, 0.08);
+  font-size: 0.82rem;
+}
+.secev__i:first-child { border-top: 0; }
+.secev__k { font-weight: 700; flex: 0 0 8.5rem; }
+.secev__i.is-bad .secev__k { color: #b03a2e; }
+.secev__w { flex: 1 1 8rem; min-width: 0; overflow-wrap: anywhere; }
+.secev__t { flex: 0 0 auto; font-size: 0.76rem; }
+
+.secpw { display: grid; gap: 0.6rem; }
+.secpw input { font-size: 1rem; min-height: 44px; }

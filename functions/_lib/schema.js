@@ -13,6 +13,9 @@
  */
 
 const TABLES = [
+  ['security_events', `CREATE TABLE IF NOT EXISTS security_events (
+    id TEXT PRIMARY KEY, at TEXT NOT NULL, kind TEXT NOT NULL,
+    user_id TEXT, email TEXT, detail TEXT, ip TEXT, user_agent TEXT)`],
   ['quotes', `CREATE TABLE IF NOT EXISTS quotes (
     id TEXT PRIMARY KEY, lead_id TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT,
     status TEXT NOT NULL DEFAULT 'draft', token TEXT NOT NULL UNIQUE,
@@ -134,6 +137,8 @@ const TABLES = [
 /* Columns added to tables that already existed. SQLite has no
    ADD COLUMN IF NOT EXISTS, so each is tried and a duplicate is ignored. */
 const COLUMNS = [
+  /* Sign everyone out, for a stateless cookie (0020). */
+  ['users', 'sessions_valid_from', 'INTEGER NOT NULL DEFAULT 0'],
   /* Which of the two ways a quote came to be marked paid (0019). */
   ['quotes', 'paid_source', 'TEXT'],
   ['quotes', 'email_provider_id', 'TEXT'],
