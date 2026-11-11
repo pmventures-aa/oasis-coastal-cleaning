@@ -1762,3 +1762,20 @@ select.pf__v:focus {
 }
 .uform__title { margin: 0; font-size: 0.88rem; font-weight: 700; color: var(--oasis-navy); }
 .uform__acts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+/* Arrangements with nothing in the diary. */
+.unsched {
+  margin: 0.8rem 0; padding: 0.7rem 0.8rem; border-radius: 12px;
+  background: #FBEEDA; border: 1px solid rgba(200, 156, 83, 0.4);
+}
+.unsched__k {
+  margin: 0 0 0.4rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: #7A551C;
+}
+.unsched__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.unsched__row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.6rem;
+  padding: 0.5rem 0.6rem; border-radius: 8px; background: var(--oasis-white);
+}
+.unsched__who { font-weight: 700; color: var(--oasis-navy); font-size: 0.88rem; }
+.unsched__what { flex: 1 1 8rem; font-size: 0.8rem; }

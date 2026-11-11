@@ -2938,7 +2938,24 @@
               'placeholder="Where the job is" autocomplete="off"></label>' +
           '<label class="btoggle">' +
             '<input type="checkbox" data-bf="tentative"' + (f.tentative ? ' checked' : '') + '>' +
-            '<span>Pencil it in — not agreed yet</span></label>'
+            '<span>Pencil it in — not agreed yet</span></label>' +
+          /* The arrangement, in the words she would use. Choosing anything
+             but "Just this once" turns this into a standing job and writes
+             every visit into the diary at once. */
+          '<label class="bfield"><span>How often?</span>' +
+            '<select class="bfield__in" data-bf="repeatJob">' +
+              [['', 'Just this once'], ['weekly', 'Every week'],
+               ['biweekly', 'Every other week'], ['monthly', 'Once a month']]
+                .map(function (o) {
+                  return '<option value="' + o[0] + '"' +
+                    (String(f.repeatJob || '') === o[0] ? ' selected' : '') + '>' +
+                    o[1] + '</option>';
+                }).join('') + '</select></label>' +
+          (f.repeatJob
+            ? '<label class="bfield"><span>Until (leave blank to keep going)</span>' +
+                '<input type="date" class="bfield__in" data-bf="untilDate" value="' +
+                esc(f.untilDate || '') + '"></label>'
+            : '')
         : '<label class="bfield"><span>What is it?</span>' +
             '<input type="text" class="bfield__in" data-bf="label" value="' + esc(f.label || '') + '" ' +
               'placeholder="Busy — or an address" autocomplete="off"></label>' +
@@ -3033,6 +3050,35 @@
 
     var payload = { client_token: f.token };
     var label = String(f.label || '').trim();
+    if (job && f.repeatJob) {
+      /* A standing arrangement is a different thing from one booking, and
+         it is the jobs route that knows how to write all of its visits. */
+      f.saving = true; render();
+      api('/api/admin/jobs', { method: 'POST', body: JSON.stringify({
+        customer_name: label,
+        service_label: String(f.service || '').trim() || undefined,
+        phone: String(f.phone || '').trim() || undefined,
+        address: String(f.address || '').trim() || undefined,
+        start_date: f.date,
+        start_time: f.start || '09:00',
+        duration_min: minutesBetween(f.start, f.end),
+        freq: f.repeatJob,
+        until_date: f.untilDate || undefined,
+        override: override === true
+      }) }).then(function (r) {
+        f.saving = false;
+        if (r.ok) {
+          state.blockForm = null;
+          state.schedule = null;
+          loadSchedule(); loadJobs();
+        } else {
+          f.error = (r.body && r.body.error) || 'That did not save.';
+          f.clashes = (r.body && r.body.clashes) || null;
+        }
+        render();
+      });
+      return;
+    }
     if (job) {
       payload.customer_name = label;
       if (String(f.service || '').trim()) payload.service_label = String(f.service).trim();

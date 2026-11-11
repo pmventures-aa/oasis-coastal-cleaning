@@ -76,6 +76,20 @@ const TABLES = [
 
   /* Every customer email she sends, written down once and never rewritten.
      See migration 0012. */
+  /* The arrangement, and the visits it is made of. See migration 0015. */
+  ['jobs', `CREATE TABLE IF NOT EXISTS jobs (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
+    customer_id TEXT, property_id TEXT, lead_id TEXT, quote_id TEXT,
+    title TEXT, service_label TEXT, customer_name TEXT, phone TEXT,
+    address TEXT, city TEXT, zip TEXT, notes TEXT,
+    status TEXT NOT NULL DEFAULT 'open',
+    freq TEXT, byday TEXT, start_date TEXT, until_date TEXT,
+    start_time TEXT, duration_min INTEGER NOT NULL DEFAULT 120,
+    assigned_to TEXT, archived_at TEXT)`],
+  ['job_exceptions', `CREATE TABLE IF NOT EXISTS job_exceptions (
+    id TEXT PRIMARY KEY, job_id TEXT NOT NULL, occurrence_date TEXT NOT NULL,
+    kind TEXT NOT NULL, created_at TEXT NOT NULL)`],
+
   /* Named people, alongside the shared password. See migration 0014. */
   ['users', `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
@@ -123,7 +137,9 @@ const COLUMNS = [
   ['properties', 'parking', 'TEXT'],
   ['properties', 'pets', 'TEXT'],
   ['properties', 'preferred_day', 'TEXT'],
-  ['appointments', 'assigned_to', 'TEXT']
+  ['appointments', 'assigned_to', 'TEXT'],
+  ['appointments', 'job_id', 'TEXT'],
+  ['appointments', 'occurrence_date', 'TEXT']
 ];
 
 const INDEXES = [
@@ -149,7 +165,10 @@ const INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_email_log_customer ON email_log(customer_id, created_at)',
   'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(lower(email))',
   'CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, active)',
-  'CREATE INDEX IF NOT EXISTS idx_appointments_assigned ON appointments(assigned_to)'
+  'CREATE INDEX IF NOT EXISTS idx_appointments_assigned ON appointments(assigned_to)',
+  'CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, archived_at)',
+  'CREATE INDEX IF NOT EXISTS idx_job_exceptions ON job_exceptions(job_id, occurrence_date)',
+  'CREATE INDEX IF NOT EXISTS idx_appointments_job ON appointments(job_id)'
 ];
 
 /* Turns the leads that already exist into customers and properties. Only ever
@@ -233,7 +252,7 @@ const isDuplicate = (message) =>
  * same ones setup runs, they are safe to run twice, and the caller is
  * already behind the login. */
 const SCHEDULE_TABLES = ['appointments', 'availability_blocks', 'schedule_events',
-  'email_log', 'users'];
+  'email_log', 'users', 'jobs', 'job_exceptions'];
 
 export async function ensureScheduleTables(db) {
   if (!db) return false;
