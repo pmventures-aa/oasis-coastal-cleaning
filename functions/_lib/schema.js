@@ -76,6 +76,21 @@ const TABLES = [
 
   /* Every customer email she sends, written down once and never rewritten.
      See migration 0012. */
+  /* Invoices, and the money actually received. See migration 0017. */
+  ['invoices', `CREATE TABLE IF NOT EXISTS invoices (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT, number TEXT,
+    customer_id TEXT, lead_id TEXT, quote_id TEXT, job_id TEXT, appointment_id TEXT,
+    customer_name TEXT, email TEXT, address TEXT, city TEXT,
+    line_items TEXT, subtotal INTEGER NOT NULL DEFAULT 0,
+    total INTEGER NOT NULL DEFAULT 0, amount_paid INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'draft', due_date TEXT, sent_at TEXT,
+    notes TEXT, archived_at TEXT)`],
+  ['payments', `CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY, invoice_id TEXT NOT NULL, created_at TEXT NOT NULL,
+    paid_at TEXT NOT NULL, amount INTEGER NOT NULL,
+    method TEXT NOT NULL DEFAULT 'other', method_note TEXT, reference TEXT,
+    recorded_by TEXT, voided_at TEXT)`],
+
   /* Her own list of what things are and what she charges. Migration 0016. */
   ['price_book', `CREATE TABLE IF NOT EXISTS price_book (
     id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
@@ -176,7 +191,9 @@ const INDEXES = [
   'CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, archived_at)',
   'CREATE INDEX IF NOT EXISTS idx_job_exceptions ON job_exceptions(job_id, occurrence_date)',
   'CREATE INDEX IF NOT EXISTS idx_appointments_job ON appointments(job_id)',
-  'CREATE INDEX IF NOT EXISTS idx_price_book_active ON price_book(active, grp, sort)'
+  'CREATE INDEX IF NOT EXISTS idx_price_book_active ON price_book(active, grp, sort)',
+  'CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id, created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id, paid_at)'
 ];
 
 /* Turns the leads that already exist into customers and properties. Only ever
@@ -260,7 +277,8 @@ const isDuplicate = (message) =>
  * same ones setup runs, they are safe to run twice, and the caller is
  * already behind the login. */
 const SCHEDULE_TABLES = ['appointments', 'availability_blocks', 'schedule_events',
-  'email_log', 'users', 'jobs', 'job_exceptions', 'price_book'];
+  'email_log', 'users', 'jobs', 'job_exceptions', 'price_book',
+  'invoices', 'payments'];
 
 export async function ensureScheduleTables(db) {
   if (!db) return false;
