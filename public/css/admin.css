@@ -1276,6 +1276,12 @@ select.pf__v:focus {
   text-transform: uppercase; color: var(--oasis-muted);
 }
 .signin__input { min-height: 48px; font-size: 1rem; }
+/* Sits under the email field to say who should fill it in. `.signin > p`
+   does not reach it: it is inside the field, not a child of the card. */
+.signin__hint {
+  margin: 0.4rem 0 0; font-size: 0.8rem; line-height: 1.4;
+  color: var(--oasis-muted);
+}
 
 /* The optional phone-call extras: present, folded, never in the way. */
 .acc--extras { margin: 0.2rem 0 0.4rem; }

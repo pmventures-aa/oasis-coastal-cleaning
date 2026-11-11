@@ -269,24 +269,50 @@
          by name — password is not on that list, so the one field on the
          first screen she sees every day was a raw browser default: 21px
          tall against a 44px button. */
+      /* Two doors, one screen. Kristina has signed in with just the shared
+         password since day one and still can: she leaves the email blank.
+         A cleaner or office person she adds in Settings has their own
+         email and password, and before this field existed they had
+         nowhere to type the email, so their password was checked against
+         the shared one and they could never get in. */
+      '<div class="field signin__field"><label for="em">Email</label>' +
+      '<input type="email" id="em" class="set__input signin__input" ' +
+        'autocomplete="username" inputmode="email" autocapitalize="off" ' +
+        'spellcheck="false" aria-describedby="em-hint">' +
+      '<p class="signin__hint" id="em-hint">Cleaners and office staff: your ' +
+        'email. Kristina: leave this blank and use the owner password.</p></div>' +
       '<div class="field signin__field"><label for="pw">Password</label>' +
       '<input type="password" id="pw" class="set__input signin__input" autocomplete="current-password"></div>' +
       '<div id="signin-err" class="form-status form-status--err" role="alert"' +
       (msg ? '' : ' hidden') + '>' + esc(msg || '') + '</div>' +
       '<p style="margin-top:1.2rem"><button type="button" id="go" class="btn btn--primary btn--block">Sign in</button></p></div>';
     var pw = document.getElementById('pw');
+    var em = document.getElementById('em');
+    var btn = document.getElementById('go');
     var go = function () {
-      api('/api/admin/login', { method: 'POST', body: JSON.stringify({ password: pw.value }) })
+      /* Blank email means the shared owner password, which is the route
+         that must never break. Only send the key when it has a value. */
+      var body = { password: pw.value };
+      if (String(em.value || '').trim()) body.email = em.value.trim();
+      btn.disabled = true;
+      var was = btn.textContent;
+      btn.textContent = 'Signing in…';
+      api('/api/admin/login', { method: 'POST', body: JSON.stringify(body) })
         .then(function (r) {
           if (r.ok) { load(); return; }
+          btn.disabled = false;
+          btn.textContent = was;
           var err = document.getElementById('signin-err');
           err.hidden = false;
           err.textContent = r.body.error || 'That did not work.';
+          pw.focus();
         });
     };
-    document.getElementById('go').addEventListener('click', go);
-    pw.addEventListener('keydown', function (e) { if (e.key === 'Enter') { go(); } });
-    pw.focus();
+    btn.addEventListener('click', go);
+    var onKey = function (e) { if (e.key === 'Enter') { go(); } };
+    pw.addEventListener('keydown', onKey);
+    em.addEventListener('keydown', onKey);
+    (em.value ? pw : em).focus();
   }
 
   function showSetup(status) {
