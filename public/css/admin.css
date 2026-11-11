@@ -2166,3 +2166,55 @@ select.pf__v:focus {
 .catform input, .catform select { font-size: 1rem; min-height: 44px; width: 100%; }
 .catform__acts { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .catform__retire { margin-left: auto; }
+
+/* ===================================================== the quote, in steps
+   Measured at 2,923px of scroll and twenty boxes on a 375px phone. The
+   fields are the same; they are shown three at a time, so a screenful
+   looks like a screenful rather than the middle of something endless. */
+
+.qstep { display: none; }
+.quote-editor[data-qstep-on="1"] .qstep[data-qstep="1"],
+.quote-editor[data-qstep-on="2"] .qstep[data-qstep="2"],
+.quote-editor[data-qstep-on="3"] .qstep[data-qstep="3"] { display: block; }
+
+.qsteps {
+  list-style: none; display: flex; align-items: center; gap: 0.3rem;
+  margin: 0 0 1rem; padding: 0;
+}
+.qsteps__i {
+  display: flex; align-items: center; gap: 0.35rem;
+  flex: 1 1 0; min-width: 0; color: var(--oasis-muted);
+  font-size: 0.7rem; font-weight: 700;
+}
+.qsteps__d {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(12, 46, 59, 0.09); color: var(--oasis-muted);
+  font-size: 0.7rem; font-variant-numeric: tabular-nums;
+}
+.qsteps__i.is-now { color: var(--oasis-navy); }
+.qsteps__i.is-now .qsteps__d { background: var(--oasis-navy); color: #fff; }
+.qsteps__i.is-done .qsteps__d { background: var(--oasis-teal); color: #fff; }
+.qsteps__k { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.qnav { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.qnav__next { flex: 1 1 auto; }
+.qnav .btn { min-height: 48px; }
+
+/* The running total belongs with the work, where she is changing it. On
+   the last step it is what she checks before sending. */
+.quote-editor[data-qstep-on="1"] .quote-total { display: none; }
+
+/* About the place is detail, not a question she must answer to get on. */
+.compose__property { margin-top: 0.4rem; }
+
+.cgroup__k--sum { cursor: pointer; list-style: none; min-height: 44px; display: flex; align-items: center; }
+.cgroup__k--sum::-webkit-details-marker { display: none; }
+.cgroup__k--sum::after { content: ' ＋'; margin-left: auto; font-weight: 700; }
+.compose__property[open] .cgroup__k--sum::after { content: ' －'; }
+
+/* The people list now carries last-seen and sign-out, so it is the one
+   list of who can get in rather than a second one beside it. */
+.urow__seen { font-size: 0.74rem; flex: 0 0 auto; }
+.urow__acts { display: flex; gap: 0.75rem; align-items: center; }
+.urow__acts .linkish { min-height: 44px; display: inline-flex; align-items: center; }

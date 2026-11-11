@@ -1010,6 +1010,109 @@
       }).join('') + '</div>';
   }
 
+  /* ------------------------------------------------- the quote, in steps
+
+     Measured on a 375px phone, this form was 2,923px of scroll and twenty
+     boxes before she could send anything. That is the whole of the job in
+     one wall, and the wall is what made it intimidating: nothing told her
+     how much was left, so every screenful looked like the middle.
+
+     The fields are unchanged and so is what gets saved. They are shown
+     three at a time: who it is for and where, then the work, then the note
+     and the send. The total rides along from the moment there is one. */
+
+  var QSTEPS = [
+    { n: 1, k: 'Who it is for' },
+    { n: 2, k: 'The work' },
+    { n: 3, k: 'Send it' }
+  ];
+
+  /* Quoting from a request already knows who it is for, so that step has
+     nothing in it and the flow starts on the work. */
+  function qFirstStep(standalone) { return standalone ? 1 : 2; }
+  function qStep(standalone) {
+    var at = Number(state.qStep) || 0;
+    var first = qFirstStep(standalone);
+    return at < first ? first : Math.min(3, at);
+  }
+
+  function qStepsHtml(standalone) {
+    var on = qStep(standalone), first = qFirstStep(standalone);
+    var steps = QSTEPS.filter(function (s) { return s.n >= first; });
+    return '<ol class="qsteps" aria-label="Where you are">' +
+      steps.map(function (s) {
+        var done = s.n < on, now = s.n === on;
+        return '<li class="qsteps__i' + (now ? ' is-now' : '') + (done ? ' is-done' : '') + '"' +
+          (now ? ' aria-current="step"' : '') + '>' +
+          '<span class="qsteps__d" aria-hidden="true">' + (done ? '\u2713' : s.n) + '</span>' +
+          '<span class="qsteps__k">' + esc(s.k) + '</span>' +
+        '</li>';
+      }).join('') + '</ol>';
+  }
+
+  function qStepNavHtml(standalone) {
+    var on = qStep(standalone), first = qFirstStep(standalone);
+    var back = on > first
+      ? '<button type="button" class="btn btn--ghost" data-qstep-go="' + (on - 1) + '">Back</button>'
+      : '';
+    /* The last step keeps Back. Reaching "send it" and finding no way
+       back to the work is how a wrong line gets sent to a customer. */
+    if (on >= 3) return back ? '<div class="qnav qnav--last">' + back + '</div>' : '';
+    return '<div class="qnav">' + back +
+      '<button type="button" class="btn btn--primary qnav__next" data-qstep-go="' + (on + 1) + '">' +
+        (on === first ? 'Next: the work' : 'Next: send it') +
+      '</button>' +
+    '</div>';
+  }
+
+  /* Moving on without a name would make a quote nobody can be sent. */
+  function qStepGuard(to) {
+    var ed = document.querySelector('.quote-editor');
+    if (!ed || to <= 1) return null;
+    if (ed.getAttribute('data-standalone') !== '1') return null;
+    var first = ed.querySelector('.quote-first-name');
+    var last = ed.querySelector('.quote-last-name');
+    var any = String((first && first.value) || '').trim() ||
+              String((last && last.value) || '').trim();
+    return any ? null : 'Who is this quote for?';
+  }
+
+  function qStepGo(to) {
+    var msg = to > (Number(state.qStep) || 1) ? qStepGuard(to) : null;
+    if (msg) {
+      var box = document.querySelector('.quote-msg');
+      if (box) {
+        box.hidden = false;
+        box.textContent = msg;
+        box.classList.add('form-status--err');
+      }
+      return;
+    }
+    /* Nothing here re-renders. Everything she has typed lives in the DOM
+       -- that is why adding a line inserts markup rather than redrawing --
+       so changing step moves an attribute and redraws the two strips that
+       hold no input of hers. A render() would throw the form away. */
+    var ed = document.querySelector('.quote-editor');
+    if (!ed) return;
+    var standalone = ed.getAttribute('data-standalone') === '1';
+    state.qStep = to;
+    ed.setAttribute('data-qstep-on', String(to));
+
+    var bar = ed.querySelector('.qsteps');
+    if (bar) bar.outerHTML = qStepsHtml(standalone);
+    var nav = ed.querySelector('.qnav');
+    var navHtml = qStepNavHtml(standalone);
+    if (nav) { nav.outerHTML = navHtml; }
+    else if (navHtml) {
+      var acts = ed.querySelector('.quote-actions');
+      if (acts) acts.insertAdjacentHTML('beforebegin', navHtml);
+    }
+
+    var box = ed.querySelector('.quote-msg');
+    if (box) { box.hidden = true; box.classList.remove('form-status--err'); }
+    scrollTo(ed, 'start');
+  }
+
   function quoteLineHtml(line) {
     line = line || {};
     var price = line.unit_dollars != null
@@ -1270,8 +1373,14 @@
         /* The same property block the lead profile has. A quote written from
            scratch is for a real house too, and typing beds and baths by hand
            when the address is already there is work for nothing. */
-        '<div class="compose__property">' +
-          '<p class="cgroup__k cgroup__k--split">About the place' +
+        /* Beds, baths, size and type are useful and almost never the
+           reason a quote is late. Four more boxes on the first screen made
+           the form look like a form; behind a summary they are there for
+           the jobs that need them. */
+        '<details class="compose__property">' +
+          '<summary class="cgroup__k cgroup__k--sum">About the place' +
+            '<span class="muted"> — optional</span></summary>' +
+          '<p class="cgroup__k cgroup__k--split">' +
             '<button type="button" class="btn btn--ghost btn--tiny" data-compose-lookup>' +
               'Fill from the address</button></p>' +
           '<p class="profile__lookup-msg" data-compose-lookup-msg hidden></p>' +
@@ -1284,7 +1393,7 @@
               '<input class="pf__v quote-size" type="text" placeholder="e.g. 1,850 sq ft" value="' + esc(pre.size_label || '') + '"></label>' +
             '<label class="pf"><span class="pf__k">Property</span>' +
               '<input class="pf__v quote-property-type" type="text" placeholder="House, condo, office" value="' + esc(pre.property_type || '') + '"></label>' +
-          '</div>' +
+          '</details>' +
         '</div>'
       : '<label class="pf"><span class="pf__k">Send to</span><input class="pf__v quote-email" type="email" value="' +
           esc(quote.customer_email || l.email) + '"></label>';
@@ -1298,8 +1407,13 @@
       '<div class="quote-editor"' + (standalone ? ' data-standalone="1"' : '') +
         (alreadyOut ? ' data-already-out="1"' : '') +
         ' data-quote-id="' + esc(quote.id || '') + '" data-lead-id="' + esc(l ? l.id : '') + '"' +
-        (asked.length ? ' data-asked="' + esc(JSON.stringify(asked)) + '"' : '') + '>' +
+        (asked.length ? ' data-asked="' + esc(JSON.stringify(asked)) + '"' : '') +
+        ' data-qstep-on="' + qStep(standalone) + '">' +
+      qStepsHtml(standalone) +
+      '<div class="qstep" data-qstep="1">' +
       customerFields +
+      '</div>' +                                     /* end step: who and where */
+      '<div class="qstep" data-qstep="2">' +
       '<p class="cgroup__k">What the job includes</p>' +
       '<div class="quote-lines">' + lines.map(quoteLineHtml).join('') + '</div>' +
       /* Adding a line is the main way a quote gets built — the saved list is
@@ -1332,6 +1446,8 @@
          rather than under it. */
       quoteCatalogHtml() +
       '<div class="quote-total" data-quote-total>' + money(calcLineTotal(lines)) + '</div>' +
+      '</div>' +                                     /* end step: the work */
+      '<div class="qstep" data-qstep="3">' +
       '<p class="cgroup__k">A note to them <span class="cgroup__hint">— appears on the quote as a note from you</span></p>' +
       '<label class="pf pf--wide pf--note"><span class="sr-only">Note</span><textarea class="pf__v quote-notes" rows="3">' +
         esc(notesVal || '') + '</textarea></label>' +
@@ -1344,6 +1460,8 @@
             '. Saving updates it at the same link straight away \u2014 the link never stops working. ' +
             'Resend only when you want them emailed about the change.</p>'
         : '') +
+      '</div>' +                                     /* end step: send it */
+      qStepNavHtml(standalone) +
       '<div class="quote-actions quote-actions--sticky">' +
         '<button type="button" class="btn btn--ghost" data-save-quote>' +
           (alreadyOut ? 'Save without sending' : 'Save Draft') + '</button>' +
@@ -1787,8 +1905,15 @@
         '<span class="muted urow__mail">' + esc(p.email) + '</span>' +
       '</div>' +
       '<span class="urow__role">' + esc(words[0]) + (p.active ? '' : ' · switched off') + '</span>' +
+      (p.last_seen_at !== undefined
+        ? '<span class="urow__seen muted">Last in ' + esc(whenWords(p.last_seen_at)) + '</span>'
+        : '') +
       '<div class="urow__acts">' +
         '<button type="button" class="linkish" data-user-edit="' + esc(p.id) + '">Change</button>' +
+        (p.active
+          ? '<button type="button" class="linkish" data-sec-revoke="' + esc(p.id) + '">' +
+            'Sign out</button>'
+          : '') +
       '</div>' +
     '</li>';
   }
@@ -1977,7 +2102,6 @@
     '</div>';
 
     return '<div class="settings">' + groups +
-      usersHtml() +
       '<section class="card set-group">' +
         '<h3 class="set-group__title">What this site can do</h3>' +
         '<p class="muted set-group__lead">Nothing here is broken — the site works without all of it.</p>' +
@@ -2378,7 +2502,10 @@
     state.filter = ''; state.followup = false; state.open = null;
     state.composing = false; state.composingLead = false; state.composeFor = null;
     if (state.view === 'settings') { render(); loadSettings(); loadUsers(); return; }
-    if (state.view === 'security') { render(); loadSecurity(); return; }
+    if (state.view === 'security') {
+      state.userForm = null;
+      render(); loadSecurity(); loadUsers(); return;
+    }
     if (state.view === 'catalogue') {
       state.catNew = false; state.catEdit = null;
       render(); loadCatalogue(); return;
@@ -3504,7 +3631,6 @@
         '</p></div>';
     }
     var you = sc.you || {};
-    var people = sc.people || [];
     var events = sc.events || [];
 
     return '<h2 class="sechead">Security</h2>' +
@@ -3531,26 +3657,10 @@
       '</section>' +
 
       '<section class="seccard">' +
-        '<div class="seccard__head"><h3>Who can get in</h3>' +
-          '<button type="button" class="linkish" data-view="settings">Add or edit people</button>' +
-        '</div>' +
-        (people.length
-          ? '<ul class="seclist">' + people.map(function (p) {
-              return '<li class="secperson' + (p.active ? '' : ' is-off') + '">' +
-                '<span class="secperson__who">' +
-                  '<strong>' + esc(p.name || p.email) + '</strong>' +
-                  '<span class="muted">' + esc(ROLE_WORDS[p.role] || p.role) +
-                    (p.active ? '' : ' · switched off') + '</span>' +
-                '</span>' +
-                '<span class="secperson__seen muted">Last in ' + esc(whenWords(p.last_seen_at)) +
-                '</span>' +
-                (p.active
-                  ? '<button type="button" class="btn btn--ghost btn--tiny" ' +
-                    'data-sec-revoke="' + esc(p.id) + '">Sign out</button>'
-                  : '') +
-              '</li>'; }).join('') + '</ul>'
-          : '<p class="muted secmini">Nobody has their own sign-in yet. ' +
-            'The shared password is the only way in.</p>') +
+        '<div class="seccard__head"><h3>Who can get in</h3></div>' +
+        /* Adding someone used to live in Settings, which is where you go to
+           change how the business reads, not who can open it. */
+        usersHtml() +
         (sc.shared_password_active
           ? '<p class="muted secmini">The shared password still works, on purpose: ' +
             'if something goes wrong here it is how you get back in.</p>'
@@ -4959,6 +5069,10 @@
       }
       return;
     }
+    if (hit.matches('[data-qstep-go]')) {
+      qStepGo(Number(hit.getAttribute('data-qstep-go')));
+      return;
+    }
     if (hit.matches('[data-add-line]')) {
       var ed = hit.closest('.quote-editor');
       ed.querySelector('.quote-lines').insertAdjacentHTML('beforeend', quoteLineHtml({}));
@@ -5038,6 +5152,28 @@
       return;
     }
     if (hit.matches('[data-cat-seed]')) { catSeed(hit); return; }
+    /* These four were in the markup from the day the users screen was
+       written and never had a listener, so "+ Add someone" did nothing at
+       all. saveUser() was there the whole time, waiting to be called. */
+    if (hit.matches('[data-user-new]')) {
+      state.userForm = { role: 'cleaner', active: true };
+      state.userNote = '';
+      render();
+      return;
+    }
+    if (hit.matches('[data-user-edit]')) {
+      var uid = hit.getAttribute('data-user-edit');
+      var who = (((state.users || {}).users) || []).filter(
+        function (x) { return x.id === uid; })[0];
+      if (!who) return;
+      state.userForm = { id: who.id, name: who.name, email: who.email,
+        role: who.role, active: !!who.active };
+      state.userNote = '';
+      render();
+      return;
+    }
+    if (hit.matches('[data-user-cancel]')) { state.userForm = null; render(); return; }
+    if (hit.matches('[data-user-save]')) { saveUser(); return; }
     if (hit.matches('[data-sec-revoke-all]')) { revokeSessions(true, null, hit); return; }
     if (hit.matches('[data-sec-revoke]')) {
       revokeSessions(false, hit.getAttribute('data-sec-revoke'), hit); return;
