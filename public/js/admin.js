@@ -2639,7 +2639,7 @@
       return '<p class="clink"><button type="button" class="linkish" ' +
         'data-clink-make="' + esc(c.id) + '">Give them a booking link</button></p>';
     }
-    var url = location.origin + '/client.html?t=' + c.link_token;
+    var url = location.origin + '/client?t=' + c.link_token;
     return '<p class="clink clink--on">' +
       '<a class="btn btn--ghost btn--tiny" href="' + esc(url) + '" target="_blank" ' +
         'rel="noopener">Open their page</a>' +
@@ -4887,7 +4887,7 @@
   }
 
   function recLinkHtml(d, c) {
-    var url = d.link_token ? location.origin + '/client.html?t=' + d.link_token : '';
+    var url = d.link_token ? location.origin + '/client?t=' + d.link_token : '';
     return '<section class="rfacts">' +
       '<h4 class="rfacts__k">Their own page</h4>' +
       (url
@@ -7069,16 +7069,45 @@
   }
 
   var lastRefresh = 0;
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState !== 'visible' || signout.hidden) return;
-    if (Date.now() - lastRefresh < 12000) return;
+  /* Coming back to the app after it has been in her pocket.
+
+     This used to re-read the requests and nothing else, which was the
+     whole app when it was written. Everything added since -- her day, the
+     money, a client's record, the diary -- kept whatever it had loaded
+     before the screen went dark. So recording a payment on a laptop and
+     then picking up the phone showed yesterday's figure on Today, and the
+     number she acts on was the stale one.
+
+     What is on screen is re-read. Not everything: a refresh that fetches
+     six things she is not looking at spends her signal to no purpose. */
+  var REFRESH = {
+    home: function () { loadToday(); if (state.can && state.can.money) loadInvoices(); },
+    money: function () { loadInvoices(); },
+    schedule: function () { loadSchedule(); },
+    clients: function () { loadClients(); },
+    contact: function () { if (state.contactId) openContact(state.contactId); },
+    catalogue: function () { loadCatalogue(); },
+    security: function () { loadSecurity(); loadUsers(); }
+  };
+
+  function refreshCurrent() {
     lastRefresh = Date.now();
+    var fn = REFRESH[state.view];
+    if (fn) { fn(); return; }
+    /* The request list and the quote stages still go through load(). */
     var openId = state.open;
     var tab = openId && state.leadTab[openId];
     load();
     if (openId && tab === 'quotes') {
       setTimeout(function () { loadQuotes(openId); }, 300);
     }
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState !== 'visible' || signout.hidden) return;
+    /* She flicks between apps; re-reading on every flick is noise. */
+    if (Date.now() - lastRefresh < 12000) return;
+    refreshCurrent();
   });
 
   load();
