@@ -224,4 +224,58 @@ await testAsync('a database without the newer columns still returns a diary', as
   assert.equal((await r.json()).appointments.length, 1);
 });
 
+/* ------------------------------------------- what the profile carries */
+
+/* A database with the money and the arrangements, which base() predates. */
+function profDb() {
+  const d = base(true);
+  d._raw.exec(`CREATE TABLE invoices (id TEXT PRIMARY KEY, created_at TEXT,
+    customer_id TEXT, quote_id TEXT, lead_id TEXT, total INTEGER, subtotal INTEGER,
+    status TEXT, line_items TEXT, sent_at TEXT, archived_at TEXT, number TEXT,
+    customer_name TEXT, email TEXT, address TEXT, city TEXT)`);
+  d._raw.exec(`CREATE TABLE payments (id TEXT PRIMARY KEY, invoice_id TEXT,
+    created_at TEXT, paid_at TEXT, amount INTEGER, method TEXT, method_note TEXT,
+    reference TEXT, recorded_by TEXT, voided_at TEXT)`);
+  d._raw.exec(`CREATE TABLE jobs (id TEXT PRIMARY KEY, created_at TEXT, customer_id TEXT,
+    title TEXT, service_label TEXT, freq TEXT, byday TEXT, start_date TEXT,
+    until_date TEXT, start_time TEXT, duration_min INTEGER, status TEXT,
+    archived_at TEXT)`);
+  return d;
+}
+const profileOf = async (d, id) => (await call(d, id)).json();
+
+await testAsync('the profile carries the money, worked out from the payments', async () => {
+  const d = profDb();
+  d._raw.prepare(`INSERT INTO invoices (id,created_at,customer_id,total,status,line_items)
+    VALUES ('i1','2026-11-01','c1',28500,'sent','[]')`).run();
+  d._raw.prepare(`INSERT INTO payments (id,invoice_id,created_at,paid_at,amount,method)
+    VALUES ('p1','i1','2026-11-02','2026-11-02',15000,'zelle')`).run();
+  const b = await profileOf(d, 'c1');
+  assert.equal(b.outstanding, 13500);
+  assert.equal(b.lifetime, 15000);
+  assert.equal(b.invoices[0].state, 'part_paid');
+});
+
+await testAsync('a voided invoice is not money owed', async () => {
+  const d = profDb();
+  d._raw.prepare(`INSERT INTO invoices (id,created_at,customer_id,total,status,line_items)
+    VALUES ('i1','2026-11-01','c1',9000,'void','[]')`).run();
+  const b = await profileOf(d, 'c1');
+  assert.equal(b.outstanding, 0);
+});
+
+await testAsync('standing arrangements come back, with the real columns', async () => {
+  /* This asked for a rule_text column that does not exist. soft() would
+     have swallowed the error and reported no arrangements at all, which
+     reads exactly like a client who has none. */
+  const d = profDb();
+  d._raw.prepare(`INSERT INTO jobs (id,created_at,customer_id,service_label,freq,
+    byday,start_date,status) VALUES ('j1','2026-11-01','c1','Deep clean','weekly',
+    '[2]','2026-11-17','open')`).run();
+  const b = await profileOf(d, 'c1');
+  assert.equal(b.jobs.length, 1, 'a wrong column name here fails silently');
+  assert.equal(b.jobs[0].freq, 'weekly');
+  assert.equal(b.jobs[0].service_label, 'Deep clean');
+});
+
 console.log('\n' + n + ' passed');

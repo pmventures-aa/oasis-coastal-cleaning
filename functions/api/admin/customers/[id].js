@@ -11,6 +11,7 @@
  * things too. Nothing from here is ever rendered to a customer.
  */
 import { json, clean } from '../../../_lib/util.js';
+import { statusFor, balanceOf, paidTotal } from '../../../_lib/invoices.js';
 import { gate } from '../../../_lib/guard.js';
 import { isSignedIn } from '../../../_lib/auth.js';
 
@@ -104,13 +105,59 @@ export async function onRequestGet({ request, env, params }) {
   const feed = timeline.filter(Boolean)
     .sort((a, b) => String(b.at).localeCompare(String(a.at)));
 
+  /* The money, worked out from the payment rows like everywhere else, so
+     a profile cannot disagree with the Money screen about whether this
+     person has paid. */
+  const invRows = (await soft(env.DB.prepare(
+    `SELECT * FROM invoices WHERE archived_at IS NULL AND customer_id = ?
+      ORDER BY created_at DESC LIMIT 50`
+  ).bind(id).all())).results || [];
+  let paysBy = {};
+  if (invRows.length) {
+    const im = invRows.map(() => '?').join(',');
+    const prows = (await soft(env.DB.prepare(
+      `SELECT * FROM payments WHERE invoice_id IN (${im})`
+    ).bind(...invRows.map((i) => i.id)).all())).results || [];
+    for (const p of prows) (paysBy[p.invoice_id] ||= []).push(p);
+  }
+  const invoices = invRows.map((i) => ({
+    id: i.id, created_at: i.created_at, total: i.total,
+    paid: paidTotal(paysBy[i.id] || []),
+    balance: balanceOf(i, paysBy[i.id] || []),
+    state: statusFor(i, paysBy[i.id] || [])
+  }));
+  const outstanding = invoices
+    .filter((i) => i.state !== 'void')
+    .reduce((n, i) => n + Math.max(0, i.balance), 0);
+  const lifetime = invoices
+    .filter((i) => i.state !== 'void')
+    .reduce((n, i) => n + i.paid, 0);
+
+  /* Standing arrangements, which is what a regular actually is. */
+  const jobs = (await soft(env.DB.prepare(
+    `SELECT id, title, service_label, freq, byday, start_date, until_date,
+            start_time, duration_min, status, created_at
+       FROM jobs WHERE customer_id = ? AND archived_at IS NULL
+      ORDER BY created_at DESC LIMIT 20`
+  ).bind(id).all())).results || [];
+
+  const now = new Date().toISOString();
+  const next = visits.find((v) =>
+    v.status !== 'cancelled' && String(v.start_at || v.start_date || '') >= now.slice(0, 10)) || null;
+
   return json({ ok: true,
     customer, properties, timeline: feed,
+    invoices, outstanding, lifetime, jobs,
+    next_visit: next,
+    /* Their standing link, so she can hand it over from the profile
+       rather than hunting for it. */
+    link_token: customer.link_token || null,
     counts: {
       requests: leads.length,
       quotes: quotes.length,
       visits: visits.filter((v) => v.status !== 'cancelled').length,
-      letters: letters.length
+      letters: letters.length,
+      invoices: invoices.length
     }
   });
 }
