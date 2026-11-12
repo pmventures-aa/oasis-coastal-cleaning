@@ -27,10 +27,10 @@
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="/tokens.css?v=202611120207">
-  <link rel="stylesheet" href="/css/site.css?v=202611120207">
+  <link rel="preload" href="/fonts/montserrat-latin.woff2?v=202611120230" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/cinzel-latin.woff2?v=202611120230" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/tokens.css?v=202611120230">
+  <link rel="stylesheet" href="/css/site.css?v=202611120230">
 </head>
 <body data-page="thanks">
 
@@ -58,7 +58,7 @@
         <li>Note any days that will not work, or a gate code we would need.</li>
       </ul>
       <p class="mt-lg thanks__acts" style="margin-bottom:0">
-        <span data-render="textButton" data-label="Text photos to"></span>
+        <span data-render="textButton" data-label="Text photos to"><!--pre--><a class="btn btn--primary" href="sms:+15612017123">Text photos to (561) 201-7123</a><!--/pre--></span>
         <a class="btn btn--ghost" href="/services">See what a visit includes</a>
       </p>
     </div>
@@ -71,17 +71,17 @@
       <p class="eyebrow">Before we come</p>
       <h2>Common questions</h2>
     </div>
-    <div data-render="faqs" data-limit="4"></div>
+    <div class="faq" data-render="faqs" data-limit="4"><!--pre--><details><summary>How much does it cost?</summary><p>Every job is quoted individually, so there is no price list to point you at. What moves the number is square footage, how often we come, whether there are pets, and the condition on day one. Tell us about the space and a real number comes back within one business day — usually the same day.</p></details><details><summary>Why is there no price list?</summary><p>Because a figure published before anyone has seen your home is either padded to cover the worst case, or it is about to be revised upward once we walk in. Neither is a good start. A quote written for your house is worth more than a number that was written for nobody.</p></details><details><summary>Do I have to sign a contract?</summary><p>No. Recurring visits continue until you tell us otherwise, and you can pause for the summer or stop entirely with a week of notice.</p></details><details><summary>Do you bring your own supplies?</summary><p>Yes — everything, including the vacuum. If you would rather we use your products, leave them out and we will. Plenty of clients do, especially with stone counters or a sensitivity to fragrance.</p></details><!--/pre--></div>
   </div>
 </section>
 </main>
 
-<div data-render="footer"></div>
-<div data-render="stickybar"></div>
+<div data-render="footer"><!--pre--><footer class="footer"><div class="wrap footer__top"><a class="footer__brand" href="/"><img src="/logo/logo-260.webp" width="260" height="260" alt="Oasis Coastal Cleaning" loading="lazy"><span class="footer__tag">Fresh Spaces. Happy Places.</span></a><nav class="footer__links" aria-label="Footer"><a href="/services">Services</a><a href="/pricing">Pricing</a><a href="/service-areas">Service Areas</a><a href="/about">About</a><a href="/faq">FAQ</a><a href="/contact">Contact</a><a href="/corporate-cleaning">Corporate</a><a href="/airbnb-cleaning">Vacation Rentals</a></nav><div class="footer__reach"><a class="btn btn--primary" href="/quote">Get a quote</a><a class="footer__phone" href="tel:+15612017123">(561) 201-7123</a><a href="mailto:info@oasiscoastalcleaning.com">info@oasiscoastalcleaning.com</a></div></div><div class="wrap footer__legal"><span>Monday – Friday 7:00 am – 7:00 pm &nbsp;·&nbsp; Saturday 8:00 am – 5:00 pm &nbsp;·&nbsp; Sunday 9:00 am – 3:00 pm</span><span>© 2026 Oasis Coastal Cleaning · Licensed and insured in the State of Florida · Serving Palm Beach and Broward County, Florida.</span></div></footer><!--/pre--></div>
+<div data-render="stickybar"><!--pre--><nav class="stickybar" aria-label="Contact"><a href="tel:+15612017123" data-cta="sticky-call"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 3.5h3l1.5 4-2 1.5a12 12 0 0 0 6.3 6.3l1.5-2 4 1.5v3a2 2 0 0 1-2.2 2A16.5 16.5 0 0 1 4.2 5.7 2 2 0 0 1 6.2 3.5Z"></path></svg>Call</a><a href="sms:+15612017123" data-cta="sticky-text"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12.4c0 4-3.8 7.2-8.5 7.2a10 10 0 0 1-2.6-.34L4 21l1.5-3.7A6.9 6.9 0 0 1 3.5 12.4c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2Z"></path></svg>Text</a><a class="is-primary" href="/quote" data-cta="sticky-quote"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"></rect><path d="M3.5 10h17M8 3.5v3M16 3.5v3"></path></svg>Quote</a></nav><!--/pre--></div>
 
-<script src="/js/format.js?v=202611120207"></script>
-<script src="/js/data.js?v=202611120207"></script>
-<script src="/js/site.js?v=202611120207"></script>
+<script src="/js/format.js?v=202611120230"></script>
+<script src="/js/data.js?v=202611120230"></script>
+<script src="/js/site.js?v=202611120230"></script>
 <!-- The quote form finishes in place, on the form itself, so nothing sends
      anyone here any more. A script used to greet them by name and quote back
      the figures the old pricing wizard showed. It read a sessionStorage key

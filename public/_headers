@@ -14,10 +14,18 @@
 /print/*
   Cache-Control: public, max-age=31536000, immutable
 
-# Styles and scripts carry no version in their names, so a long max-age means a
-# returning visitor keeps the old file until it expires — a day of stale site
-# after every deploy. Revalidate on every request instead: the file only travels
-# when it has actually changed, and an unchanged one costs a 304.
+# The fonts are large and never change, and bump-version.sh stamps a version
+# onto their URLs in both the <link rel="preload"> and the url() in tokens.css,
+# so each deploy's URL is new and a year-long cache can never serve a stale one.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Styles and scripts are stamped too, so in principle they could be cached just
+# as hard. They are not, on purpose. The stamp comes from remembering to run
+# bump-version.sh, and the one time that was forgotten a finished design sat
+# invisible behind a day-old cache. Revalidating costs one conditional request
+# for a file of a few tens of KB and returns a 304 when nothing changed, which
+# is a cheap premium against shipping a deploy nobody can see.
 /css/*
   Cache-Control: public, max-age=0, must-revalidate
 /js/*

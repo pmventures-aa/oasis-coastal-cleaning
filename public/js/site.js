@@ -389,8 +389,18 @@
                '</section>';
       }).join('');
 
+  }
+
+  /* The town search is wired to the document rather than to the input, so that
+     renderAreas above is pure markup and the page can be prerendered: a slot
+     whose renderer attaches its own listeners would end up with the markup in
+     the page twice and the listener on only one of the copies. */
+  function setupTownFind() {
+    var el = document.querySelector('[data-render="areas"]');
+    if (!el) { return; }
     var box = el.querySelector('#townfind');
     var said = el.querySelector('.townfind__said');
+    if (!box || !said) { return; }
     var cards = [].slice.call(el.querySelectorAll('.area-card'));
 
     function filter() {
@@ -417,6 +427,10 @@
     }
 
     box.addEventListener('input', filter);
+
+    // A browser that restored a typed value on back-navigation would otherwise
+    // show the box filled and the full list unfiltered.
+    if (box.value.trim()) { filter(); }
   }
 
   function renderAreaSummary(el) {
@@ -539,10 +553,15 @@
   /* The thank-you page asks them to text photos of the space. It used to ask
      and then offer a link to the services page, so the one useful thing on
      that screen had nothing to tap. */
+  /* This fills the span rather than replacing it, so that the slot is still
+     there to be prerendered -- a renderer that deletes its own slot leaves
+     nothing for tools/prerender.mjs to copy into, and this button was the one
+     hole left in the first paint. The span is display: contents (see
+     css/site.css) so the button is still the flex item its row expects. */
   function renderTextButton(el) {
     var b = D.business;
     var label = el.getAttribute('data-label') || 'Text photos to';
-    el.outerHTML = '<a class="btn btn--primary" href="' + smsHref(b.phone) + '">' +
+    el.innerHTML = '<a class="btn btn--primary" href="' + smsHref(b.phone) + '">' +
       esc(label) + ' ' + esc(b.phone) + '</a>';
   }
 
@@ -686,8 +705,17 @@
     // cards cascades rather than snapping in all at once.
     var seen = [];
     var counts = [];
+    var fold = window.innerHeight;
     for (var i = 0; i < nodes.length; i++) {
       var n = nodes[i];
+
+      // Anything already on screen is left alone. The page is prerendered, so
+      // this block has been visible since the first paint; adding .reveal to
+      // it here would take it to opacity 0 and fade it back in, which reads as
+      // a flicker on the very content the reader came for. The effect belongs
+      // to what has not been seen yet.
+      if (n.getBoundingClientRect().top < fold) { continue; }
+
       var p = n.parentNode;
       var idx = seen.indexOf(p);
       if (idx === -1) { seen.push(p); counts.push(0); idx = seen.length - 1; }
@@ -728,6 +756,7 @@
     }
 
     syncDisclosures();
+    setupTownFind();
 
     setupMotion();
     setupHeaderScroll();

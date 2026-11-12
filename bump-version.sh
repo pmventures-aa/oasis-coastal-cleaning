@@ -20,6 +20,20 @@ for f in public/*.html public/admin/index.html; do
   # The portal's manifest is a static asset too, so the edge caches it and a
   # changed start_url or icon would not reach a phone that had seen the old one.
   sed -i -E 's#(href="/admin/app\.webmanifest)(\?v=[0-9a-zA-Z.-]+)?"#\1?v='"$TOKEN"'"#g' "$f"
+  # The font preloads must carry the SAME token as the url() in tokens.css
+  # below, or the browser preloads one URL, the stylesheet asks for another,
+  # and every visitor downloads each font twice.
+  sed -i -E 's#(href="/fonts/[a-z-]+\.woff2)(\?v=[0-9a-zA-Z.-]+)?"#\1?v='"$TOKEN"'"#g' "$f"
 done
+# Stamping the font URLs means /fonts/* can be cached for a year (see
+# public/_headers): a replaced file reaches everyone on the next deploy because
+# its URL changes, rather than waiting for a cache to expire.
+sed -i -E "s#(url\('/fonts/[a-z-]+\.woff2)(\?v=[0-9a-zA-Z.-]+)?'#\1?v=$TOKEN'#g" public/tokens.css
 echo "stamped ?v=$TOKEN"
 grep -ho '?v=[0-9a-zA-Z.-]*' public/index.html | sort -u
+
+# The pages carry a prerendered copy of everything js/site.js builds from
+# js/data.js, so the first paint is the finished page instead of a set of
+# holes. That copy is only true until data.js changes, and this script already
+# has to run after any js change, so it is also where the copy gets rebuilt.
+node tools/prerender.mjs

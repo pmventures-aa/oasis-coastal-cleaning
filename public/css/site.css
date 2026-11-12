@@ -834,6 +834,18 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
   .incl > summary::after { display: none; }
 }
 
+/* From that width the panel is really a heading with a list under it, so the
+   open state belongs here and not to a script that runs after the first paint.
+   It used to be JS that opened them, which expanded eight panels a beat late
+   and shoved everything below them down the page. site.js still sets the open
+   attribute: where this rule applies that is invisible, and where
+   ::details-content is not supported it is what opens them. */
+@supports selector(::details-content) {
+  @media (min-width: 760px) {
+    .incl::details-content { content-visibility: visible; block-size: auto; }
+  }
+}
+
 /* The add-ons listing runs the note on from the label, so it needs the inline
    treatment rather than the stacked one, and it pairs up once there is width. */
 .pricelist small { display: inline; margin-top: 0; font-size: 0.8rem; }
@@ -878,7 +890,14 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
               transform .65s cubic-bezier(.22, .61, .36, 1);
   will-change: opacity, transform;
 }
-.reveal.reveal-in { opacity: 1; transform: none; }
+.reveal.reveal-in {
+  opacity: 1;
+  transform: none;
+  /* will-change asks the compositor to keep a layer for this element.
+     Once the block has settled it never animates again, so holding the
+     layer open for every card on the page is memory spent on nothing. */
+  will-change: auto;
+}
 
 /* Header settles into an elevated state once the page is scrolled. */
 .topbar { transition: box-shadow .3s ease, background .3s ease; }
@@ -1471,6 +1490,10 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
 
 /* Text first, browse second. */
 .thanks__acts { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+/* The text-message button is wrapped in the slot it is rendered into, and
+   that row is a flex container, so the wrapper has to stay out of the
+   layout or the button stops being the flex item and loses its gap. */
+[data-render="textButton"] { display: contents; }
 
 /* The home-cleaning aside: how often she comes, where she works. It used to
    be the logo again, decorative and aria-hidden, third time on one screen. */
