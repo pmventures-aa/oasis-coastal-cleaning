@@ -526,6 +526,36 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
   text-transform: uppercase; color: var(--oasis-gold); margin: 0 0 0.75rem;
 }
 .addon-grid { display: grid; gap: 0.5rem; grid-template-columns: 1fr; }
+
+/* The add-on groups on the quote form fold (see addonGroup in js/quote.js).
+   Everything below is the summary behaving like the heading it replaced, plus
+   a tap target that meets the 44px the rest of this stylesheet holds. The
+   same class on the /services page is a plain div with a <p> heading and is
+   untouched by any of this. */
+details.addon-group > summary {
+  cursor: pointer; list-style: none;
+  display: flex; align-items: center; gap: 0.6rem;
+  min-height: 44px; padding-right: 1.75rem; position: relative;
+}
+details.addon-group > summary::-webkit-details-marker { display: none; }
+details.addon-group > summary::after {
+  content: ''; position: absolute; right: 0.35rem; top: 50%;
+  width: 8px; height: 8px; margin-top: -6px;
+  border-right: 2px solid var(--oasis-gold);
+  border-bottom: 2px solid var(--oasis-gold);
+  transform: rotate(45deg); transition: transform .18s ease;
+}
+details.addon-group[open] > summary::after { transform: rotate(-135deg); margin-top: -2px; }
+details.addon-group > summary > span:first-child { flex: 1; }
+.addon-group__count {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: var(--tracking-caps);
+  text-transform: uppercase; color: var(--oasis-teal);
+  background: rgba(39, 189, 206, 0.14);
+  border-radius: 999px; padding: 0.2rem 0.55rem;
+}
+.addon-group__count[hidden] { display: none; }
+details.addon-group > summary + .addon-grid { margin-top: 0.75rem; }
+details.addon-group + details.addon-group { margin-top: 1rem; }
 @media (min-width: 640px) { .addon-grid { grid-template-columns: repeat(2, 1fr); } }
 
 .checkrow.addon {
@@ -563,9 +593,23 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
 .wiz__bar { display: flex; gap: 4px; margin-bottom: 1rem; }
 .wiz__seg {
   flex: 1; height: 4px; border-radius: 2px;
-  background: var(--oasis-line); transition: background .25s ease;
+  background: var(--oasis-line);
+  position: relative; overflow: hidden;
 }
-.wiz__seg.is-done { background: var(--oasis-teal); }
+/* The teal is a child that grows across the segment rather than a background
+   that switches, so the bar fills in the direction of travel and drains back
+   on Back. This only works because render() keeps the segments between steps;
+   when it rebuilt them, each one was new and had nothing to animate from. */
+.wiz__seg::after {
+  content: ''; position: absolute; inset: 0;
+  background: var(--oasis-teal);
+  transform: scaleX(0); transform-origin: left center;
+  transition: transform .34s cubic-bezier(.22, .61, .36, 1);
+}
+.wiz__seg.is-done::after { transform: scaleX(1); }
+@media (prefers-reduced-motion: reduce) {
+  .wiz__seg::after { transition: none; }
+}
 .wiz__count {
   margin: 0 0 0.35rem; font-size: 0.72rem; font-weight: 600;
   letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--oasis-gold);
@@ -574,6 +618,27 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: #C2553F;
 .wiz__title { margin: 0 0 1rem; font-size: var(--step-1); }
 .step-lead { color: var(--oasis-muted); margin: 0 0 1.4rem; max-width: 60ch; }
 .wiz__body { display: grid; gap: 1.3rem; }
+
+/* A step arrives from the side it came from, so Back and Next feel like
+   directions rather than two versions of the same flash. The card's height is
+   animated from JS at the same time (see swapBody in js/quote.js), so the
+   footer below does not jump between a short step and a long one.
+
+   Only the incoming step moves. Animating the outgoing one as well would mean
+   holding the next step back by the length of that animation, and a form that
+   waits a sixth of a second after every tap is a worse trade than a cut. */
+@media (prefers-reduced-motion: no-preference) {
+  .wiz__body--fwd  { animation: wiz-in-fwd .34s cubic-bezier(.22, .61, .36, 1) both; }
+  .wiz__body--back { animation: wiz-in-back .34s cubic-bezier(.22, .61, .36, 1) both; }
+}
+@keyframes wiz-in-fwd {
+  from { opacity: 0; transform: translate3d(22px, 0, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes wiz-in-back {
+  from { opacity: 0; transform: translate3d(-22px, 0, 0); }
+  to   { opacity: 1; transform: none; }
+}
 .wiz__nav {
   display: flex; justify-content: space-between; align-items: center; gap: 1rem;
   margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--oasis-line);
@@ -899,6 +964,34 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
   will-change: auto;
 }
 
+/* ------------------------------------------------------ arriving at an anchor
+   The service nav on /services and the county links on the home page jump to a
+   card further down the page. Two things were wrong with the landing: the
+   sticky header sat over the heading you had just asked for, and the jump was
+   instant, so there was no way to tell whether the page had moved or been
+   replaced. Now it glides, it stops clear of the header, and the card you
+   asked for says so for a moment.
+
+   :target does the highlight with no script at all, and it is correct for a
+   link followed from another page as well as one followed from this one. */
+.card[id], section[id], article[id], #quote-wizard {
+  scroll-margin-top: calc(var(--topbar-h, 4.75rem) + 1rem);
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+  .card[id]:target { animation: oasis-land 1.6s cubic-bezier(.22, .61, .36, 1) both; }
+}
+@keyframes oasis-land {
+  0%   { box-shadow: 0 0 0 3px var(--oasis-gold), 0 18px 44px rgba(9, 64, 69, 0.14); }
+  60%  { box-shadow: 0 0 0 3px var(--oasis-gold), 0 18px 44px rgba(9, 64, 69, 0.14); }
+  100% { box-shadow: 0 0 0 0 rgba(200, 156, 83, 0), 0 0 0 0 rgba(9, 64, 69, 0); }
+}
+
+/* The town search answers in text; this is the list agreeing with it. Each
+   surviving name lifts its weight and colour rather than simply being what is
+   left over once the rest blinked out. */
+.arealist li { transition: color .2s ease, font-weight .2s ease; }
+
 /* Header settles into an elevated state once the page is scrolled. */
 .topbar { transition: box-shadow .3s ease, background .3s ease; }
 .topbar.is-scrolled {
@@ -927,6 +1020,10 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
    shortly after load so it reads as the main path on a phone. */
 @media (prefers-reduced-motion: no-preference) {
   .stickybar a.is-primary svg { animation: oasis-nudge 3.2s ease-in-out 1.5s 2; }
+  /* Not on the quote page. Someone part-way through the form has already
+     chosen how to get in touch, and a call button twitching at them is the
+     site arguing with the thing it just asked them to do. */
+  [data-page="quote"] .stickybar a.is-primary svg { animation: none; }
 }
 @keyframes oasis-nudge {
   0%, 100% { transform: translateY(0); }
@@ -937,8 +1034,13 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
 /* Hero logo drifts like it is on calm water, and eases in on first paint. */
 @media (prefers-reduced-motion: no-preference) {
   .hero__logo {
+    /* The float used to be infinite. A logo bobbing for as long as the tab is
+       open is motion with nothing left to say, it keeps a compositor layer
+       alive on a phone for the whole visit, and WCAG 2.2.2 asks for a way to
+       stop anything that moves by itself for more than five seconds. Three
+       passes read as the same "on calm water" and then the page is still. */
     animation: oasis-logo-in .9s cubic-bezier(.22,.61,.36,1) both,
-               oasis-float 7s ease-in-out 1s infinite;
+               oasis-float 7s ease-in-out 1s 3;
   }
 }
 @keyframes oasis-logo-in {

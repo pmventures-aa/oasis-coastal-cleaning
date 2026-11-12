@@ -61,12 +61,30 @@ await pg.waitForTimeout(200);
 ok('panel opens on tap', await incl.evaluate(d => d.open));
 
 await pg.goto(U + 'quote.html', { waitUntil: 'networkidle' });
-ok('wizard shows step 1 of 4', /Step 1 of/.test(await pg.textContent('.wiz__count')));
-const cards = pg.locator('.wiz__body [data-pick], .wiz__body .pick, .wiz__body button, .wiz__body label');
+ok('wizard opens on step 1', /Step 1 of/.test(await pg.textContent('.wiz__count')));
+ok('one progress segment is filled', await pg.locator('.wiz__seg.is-done').count() === 1);
 await pg.locator('[data-act="next"]').click();
 await pg.waitForTimeout(300);
 const afterNext = await pg.textContent('.wiz__count');
 ok('Next either advances or explains why not', /Step 2 of/.test(afterNext) || !(await pg.locator('#wiz-status').first().isHidden()));
+
+// The add-ons step: every box present, none of them in the way.
+await pg.goto(U + 'quote.html', { waitUntil: 'networkidle' });
+await pg.locator('.tile').first().click();
+for (let i = 0; i < 3; i++) { await pg.locator('[data-act="next"]').click(); await pg.waitForTimeout(200); }
+ok('reached the add-ons step', /Anything else/.test(await pg.textContent('.wiz__title')));
+const boxes = await pg.locator('.wiz__body input[type=checkbox]').count();
+const bodyH = await pg.evaluate(() => document.querySelector('.wiz__body').offsetHeight);
+ok(`add-ons step holds all ${boxes} boxes in ${bodyH}px (was ~1550)`, boxes >= 12 && bodyH < 800);
+ok('groups are folded on a phone', await pg.locator('details.addon-group[open]').count() === 0);
+await pg.locator('details.addon-group summary').first().click();
+await pg.locator('details.addon-group input[type=checkbox]').first().check();
+await pg.waitForTimeout(120);
+ok('the group counts what you ticked', /1 chosen/.test(await pg.textContent('details.addon-group .addon-group__count')));
+await pg.locator('[data-act="next"]').click(); await pg.waitForTimeout(250);
+await pg.locator('[data-act="back"]').click(); await pg.waitForTimeout(250);
+ok('the tick survives Back', await pg.locator('details.addon-group input:checked').count() === 1);
+ok('and its group reopens itself', await pg.locator('details.addon-group:has(input:checked)').first().evaluate(d => d.open));
 await ctx.close();
 ok('no page errors with JS on', errs.length === 0);
 if (errs.length) console.log('   ', errs.join(' | '));

@@ -160,6 +160,41 @@ var state = { step: 0, leadId: null };
     return map[name] || name;
   }
 
+  /* Everything on this step is optional, and all of it together ran to about
+     1,550px on a phone -- two screenfuls of tick boxes between someone who
+     wants nothing extra and the Next button. The groups fold now, so the step
+     opens as a short list of headings you can reach the end of, and you open
+     only what you came for. A group that already has something ticked opens
+     itself, so coming back with Back never hides a choice you made; at the
+     width where it all fits anyway, they are open from the start. */
+  function addonGroup(name, items) {
+    var chosen = 0;
+    items.forEach(function (i) { if (i.on) { chosen++; } });
+    var wide = window.matchMedia && window.matchMedia('(min-width: 760px)').matches;
+    return '<details class="addon-group"' + (chosen || wide ? ' open' : '') + '>' +
+             '<summary class="addon-group__name">' +
+               '<span>' + esc(name) + '</span>' +
+               '<span class="addon-group__count"' + (chosen ? '' : ' hidden') + '>' +
+                 (chosen || '') + ' chosen</span>' +
+             '</summary>' +
+             '<div class="addon-grid">' +
+               items.map(function (i) { return i.html; }).join('') +
+             '</div>' +
+           '</details>';
+  }
+
+  /* Keeps the count on a folded group honest while the step is open. */
+  function refreshAddonCounts() {
+    var groups = root.querySelectorAll('details.addon-group');
+    for (var i = 0; i < groups.length; i++) {
+      var n = groups[i].querySelectorAll('input:checked').length;
+      var tag = groups[i].querySelector('.addon-group__count');
+      if (!tag) { continue; }
+      tag.hidden = !n;
+      tag.textContent = n + ' chosen';
+    }
+  }
+
   function stepAddOns() {
     var s = currentService();
     var mine = D.addOns.filter(function (x) { return x.services.indexOf(s.id) !== -1; });
@@ -179,37 +214,33 @@ var state = { step: 0, leadId: null };
     return '<p class="step-lead">Tick anything you would like included, or none at all. ' +
              esc(D.bundleNote) + '</p>' +
       groups.map(function (g) {
-        return '<div class="addon-group">' +
-                 '<p class="addon-group__name">' + esc(groupLabel(s, g.name)) + '</p>' +
-                 '<div class="addon-grid">' +
-                   g.items.map(function (x) {
-                     var on = (state.addOns || []).indexOf(x.id) !== -1;
-                     return '<label class="checkrow addon">' +
-                              '<input type="checkbox" name="addons" value="' + esc(x.id) + '"' +
-                                (on ? ' checked' : '') + '>' +
-                              '<span class="addon__body">' +
-                                '<span class="addon__label">' + esc(x.label) + '</span>' +
-                                (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
-                              '</span></label>';
-                   }).join('') +
-                 '</div></div>';
+        return addonGroup(groupLabel(s, g.name), g.items.map(function (x) {
+          var on = (state.addOns || []).indexOf(x.id) !== -1;
+          return { on: on, html:
+            '<label class="checkrow addon">' +
+              '<input type="checkbox" name="addons" value="' + esc(x.id) + '"' +
+                (on ? ' checked' : '') + '>' +
+              '<span class="addon__body">' +
+                '<span class="addon__label">' + esc(x.label) + '</span>' +
+                (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
+              '</span></label>' };
+        }));
       }).join('') +
       /* These tick the same way the add-ons above do and sit in the same
          step, but they were plain rows with no card around them — half the
          tap target and a different species on the same screen. */
       (conds.length
-        ? '<div class="addon-group"><p class="addon-group__name">About the home</p>' +
-          '<div class="addon-grid">' +
-          conds.map(function (x) {
+        ? addonGroup('About the home', conds.map(function (x) {
             var on = (state.conditions || []).indexOf(x.id) !== -1;
-            return '<label class="checkrow addon">' +
-                     '<input type="checkbox" name="conditions" value="' + esc(x.id) + '"' +
-                       (on ? ' checked' : '') + '>' +
-                     '<span class="addon__body">' +
-                       '<span class="addon__label">' + esc(x.label) + '</span>' +
-                       (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
-                     '</span></label>';
-          }).join('') + '</div></div>'
+            return { on: on, html:
+              '<label class="checkrow addon">' +
+                '<input type="checkbox" name="conditions" value="' + esc(x.id) + '"' +
+                  (on ? ' checked' : '') + '>' +
+                '<span class="addon__body">' +
+                  '<span class="addon__label">' + esc(x.label) + '</span>' +
+                  (x.note ? '<small>' + esc(x.note) + '</small>' : '') +
+                '</span></label>' };
+          }))
         : '');
   }
 
@@ -555,34 +586,112 @@ var state = { step: 0, leadId: null };
     if (box) { box.hidden = true; }
   }
 
-  function render() {
+  /* Every step used to scroll the page to 0,0, which put the hero and its
+     "six short steps" blurb back on screen and pushed the step itself below
+     the fold -- on a phone, the first thing you saw after tapping Next was
+     the copy you had already read. This brings the card itself to the top
+     instead, under the header. scroll-margin-top on the card does the
+     arithmetic; see .card[id] in css/site.css for the same idea on anchors. */
+  function showWizard() {
+    if (root.scrollIntoView) { root.scrollIntoView({ block: 'start' }); return; }
+    window.scrollTo(0, 0);
+  }
+
+  function reducedMotion() {
+    return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /* The chrome around the steps -- the progress bar, the counter, the heading,
+     the nav -- is built once and then updated in place. It used to be thrown
+     away and rebuilt on every step, which is why .wiz__seg carried a
+     background transition that could never run: a brand new element has no
+     previous state to animate from, so the bar snapped. Keeping the elements
+     also lets a step slide in from the side it came from, and lets the card
+     grow or shrink into the next step's height instead of jumping. */
+  function shell() {
+    var total = STEPS.length;
+    root.innerHTML =
+      '<div class="wiz">' +
+        '<div class="wiz__bar" role="progressbar" aria-valuemin="1" aria-valuemax="' + total +
+          '" aria-valuenow="1" aria-label="Step 1 of ' + total + '">' +
+          STEPS.map(function () { return '<span class="wiz__seg"></span>'; }).join('') +
+        '</div>' +
+        '<p class="wiz__count"></p>' +
+        /* tabindex so submit can move focus here; a reader otherwise hears
+           nothing after the button it was on is removed from the page. */
+        '<h2 class="wiz__title" tabindex="-1"></h2>' +
+        '<div class="wiz__body"></div>' +
+        '<div id="wiz-status" class="form-status form-status--err" role="alert" hidden></div>' +
+        '<div class="wiz__nav"></div>' +
+      '</div>';
+  }
+
+  var heightTimer = null;
+
+  function settle(body) {
+    clearTimeout(heightTimer);
+    heightTimer = null;
+    body.style.height = '';
+    body.style.overflow = '';
+    body.style.transition = '';
+  }
+
+  /* dir is +1 going forward, -1 going back, 0 for the first paint -- which is
+     the prerendered markup being replaced by the identical thing, and must not
+     animate. */
+  function swapBody(body, html, dir) {
+    if (!dir || reducedMotion()) { settle(body); body.innerHTML = html; return; }
+
+    var from = body.offsetHeight;
+    settle(body);
+    body.innerHTML = html;
+    var to = body.offsetHeight;
+
+    if (from && to && Math.abs(from - to) > 2) {
+      body.style.height = from + 'px';
+      body.style.overflow = 'hidden';
+      body.getBoundingClientRect();                       // flush the start value
+      body.style.transition = 'height .32s cubic-bezier(.22,.61,.36,1)';
+      body.style.height = to + 'px';
+      // Always on a timer rather than only on transitionend: if the step is
+      // changed again mid-animation the event never arrives, and a card stuck
+      // at a fixed height with overflow hidden would clip the form.
+      heightTimer = setTimeout(function () { settle(body); }, 420);
+    }
+
+    body.classList.remove('wiz__body--fwd', 'wiz__body--back');
+    body.getBoundingClientRect();                         // so the class re-triggers
+    body.classList.add(dir > 0 ? 'wiz__body--fwd' : 'wiz__body--back');
+  }
+
+  function render(dir) {
     var step = STEPS[state.step];
     var n = state.step + 1, total = STEPS.length;
     var s = U.serviceById(state.service) || services[0];
 
-    root.innerHTML =
-      '<div class="wiz">' +
-        '<div class="wiz__bar" role="progressbar" aria-valuemin="1" aria-valuemax="' + total +
-          '" aria-valuenow="' + n + '" aria-label="Step ' + n + ' of ' + total + '">' +
-          STEPS.map(function (st, i) {
-            return '<span class="wiz__seg' + (i < n ? ' is-done' : '') + '"></span>';
-          }).join('') +
-        '</div>' +
-        '<p class="wiz__count">Step ' + n + ' of ' + total +
-          (state.step > 0 ? ' · <span class="muted">' + esc(s.name) + '</span>' : '') +
-        '</p>' +
-        '<h2 class="wiz__title">' + esc(step.title) + '</h2>' +
-        '<div class="wiz__body">' + step.render() + '</div>' +
-        '<div id="wiz-status" class="form-status form-status--err" role="alert" hidden></div>' +
-        '<div class="wiz__nav">' +
-          (state.step > 0
-            ? '<button type="button" class="btn btn--ghost" data-act="back">Back</button>'
-            : '<span></span>') +
-          '<button type="button" class="btn btn--primary" data-act="next">' +
-            (state.step === total - 1 ? 'Send it over' : 'Next') +
-          '</button>' +
-        '</div>' +
-      '</div>';
+    // done() replaces the whole wizard, and the first call may find the
+    // prerendered markup, so never assume the shell is the one we left.
+    if (!root.querySelector('.wiz__body') || !root.querySelector('.wiz__nav')) { shell(); dir = 0; }
+
+    var bar = root.querySelector('.wiz__bar');
+    bar.setAttribute('aria-valuenow', n);
+    bar.setAttribute('aria-label', 'Step ' + n + ' of ' + total);
+    var segs = bar.querySelectorAll('.wiz__seg');
+    for (var i = 0; i < segs.length; i++) { segs[i].classList.toggle('is-done', i < n); }
+
+    root.querySelector('.wiz__count').innerHTML = 'Step ' + n + ' of ' + total +
+      (state.step > 0 ? ' · <span class="muted">' + esc(s.name) + '</span>' : '');
+    root.querySelector('.wiz__title').textContent = step.title;
+
+    swapBody(root.querySelector('.wiz__body'), step.render(), dir);
+
+    root.querySelector('.wiz__nav').innerHTML =
+      (state.step > 0
+        ? '<button type="button" class="btn btn--ghost" data-act="back">Back</button>'
+        : '<span></span>') +
+      '<button type="button" class="btn btn--primary" data-act="next">' +
+        (state.step === total - 1 ? 'Send it over' : 'Next') +
+      '</button>';
 
     if (state.step === total - 1) { mountTurnstile(); }
     if (step.id === 'where') { mountCityCombo(); }
@@ -760,6 +869,16 @@ var state = { step: 0, leadId: null };
     if (note) { note.hidden = true; }
 
     window.scrollTo(0, 0);
+
+    // The button that was focused has just been removed from the page, so
+    // focus falls to the body and a screen reader announces nothing at all --
+    // after the one action on this page that most needs confirming. Move it to
+    // the heading that says it worked.
+    var heading = root.querySelector('.wiz__title');
+    if (heading) {
+      heading.setAttribute('tabindex', '-1');
+      heading.focus({ preventScroll: true });
+    }
   }
 
   function requestFollowUp(kind, btn) {
@@ -822,7 +941,7 @@ var state = { step: 0, leadId: null };
     if (act === 'back') {
       collect(); hush();
       state.step = Math.max(0, state.step - 1);
-      render(); window.scrollTo(0, 0);
+      render(-1); showWizard();
       return;
     }
     if (act === 'next') {
@@ -832,12 +951,13 @@ var state = { step: 0, leadId: null };
       collect();
       if (state.step === STEPS.length - 1) { submit(btn); return; }
       state.step += 1;
-      render(); window.scrollTo(0, 0);
+      render(1); showWizard();
     }
   });
 
   // Changing the service mid-flow invalidates the size chosen for the old one.
   root.addEventListener('change', function (e) {
+    if (e.target.name === 'addons' || e.target.name === 'conditions') { refreshAddonCounts(); }
     if (e.target.name === 'service') {
       state.service = e.target.value;
       state.size = null;
@@ -854,5 +974,5 @@ var state = { step: 0, leadId: null };
   var preProperty = params.get('property');
   if (preProperty && D.propertyTypes.indexOf(preProperty) !== -1) { state.property = preProperty; }
 
-  render();
+  render(0);
 })();
