@@ -192,8 +192,11 @@ export function looksAutomated(request) {
   return BOT_UA.test(ua);
 }
 
+/* Returns true when this was the first time anybody opened it, which is the
+   only view worth telling Kristina about -- the same quote reopened six times
+   while somebody thinks it over is not six pieces of news. */
 export async function recordQuoteView(db, quote) {
-  if (!db || !quote || quote.status === 'draft') return;
+  if (!db || !quote || quote.status === 'draft') return false;
   const now = new Date().toISOString();
   const isFirst = !quote.first_viewed_at;
   await db.prepare(
@@ -205,6 +208,7 @@ export async function recordQuoteView(db, quote) {
      WHERE id = ?`
   ).bind(now, now, now, quote.id).run();
   if (isFirst) await logQuoteEvent(db, quote.id, 'viewed');
+  return isFirst;
 }
 
 export async function findQuoteByEmailProviderId(db, providerId) {

@@ -1,7 +1,7 @@
 /**
  * POST /api/admin/quotes/send — email the customer and mark the quote sent.
  */
-import { json, clean, sendEmail } from '../../../_lib/util.js';
+import { json, clean, sendEmail, newId } from '../../../_lib/util.js';
 import { gate } from '../../../_lib/guard.js';
 import { isSignedIn } from '../../../_lib/auth.js';
 import { quoteFromRow, proposalUrl, isExpired, logQuoteEvent } from '../../../_lib/quotes.js';
@@ -16,6 +16,31 @@ const guard = async (request, env) => {
   return null;
 };
 
+/* The contact record shows a customer's email history straight out of
+   email_log, and the manual email centre has always written a row there --
+   success or failure, never rewritten. This route did not, so the one email
+   that matters most, the quote itself, was the one missing from the history.
+   Kristina could open a client's record and see every follow-up note she had
+   ever typed and no sign of the quote they are replying to.
+
+   Written after the send either way, and never allowed to fail the request:
+   the email has already gone, and refusing to say so because the log would
+   not take the row would be the wrong way round. */
+async function logQuoteEmail(env, { quote, lead, to, subject, error, resend }) {
+  try {
+    await env.DB.prepare(
+      `INSERT INTO email_log (id, created_at, kind, entity_kind, entity_id,
+         customer_id, to_email, subject, status, error, edited)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    ).bind('log-' + newId(), new Date().toISOString(),
+      resend ? 'quote_resent' : 'quote_sent', 'quote', quote.id,
+      (lead && lead.lead_customer_id) || null, to, subject,
+      error ? 'failed' : 'sent', error ? String(error).slice(0, 500) : null, 0).run();
+  } catch (err) {
+    console.error('Could not write the email log:', err && err.message || err);
+  }
+}
+
 export async function onRequestPost({ request, env }) {
   const blocked = await guard(request, env);
   if (blocked) return blocked;
@@ -27,7 +52,12 @@ export async function onRequestPost({ request, env }) {
   if (!id) return json({ error: 'Which quote?' }, 400);
 
   const row = await env.DB.prepare(
-    'SELECT q.*, l.name AS lead_name, l.email AS lead_email, l.service_label, l.city ' +
+    /* customer_id lives on the lead, not the quote, and the email log is read
+       back by customer. Without it here the row would file under nobody and
+       never appear on the client's record, which is the whole point of
+       writing it. */
+    'SELECT q.*, l.name AS lead_name, l.email AS lead_email, l.service_label, ' +
+      'l.city, l.customer_id AS lead_customer_id ' +
     'FROM quotes q LEFT JOIN leads l ON l.id = q.lead_id WHERE q.id = ?'
   ).bind(id).first();
 
@@ -97,8 +127,13 @@ export async function onRequestPost({ request, env }) {
       `UPDATE quotes SET email_status = 'failed', email_error = ?, updated_at = ? WHERE id = ?`
     ).bind(customerSend.error.slice(0, 500), now, id).run();
     await logQuoteEvent(env.DB, id, 'email_failed', { message: customerSend.error, to: customerEmail });
+    await logQuoteEmail(env, { quote, lead: row, to: customerEmail,
+      subject: mail.customerSubject, error: customerSend.error, resend: isResend });
     return json({ error: 'Could not send quote to customer.', detail: customerSend.error }, 502);
   }
+
+  await logQuoteEmail(env, { quote, lead: row, to: customerEmail,
+    subject: mail.customerSubject, error: null, resend: isResend });
 
   // Keep the original sent_at on resend; reset status if they previously declined.
   await env.DB.prepare(

@@ -843,6 +843,49 @@ export function buildQuoteDeclinedEmail(env, { quote, lead, reason = '' }) {
 }
 
 /**
+ * Tell Kristina the moment a customer first opens a quote she sent. Off by
+ * default -- Settings calls it noisy and it is -- but when it is on, knowing
+ * somebody is reading it right now is the difference between a follow-up call
+ * that lands and one that interrupts.
+ *
+ * Only ever on the first open. The same quote reopened six times while
+ * somebody thinks it over is not six pieces of news.
+ */
+export function buildQuoteOpenedEmail(env, { quote, lead }) {
+  const who = quote.customer_name || (lead && lead.lead_name) || 'A customer';
+  const adminUrl = `${siteBase(env)}/admin/`;
+
+  const contentHtml =
+    `<tr><td style="padding:22px 32px 0">` +
+    `<div style="background:${C.cream};border:1px solid ${C.goldSoft};border-radius:12px;padding:18px 20px">` +
+    `<p style="margin:0;font-family:${FONT_BODY};font-size:16px;line-height:1.55;color:${C.ink}">` +
+    `<strong style="color:${C.teal}">${escapeHtml(who)}</strong> has just opened your quote for ` +
+    `<strong>${escapeHtml(cents(quote.total))}</strong> for the first time.</p>` +
+    `<p style="margin:10px 0 0;font-family:${FONT_BODY};font-size:13px;color:${C.muted}">` +
+    `Nothing has been decided yet. This is only to say they are reading it.</p></div></td></tr>`;
+
+  const html = shell(env, {
+    preheaderText: `${who} opened your ${cents(quote.total)} quote.`,
+    title: 'Quote Opened',
+    subtitle: who,
+    contentHtml,
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  const text = textShell(env, {
+    title: 'Quote Opened',
+    subtitle: who,
+    blocks: [
+      `${who} has just opened your quote for ${cents(quote.total)} for the first time.`,
+      'Nothing has been decided yet. This is only to say they are reading it.'
+    ],
+    cta: { label: 'Open lead in portal', url: adminUrl }
+  });
+
+  return { subject: `Quote opened — ${who} · ${cents(quote.total)}`, html, text };
+}
+
+/**
  * Alert Kristina when a quote email bounces or fails to deliver.
  */
 export function buildQuoteDeliveryEmail(env, { quote, kind, detail }) {

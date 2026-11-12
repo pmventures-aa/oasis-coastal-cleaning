@@ -12,7 +12,7 @@ import {
 import { splitAddons, availableAddons, resolveSelectedAddons } from '../../_lib/addons.js';
 import { loadSettings, alertTarget } from '../../_lib/settings.js';
 import { renderQuotePdf } from '../../_lib/quote-doc.js';
-import { buildQuoteAcceptedEmail, buildQuoteDeclinedEmail } from '../../_lib/email.js';
+import { buildQuoteAcceptedEmail, buildQuoteDeclinedEmail, buildQuoteOpenedEmail } from '../../_lib/email.js';
 
 export async function onRequestGet({ request, env, params }) {
   if (!env.DB) return json({ error: 'Service unavailable.' }, 503);
@@ -48,9 +48,30 @@ export async function onRequestGet({ request, env, params }) {
       quote.status = 'expired';
     }
 
-    if (!looksAutomated(request)) await recordQuoteView(env.DB, quote);
+    const firstOpen = !looksAutomated(request) && await recordQuoteView(env.DB, quote);
     const fresh = await env.DB.prepare('SELECT * FROM quotes WHERE id = ?').bind(quote.id).first();
     quote = quoteFromRow(fresh || row);
+
+    /* Settings has offered "A customer opens a quote" as a switch since the
+       notification settings were written, and nothing ever called
+       alertTarget with 'view' -- so the switch could be turned on and would
+       never do anything. The other four kinds have always worked, because
+       alertTarget builds its key from the kind it is given and those four are
+       passed somewhere. This one had no somewhere. Off by default, only on
+       the first open, and never on a link-preview bot, which looksAutomated
+       is already filtering for the view count's sake. */
+    if (firstOpen) {
+      try {
+        const to = alertTarget(await loadSettings(env.DB), env, 'view');
+        if (to) {
+          const mail = buildQuoteOpenedEmail(env, { quote, lead: row });
+          await sendEmail(env, { to, subject: mail.subject, html: mail.html, text: mail.text });
+        }
+      } catch (err) {
+        /* Telling her is not worth failing to show the customer their quote. */
+        console.error('Quote-opened alert failed:', err && err.message || err);
+      }
+    }
 
     /* What they asked for in the wizard is already in what Kristina quoted.
        Showing it as something to add would read as a second charge. */
