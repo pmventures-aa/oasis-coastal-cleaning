@@ -2552,6 +2552,21 @@ select.pf__v:focus {
 .recedit input, .recedit textarea { width: 100%; font-size: 1rem; min-height: 44px; }
 .recedit__acts { display: flex; gap: 0.5rem; }
 
+/* Marking a client finished. Sits under the Save/Cancel pair and behind a
+   rule, because it is not part of editing their details -- it is a decision
+   about the relationship, and it should not look like one more field. */
+.recstand {
+  border-top: 1px solid var(--oasis-line, rgba(9, 64, 69, 0.12));
+  margin-top: 0.35rem; padding-top: 0.75rem;
+  display: grid; gap: 0.35rem; justify-items: start;
+}
+.recstand__k {
+  margin: 0; font-size: 0.68rem; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--oasis-gold, #C89C53);
+}
+.recstand__s { margin: 0; font-size: 0.82rem; line-height: 1.45; color: var(--oasis-muted, #5b6b6d); }
+
 /* A request she has already won. It is a person now, so the row opens
    their record rather than the quote workflow. */
 .lead--won .lead__head {

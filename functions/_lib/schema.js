@@ -52,6 +52,24 @@ const TABLES = [
     provider TEXT NOT NULL DEFAULT 'rentcast', created_at TEXT NOT NULL,
     hits INTEGER NOT NULL DEFAULT 0)`],
 
+  /* Every request that has ever come in from the public form -- the table
+     the whole portal is built around, and the one table a migration creates
+     that this list did not. On a database set up from here rather than from
+     migrations/ there would be no leads table at all, and the first quote
+     form submission would be the thing that found out. The COLUMNS list below
+     adds three more to it, which is what made the gap easy to miss. */
+  ['leads', `CREATE TABLE IF NOT EXISTS leads (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
+    name TEXT NOT NULL, phone TEXT NOT NULL, email TEXT NOT NULL,
+    best_time TEXT, contact_pref TEXT,
+    service TEXT NOT NULL, service_label TEXT, property_type TEXT, size_label TEXT,
+    bedrooms TEXT, bathrooms TEXT, frequency TEXT, first_visit INTEGER DEFAULT 0,
+    add_ons TEXT, conditions TEXT, notes TEXT,
+    city TEXT, zip TEXT, address TEXT, start_when TEXT, preferred_days TEXT, access TEXT,
+    status TEXT NOT NULL DEFAULT 'new', followup TEXT, quoted_amount TEXT, quoted_at TEXT,
+    next_visit TEXT, admin_notes TEXT,
+    estimate_low INTEGER, estimate_high INTEGER, source_page TEXT, user_agent TEXT)`],
+
   ['customers', `CREATE TABLE IF NOT EXISTS customers (
     id TEXT PRIMARY KEY, created_at TEXT NOT NULL, updated_at TEXT,
     name TEXT NOT NULL, company TEXT, phone TEXT, email TEXT,
@@ -156,6 +174,9 @@ const TABLES = [
 /* Columns added to tables that already existed. SQLite has no
    ADD COLUMN IF NOT EXISTS, so each is tried and a duplicate is ignored. */
 const COLUMNS = [
+  /* When she marked a client finished (0028). attention.js has read this
+     since it was written; until now nothing defined it. */
+  ['customers', 'closed_at', 'TEXT'],
   /* When a request became a client (0027). */
   ['leads', 'converted_at', 'TEXT'],
   /* A regular's standing booking link (0026). */
@@ -171,6 +192,11 @@ const COLUMNS = [
   ['users', 'sessions_valid_from', 'INTEGER NOT NULL DEFAULT 0'],
   /* Which of the two ways a quote came to be marked paid (0019). */
   ['quotes', 'paid_source', 'TEXT'],
+  /* Why a quote email did not arrive (0003). Written in four places and
+     missing from this list, so a database set up in the app rather than by
+     the migrations had nowhere to put it and every send would have failed
+     on the write that records the failure. */
+  ['quotes', 'email_error', 'TEXT'],
   ['quotes', 'email_provider_id', 'TEXT'],
   ['quotes', 'email_status', 'TEXT'],
   ['quotes', 'email_delivered_at', 'TEXT'],

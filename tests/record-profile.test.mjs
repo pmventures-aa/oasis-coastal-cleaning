@@ -169,4 +169,34 @@ test('somebody nothing has happened with is new, not past', () => {
   assert.equal(ACTIVE_GRACE_DAYS, 60);
 });
 
+/* ------------------------------------------------- she said so (0028) */
+
+test('a client marked finished reads as past whatever the signals say', () => {
+  /* standingFor has deferred to closed_at since it was written, and the
+     record route has always passed customer.closed_at into it -- but the
+     column did not exist, so the value was undefined every time and the
+     override could not fire. Someone she had parted with went on reading as
+     active for the full sixty days of grace. */
+  const live = {
+    visits: [{ status: 'confirmed', start_at: '2026-12-20T14:00:00Z' }],
+    invoices: [{ state: 'sent', balance: 9000, created_at: '2026-11-01' }],
+    jobs: [{ status: 'open' }]
+  };
+  assert.equal(standingFor(live, '2026-11-12T12:00:00Z'), 'active');
+  assert.equal(standingFor({ ...live, closed_at: '2026-11-10T09:00:00Z' },
+    '2026-11-12T12:00:00Z'), 'past');
+});
+
+test('clearing it hands them back to the signals', () => {
+  const live = { visits: [{ status: 'confirmed', start_at: '2026-12-20T14:00:00Z' }] };
+  assert.equal(standingFor({ ...live, closed_at: null }, '2026-11-12T12:00:00Z'), 'active');
+});
+
+test('finished is not the same as nothing has happened', () => {
+  /* A client with no history at all is new, not past. The override only
+     speaks for someone she has actually decided about. */
+  assert.equal(standingFor({}, '2026-11-12T12:00:00Z'), 'new');
+  assert.equal(standingFor({ closed_at: '2026-11-10T09:00:00Z' }, '2026-11-12T12:00:00Z'), 'past');
+});
+
 console.log('\n' + n + ' passed');

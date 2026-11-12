@@ -186,6 +186,21 @@ export async function onRequestPatch({ request, env }) {
     return json({ ok: true, action: body.action, link_token: token });
   }
 
+  /* Finished with, or back on the books. attention.js takes this as the last
+     word on their standing, ahead of anything it can work out for itself. */
+  if (body.action === 'close' || body.action === 'reopen') {
+    if (propertyId) return json({ error: 'A standing belongs to the client, not an address.' }, 400);
+    const at = body.action === 'close' ? new Date().toISOString() : null;
+    try {
+      await env.DB.prepare('UPDATE customers SET closed_at = ?, updated_at = ? WHERE id = ?')
+        .bind(at, new Date().toISOString(), id).run();
+    } catch (err) {
+      return json({ error: 'Could not change their standing.',
+        detail: String(err && err.message || err) }, 503);
+    }
+    return json({ ok: true, action: body.action, closed_at: at });
+  }
+
   if (body.action === 'archive' || body.action === 'restore') {
     const at = body.action === 'archive' ? new Date().toISOString() : null;
     await env.DB.prepare(`UPDATE ${table} SET archived_at = ?, updated_at = ? WHERE id = ?`)

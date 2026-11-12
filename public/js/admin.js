@@ -4814,7 +4814,7 @@
             : '<button type="button" class="linkish" data-rec-edit="' + esc(c.id) +
               '">Edit details</button>') +
         '</div>' +
-        (state.recEdit ? recEditHtml(c) : factGroupsHtml(d.fact_groups)) +
+        (state.recEdit ? recEditHtml(c, d) : factGroupsHtml(d.fact_groups)) +
       '</div>' +
       '<div class="rcol">' +
         '<section class="rfacts">' +
@@ -4854,7 +4854,8 @@
     ['notes', 'Notes', 'textarea']
   ];
 
-  function recEditHtml(c) {
+  function recEditHtml(c, d) {
+    var closed = !!(c.closed_at || (d && d.closed_at));
     return '<div class="recedit">' +
       REC_FIELDS.map(function (f) {
         var v = esc(c[f[0]] || '');
@@ -4871,7 +4872,56 @@
           esc(c.id) + '">Save details</button>' +
         '<button type="button" class="btn btn--ghost btn--tiny" data-rec-cancel>Cancel</button>' +
       '</div>' +
+
+      /* Their standing is worked out from bookings, unpaid bills and standing
+         arrangements, with sixty days of grace because this work is seasonal.
+         That is right for someone who has simply gone quiet and wrong for
+         someone she has actually parted with, who reads as active for two
+         months. This is the override the rest of the code already deferred
+         to. Not Archive, which hides the record: a past client is still a
+         client, just not live. */
+      '<div class="recstand">' +
+        '<p class="recstand__k">Standing</p>' +
+        '<p class="recstand__s">' + (closed
+          ? 'Marked finished, so they read as a past client whatever else happens.'
+          : 'Worked out from their bookings and bills. Mark them finished if ' +
+            'that arrangement has ended.') + '</p>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" ' +
+          'data-rec-standing="' + (closed ? 'reopen' : 'close') + '" ' +
+          'data-rec-id="' + esc(c.id) + '">' +
+          (closed ? 'Back on the books' : 'Mark finished') + '</button>' +
+      '</div>' +
     '</div>';
+  }
+
+  /* Mark a client finished, or put them back on the books. Nothing is said to
+     have happened until the server says so and the record has been re-read --
+     the pill at the top of this screen is drawn from the record, so showing
+     the new standing before the write landed would be a guess on screen. */
+  function recStanding(btn) {
+    var id = btn.getAttribute('data-rec-id');
+    var action = btn.getAttribute('data-rec-standing');
+    var box = btn.closest('.recedit');
+    var err = box && box.querySelector('.recedit__err');
+    if (err) { err.hidden = true; }
+    var was = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    api('/api/admin/customers', {
+      method: 'PATCH',
+      body: JSON.stringify({ customer_id: id, action: action })
+    }).then(function (r) {
+      btn.disabled = false; btn.textContent = was;
+      if (!r.ok) {
+        if (err) { err.hidden = false; err.textContent = (r.body && r.body.error) || 'That did not save.'; }
+        return;
+      }
+      state.recEdit = false;
+      /* Re-read rather than paint the new standing in: the pill at the top of
+         this screen comes from the record, and showing it changed before the
+         write landed would be a guess on screen. */
+      openContact(id);
+    });
   }
 
   function recSave(id, btn) {
@@ -6470,6 +6520,7 @@
     if (hit.matches('[data-rec-edit]')) { state.recEdit = true; render(); return; }
     if (hit.matches('[data-rec-cancel]')) { state.recEdit = false; render(); return; }
     if (hit.matches('[data-rec-save]')) { recSave(hit.getAttribute('data-rec-save'), hit); return; }
+    if (hit.matches('[data-rec-standing]')) { recStanding(hit); return; }
     if (hit.matches('[data-rtab]')) {
       state.contactTab = hit.getAttribute('data-rtab');
       render();

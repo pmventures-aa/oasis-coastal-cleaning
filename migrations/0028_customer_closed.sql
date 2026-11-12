@@ -1,0 +1,18 @@
+-- Marking a client finished.
+--
+-- shared/../functions/_lib/attention.js has worked out a client's standing
+-- since it was written: new, active, or past, derived from bookings, unpaid
+-- invoices and standing arrangements, with a sixty-day grace because this
+-- work is seasonal. The first line of standingFor is an override --
+--
+--   if (d.closed_at) return 'past';   // she said so, which beats any signal
+--
+-- -- and functions/api/admin/customers/[id].js has always passed
+-- customer.closed_at into it. The column it reads has never existed, so that
+-- value was undefined every time and the override could not fire. Without it
+-- a client Kristina has actually parted with keeps reading as active until
+-- sixty quiet days go by.
+--
+-- Not the same as archived_at, which takes a record out of the lists
+-- entirely. A past client is still a client; they are just not live.
+ALTER TABLE customers ADD COLUMN closed_at TEXT;
