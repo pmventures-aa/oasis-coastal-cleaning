@@ -151,6 +151,13 @@ const PROPERTY_FIELDS = { label: 80, address: 200, city: 80, zip: 12, property_t
                              and "careful" are lists, not labels. */
                           bins: 300, supplies: 300, do_not_touch: 400, warnings: 400 };
 
+/* A regular's standing link. Unguessable, and replacing it stops the old
+   one the moment it is written. */
+function newLinkToken() {
+  const b = crypto.getRandomValues(new Uint8Array(24));
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+}
+
 export async function onRequestPatch({ request, env }) {
   const blocked = await guard(request, env);
   if (blocked) return blocked;
@@ -164,6 +171,20 @@ export async function onRequestPatch({ request, env }) {
   const id = propertyId || customerId;
   const fields = propertyId ? PROPERTY_FIELDS : CUSTOMER_FIELDS;
   if (!id) return json({ error: 'Which record?' }, 400);
+
+  /* Their standing link: give them one, or take it back. */
+  if (body.action === 'client_link' || body.action === 'client_link_revoke') {
+    if (propertyId) return json({ error: 'A link belongs to the client, not an address.' }, 400);
+    const token = body.action === 'client_link' ? newLinkToken() : null;
+    try {
+      await env.DB.prepare('UPDATE customers SET link_token = ?, updated_at = ? WHERE id = ?')
+        .bind(token, new Date().toISOString(), id).run();
+    } catch (err) {
+      return json({ error: 'Could not change their link.',
+        detail: String(err && err.message || err) }, 503);
+    }
+    return json({ ok: true, action: body.action, link_token: token });
+  }
 
   if (body.action === 'archive' || body.action === 'restore') {
     const at = body.action === 'archive' ? new Date().toISOString() : null;

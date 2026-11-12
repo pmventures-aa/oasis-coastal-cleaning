@@ -2364,3 +2364,7 @@ select.pf__v:focus {
 .slotp__add input { width: 100%; font-size: 1rem; min-height: 44px; }
 .slotp__acts { display: flex; gap: 0.6rem; align-items: center; }
 .slotp .linkish { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* A regular's standing link, on their card. */
+.clink { margin: 0 0 0.3rem; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.clink .linkish, .clink .btn { min-height: 44px; display: inline-flex; align-items: center; }

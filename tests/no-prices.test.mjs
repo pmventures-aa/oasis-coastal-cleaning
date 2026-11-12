@@ -64,9 +64,10 @@ test('a link preview says the same thing as the page', async (t) => {
      & Broward" in every share card, under a page that says there are none. */
   const names = (await readdir(root)).filter((f) => f.endsWith('.html'));
   for (const name of names) {
-    // A private, noindex link sent to one person: a share card would be a
-    // preview of somebody else's quote.
-    if (name === 'proposal.html') continue;
+    /* Private, noindex links sent to one person. A share card on one of
+       these would be a preview of somebody else's quote, or of what they
+       owe, pasted into whatever they forwarded it to. */
+    if (name === 'proposal.html' || name === 'client.html') continue;
     await t.test(name, async () => {
       const src = await readFile(new URL(name, root), 'utf8');
       const title = (src.match(/<title>([^<]*)<\/title>/) || [])[1];

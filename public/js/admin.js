@@ -2608,6 +2608,34 @@
     return (pr && pr.customer_id) || state.openClient;
   }
 
+  /* A regular's own link. One page, theirs, that does not expire: what is
+     coming up, what they owe, and the times she has put up for them. */
+  function clientLinkHtml(c) {
+    if (!c.link_token) {
+      return '<p class="clink"><button type="button" class="linkish" ' +
+        'data-clink-make="' + esc(c.id) + '">Give them a booking link</button></p>';
+    }
+    var url = location.origin + '/client.html?t=' + c.link_token;
+    return '<p class="clink clink--on">' +
+      '<a class="btn btn--ghost btn--tiny" href="' + esc(url) + '" target="_blank" ' +
+        'rel="noopener">Open their page</a>' +
+      '<button type="button" class="linkish" data-clink-copy="' + esc(url) + '">Copy link</button>' +
+      '<button type="button" class="linkish" data-clink-new="' + esc(c.id) + '">Replace</button>' +
+    '</p>';
+  }
+
+  function clientLinkSet(id, make, btn) {
+    if (!make && !window.confirm('Replace their link? The one they have stops working.')) return;
+    btn.disabled = true;
+    api('/api/admin/customers', { method: 'PATCH',
+      body: JSON.stringify({ customer_id: id, action: 'client_link' }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not work.'); return; }
+        loadClients();
+      });
+  }
+
   function clientCard(c) {
     var places = clientPlaces(c);
     var name = c.company ? c.company : c.name;
@@ -2631,6 +2659,7 @@
         '</button>' +
       '</h3>' +
 
+      clientLinkHtml(c) +
       '<p class="ccard__reach">' +
         (c.phone ? '<a href="' + esc(FMT.telHref(c.phone)) + '">' + esc(FMT.formatPhone(c.phone)) + '</a>' : '') +
         (c.phone && c.email ? '<span class="muted"> · </span>' : '') +
@@ -5770,6 +5799,9 @@
     if (hit.matches('[data-icat-off]')) {
       issueCatOff(hit.getAttribute('data-icat-off'), hit); return;
     }
+    if (hit.matches('[data-clink-make]')) { clientLinkSet(hit.getAttribute('data-clink-make'), true, hit); return; }
+    if (hit.matches('[data-clink-new]')) { clientLinkSet(hit.getAttribute('data-clink-new'), false, hit); return; }
+    if (hit.matches('[data-clink-copy]')) { copyText(hit.getAttribute('data-clink-copy'), hit); return; }
     if (hit.matches('[data-slots-open]')) {
       loadSlots(hit.getAttribute('data-slots-open')); return;
     }
