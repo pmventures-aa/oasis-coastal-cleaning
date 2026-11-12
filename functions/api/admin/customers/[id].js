@@ -12,7 +12,7 @@
  */
 import { json, clean } from '../../../_lib/util.js';
 import { statusFor, balanceOf, paidTotal } from '../../../_lib/invoices.js';
-import { clientFactGroups, completeness } from '../../../_lib/recordFacts.js';
+import { clientFactGroups, propertyFactGroups, completeness } from '../../../_lib/recordFacts.js';
 import { attentionFor, standingFor, STANDING_WORDS } from '../../../_lib/attention.js';
 import { gate } from '../../../_lib/guard.js';
 import { isSignedIn } from '../../../_lib/auth.js';
@@ -161,13 +161,18 @@ export async function onRequestGet({ request, env, params }) {
   const attention = attentionFor(signals, now);
   const standing = standingFor(signals, now);
 
-  /* Her first address is the one the facts describe. A client with six
-     rentals gets the rest in the places list rather than flattened into
-     one set of access notes. */
-  const factGroups = clientFactGroups(customer, properties[0] || {});
+  /* The person, then every place in full. A client with six rentals has
+     six sets of door notes, and folding them into one is how a cleaner
+     ends up with the gate code for the wrong house. */
+  const factGroups = clientFactGroups(customer);
+  const places = properties.map((pr) => ({
+    ...pr,
+    fact_groups: propertyFactGroups(pr),
+    completeness: completeness(propertyFactGroups(pr))
+  }));
 
   return json({ ok: true,
-    customer, properties, timeline: feed,
+    customer, properties: places, timeline: feed,
     invoices, outstanding, lifetime, jobs, issues,
     attention,
     standing, standing_words: STANDING_WORDS[standing] || null,

@@ -64,9 +64,13 @@ export function completeness(groups) {
  * A client's facts. Dates are formatted by the caller, because only the
  * browser knows what the reader expects to see.
  */
-export function clientFactGroups(customer, property) {
+/**
+ * The person. Their place, or places, are described separately: a client
+ * with six rentals has six sets of door notes, and folding them into one
+ * is how a cleaner ends up with the gate code for the wrong house.
+ */
+export function clientFactGroups(customer) {
   const c = customer || {};
-  const p = property || {};
   return [
     buildGroup('How to reach them', [
       { label: 'Name', value: c.name },
@@ -76,13 +80,23 @@ export function clientFactGroups(customer, property) {
       { label: 'Best time', value: c.best_time },
       { label: 'Prefers', value: c.contact_pref }
     ]),
+    buildGroup('About them', [
+      { label: 'Notes', value: c.notes, wide: true }
+    ])
+  ];
+}
+
+/** One address, in full. Every place gets its own, however many there are. */
+export function propertyFactGroups(property) {
+  const p = property || {};
+  return [
     buildGroup('The place', [
-      { label: 'Address', value: [p.address, p.city, p.zip].filter(Boolean).join(', '), wide: true },
       { label: 'Type', value: p.property_type },
       { label: 'Bedrooms', value: p.bedrooms },
       { label: 'Bathrooms', value: p.bathrooms },
-      { label: 'Size', value: p.size_label }
-    ], 'The address this work is at.'),
+      { label: 'Size', value: p.size_label },
+      { label: 'Preferred day', value: p.preferred_day }
+    ]),
     buildGroup('At the door', [
       { label: 'Getting in', value: p.access, wide: true },
       { label: 'Parking', value: p.parking },
@@ -92,9 +106,8 @@ export function clientFactGroups(customer, property) {
       { label: 'Do not touch', value: p.do_not_touch, wide: true },
       { label: 'Careful', value: p.warnings, wide: true }
     ], 'What whoever turns up needs to know.'),
-    buildGroup('The arrangement', [
-      { label: 'Preferred day', value: p.preferred_day },
-      { label: 'Notes', value: c.notes, wide: true }
+    buildGroup('Notes on this place', [
+      { label: 'Notes', value: p.notes, wide: true }
     ])
   ];
 }

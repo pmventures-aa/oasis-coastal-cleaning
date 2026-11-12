@@ -872,7 +872,8 @@
         : '') +
       (state.composingLead ? newLeadPanelHtml() : '') +
       (state.composing ? newQuotePanelHtml() : '') +
-      (state.view === 'home' ? homeHtml()
+      (state.view === 'contact' ? contactHtml()
+        : state.view === 'home' ? homeHtml()
         : state.view === 'security' ? securityHtml()
         : state.view === 'catalogue' ? catalogueHtml()
         : state.view === 'settings' ? settingsHtml()
@@ -3802,7 +3803,8 @@
        diary, so the band above them was the same sentence twice. */
     /* Her day belongs on the screens about the work. On the ones she opens
        to change a setting, a price or who can get in, it is furniture. */
-    var NOT_HERE = { schedule: 1, home: 1, settings: 1, security: 1, catalogue: 1 };
+    var NOT_HERE = { schedule: 1, home: 1, settings: 1, security: 1,
+      catalogue: 1, contact: 1 };
     if (NOT_HERE[state.view]) return '';
     var t = state.today;
     if (!t) return '';
@@ -4568,6 +4570,393 @@
         if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not work.'); return; }
         loadSlots(state.slotsFor);
       });
+  }
+
+  /* ================================================== the contact record
+
+     One screen that is the whole of somebody: who they are, what is
+     wrong, what they owe, every place she cleans for them with its own
+     door notes, and everything that has happened.
+
+     Replacing a card that expanded inside a grid. A card has to share a
+     row; a record does not, and this is the screen she spends her day in.
+
+     The figures sit above the tabs on purpose: a number you have to
+     navigate to is a report, a number above the tabs is context. */
+
+  var CONTACT_TABS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'places', label: 'Places' },
+    { id: 'money', label: 'Money' },
+    { id: 'history', label: 'History' }
+  ];
+
+  function openContact(id) {
+    state.contactId = id;
+    state.contactTab = 'overview';
+    state.view = 'contact';
+    state.contact = null;
+    render();
+    api('/api/admin/customers/' + encodeURIComponent(id)).then(function (r) {
+      if (state.contactId !== id) return;          // she moved on while it loaded
+      state.contact = r.ok ? r.body : { error: (r.body && r.body.error) || 'Could not load.' };
+      render();
+    });
+  }
+
+  function contactHtml() {
+    var d = state.contact;
+    if (!d) return '<p class="empty">Loading…</p>';
+    if (d.error) {
+      return '<div class="empty-state"><h3>That client did not load</h3>' +
+        '<p class="muted">' + esc(d.error) + '</p>' +
+        '<p><button type="button" class="btn btn--ghost" data-view="clients">' +
+          'Back to clients</button></p></div>';
+    }
+    var c = d.customer || {};
+    var tab = state.contactTab || 'overview';
+
+    return '<div class="rec">' +
+      '<button type="button" class="rec__back" data-view="clients">' +
+        '\u2190 All clients</button>' +
+      recHeadHtml(d, c) +
+      recFiguresHtml(d) +
+      recAttentionHtml(d) +
+      '<div class="rtabs" role="tablist">' +
+        CONTACT_TABS.map(function (t) {
+          return '<button type="button" role="tab" data-rtab="' + t.id + '"' +
+            (tab === t.id ? ' class="is-on" aria-selected="true"' : ' aria-selected="false"') +
+            '>' + esc(t.label) + '</button>';
+        }).join('') +
+      '</div>' +
+      '<div class="rbody">' +
+        (tab === 'overview' ? recOverviewHtml(d, c)
+          : tab === 'places' ? recPlacesHtml(d)
+          : tab === 'money' ? recMoneyHtml(d)
+          : recHistoryHtml(d)) +
+      '</div>' +
+    '</div>';
+  }
+
+  var STANDING_TONE = { active: 'booked', past: 'closed', 'new': 'new' };
+
+  function recHeadHtml(d, c) {
+    var tel = digits(c.phone);
+    return '<header class="rec__head">' +
+      '<div class="rec__id">' +
+        '<h2 class="rec__name">' + esc(c.name || 'No name') + '</h2>' +
+        '<p class="rec__kick">' +
+          '<span class="pill pill--' + esc(STANDING_TONE[d.standing] || 'new') + '">' +
+            esc((d.standing_words && d.standing_words.label) || d.standing) + '</span>' +
+          (c.company ? '<span class="rec__co">' + esc(c.company) + '</span>' : '') +
+        '</p>' +
+      '</div>' +
+      '<p class="rec__reach">' +
+        (tel.length >= 10
+          ? '<a class="btn btn--primary btn--tiny" href="tel:+1' + esc(tel) + '">Call</a>' +
+            '<a class="btn btn--ghost btn--tiny" href="sms:+1' + esc(tel) + '">Text</a>'
+          : '') +
+        (c.email
+          ? '<button type="button" class="btn btn--ghost btn--tiny" ' +
+            'data-mail-open="customer" data-mail-id="' + esc(c.id) + '">Email</button>'
+          : '') +
+        '<button type="button" class="btn btn--ghost btn--tiny" ' +
+          'data-quote-client="' + esc(c.id) + '">New quote</button>' +
+      '</p>' +
+    '</header>';
+  }
+
+  /* Five figures, each one a way into the screen that answers it. */
+  function recFiguresHtml(d) {
+    var next = d.next_visit;
+    var counts = d.counts || {};
+    var fig = function (k, v, sub, tab, tone) {
+      return '<button type="button" class="rfig' + (tone ? ' rfig--' + tone : '') + '"' +
+        (tab ? ' data-rtab="' + tab + '"' : ' disabled') + '>' +
+        '<span class="rfig__k">' + esc(k) + '</span>' +
+        '<span class="rfig__v">' + v + '</span>' +
+        '<span class="rfig__s">' + esc(sub || '') + '</span>' +
+      '</button>';
+    };
+    return '<div class="rfigs">' +
+      fig('Owed', d.outstanding ? money(d.outstanding) : '\u2014',
+        d.outstanding ? 'Not yet settled' : 'All settled', 'money',
+        d.outstanding ? 'warn' : '') +
+      fig('Next clean', next ? esc(shortWhen(next)) : '\u2014',
+        next ? (next.service_label || 'Booked') : 'Nothing booked', 'overview') +
+      fig('Cleans', String(counts.visits || 0), 'So far', 'history') +
+      fig('Places', String((d.properties || []).length), 'On file', 'places') +
+      fig('Paid', d.lifetime ? money(d.lifetime) : '\u2014', 'All time', 'money') +
+    '</div>';
+  }
+
+  function shortWhen(v) {
+    var iso = v.start_at || v.start_date;
+    if (!iso) return '\u2014';
+    var dt = new Date(iso.length === 10 ? iso + 'T12:00:00Z' : iso);
+    if (isNaN(dt.getTime())) return '\u2014';
+    return dt.toLocaleDateString('en-US', { timeZone: 'America/New_York',
+      month: 'short', day: 'numeric' });
+  }
+
+  /* Drawn only when something is wrong, so its being there means
+     something instead of becoming furniture the eye learns to skip. */
+  function recAttentionHtml(d) {
+    var items = d.attention || [];
+    if (!items.length) return '';
+    var worst = items[0];
+    var rest = items.slice(1);
+    return '<section class="ratt ratt--' + esc(worst.tone) + '">' +
+      '<p class="ratt__k">Needs you</p>' +
+      '<p class="ratt__head">' + esc(worst.title) +
+        (attDetail(worst) ? ' <span class="ratt__sub">' + esc(attDetail(worst)) + '</span>' : '') +
+      '</p>' +
+      (rest.length
+        ? '<ul class="ratt__more">' + rest.map(function (a) {
+            return '<li class="ratt__chip ratt__chip--' + esc(a.tone) + '">' +
+              esc(a.title) + '</li>'; }).join('') + '</ul>'
+        : '') +
+    '</section>';
+  }
+
+  /* "Due 2026-11-01" is a database talking.
+
+     prettyDay, not dayOf: a due date is a calendar day, and dayOf treats
+     its argument as an instant. new Date('2026-11-01') is midnight UTC,
+     which in Florida is the evening of the 31st -- so a bill due on the
+     first read as due Sat 31 Oct. The same shift this codebase already
+     records for a record "first seen December 31". */
+  function attDetail(a) {
+    if (!a) return '';
+    if (a.date) return 'Due ' + prettyDay(a.date);
+    return a.detail || '';
+  }
+
+  function factGroupsHtml(groups, cls) {
+    return (groups || []).map(function (g) {
+      if (!g.facts.length && !g.missing) return '';
+      return '<section class="' + (cls || 'rfacts') + '">' +
+        '<h4 class="rfacts__k">' + esc(g.title) + '</h4>' +
+        (g.facts.length
+          ? '<dl class="rfacts__list">' + g.facts.map(function (f) {
+              return '<div class="rfacts__row' + (f.wide ? ' is-wide' : '') + '">' +
+                '<dt>' + esc(f.label) + '</dt><dd>' + esc(f.value) + '</dd></div>';
+            }).join('') + '</dl>'
+          : '') +
+        (g.missing
+          ? '<p class="rfacts__gap muted">' + g.missing +
+            (g.missing === 1 ? ' more thing not recorded.' : ' more things not recorded.') +
+            '</p>'
+          : '') +
+      '</section>';
+    }).join('');
+  }
+
+  function recOverviewHtml(d, c) {
+    var done = (d.completeness || {}).have || 0;
+    var all = (d.completeness || {}).total || 0;
+    var next = d.next_visit;
+    return '<div class="rgrid">' +
+      '<div class="rcol">' +
+        '<div class="rfacts__head">' +
+          '<span class="rchip' + (all && done === all ? ' is-done' : '') + '">' +
+            (all && done === all ? 'All on file' : done + ' of ' + all + ' on file') + '</span>' +
+          (state.recEdit ? ''
+            : '<button type="button" class="linkish" data-rec-edit="' + esc(c.id) +
+              '">Edit details</button>') +
+        '</div>' +
+        (state.recEdit ? recEditHtml(c) : factGroupsHtml(d.fact_groups)) +
+      '</div>' +
+      '<div class="rcol">' +
+        '<section class="rfacts">' +
+          '<h4 class="rfacts__k">Next clean</h4>' +
+          (next
+            ? '<p class="rnext">' + esc(shortWhen(next)) +
+              (next.service_label ? ' · ' + esc(next.service_label) : '') + '</p>'
+            : '<p class="muted rfacts__gap">Nothing booked.</p>') +
+          '<button type="button" class="btn btn--ghost btn--tiny" data-view="schedule">' +
+            'Open the diary</button>' +
+        '</section>' +
+        (d.jobs && d.jobs.length
+          ? '<section class="rfacts"><h4 class="rfacts__k">Standing arrangements</h4>' +
+            '<ul class="rlist">' + d.jobs.map(function (j) {
+              return '<li><span>' + esc(j.service_label || j.title || 'Clean') + '</span>' +
+                '<span class="muted">' + esc(jobWords(j)) + '</span></li>';
+            }).join('') + '</ul></section>'
+          : '') +
+        recLinkHtml(d, c) +
+        '<section class="rfacts">' +
+          '<h4 class="rfacts__k">Lately</h4>' +
+          recTimelineHtml((d.timeline || []).slice(0, 6)) +
+          ((d.timeline || []).length > 6
+            ? '<button type="button" class="linkish" data-rtab="history">See everything</button>'
+            : '') +
+        '</section>' +
+      '</div>' +
+    '</div>';
+  }
+
+  var REC_FIELDS = [
+    ['name', 'Name', 'text'],
+    ['company', 'Company', 'text'],
+    ['phone', 'Phone', 'tel'],
+    ['email', 'Email', 'email'],
+    ['best_time', 'Best time to reach them', 'text'],
+    ['notes', 'Notes', 'textarea']
+  ];
+
+  function recEditHtml(c) {
+    return '<div class="recedit">' +
+      REC_FIELDS.map(function (f) {
+        var v = esc(c[f[0]] || '');
+        return '<label class="bfield"><span>' + esc(f[1]) + '</span>' +
+          (f[2] === 'textarea'
+            ? '<textarea class="bfield__in" rows="2" data-rf="' + f[0] + '">' + v + '</textarea>'
+            : '<input type="' + f[2] + '" class="bfield__in" data-rf="' + f[0] + '" value="' +
+              v + '">') +
+        '</label>';
+      }).join('') +
+      '<div class="recedit__err form-status form-status--err" hidden role="alert"></div>' +
+      '<div class="recedit__acts">' +
+        '<button type="button" class="btn btn--primary btn--tiny" data-rec-save="' +
+          esc(c.id) + '">Save details</button>' +
+        '<button type="button" class="btn btn--ghost btn--tiny" data-rec-cancel>Cancel</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function recSave(id, btn) {
+    var box = btn.closest('.recedit');
+    var err = box.querySelector('.recedit__err');
+    err.hidden = true;
+    var body = { customer_id: id };
+    REC_FIELDS.forEach(function (f) {
+      var el = box.querySelector('[data-rf="' + f[0] + '"]');
+      if (el) body[f[0]] = el.value;
+    });
+    if (!String(body.name || '').trim()) {
+      err.hidden = false; err.textContent = 'They need a name.';
+      return;
+    }
+    btn.disabled = true;
+    var was = btn.textContent;
+    btn.textContent = 'Saving…';
+    api('/api/admin/customers', { method: 'PATCH', body: JSON.stringify(body) })
+      .then(function (r) {
+        btn.disabled = false; btn.textContent = was;
+        if (!r.ok) {
+          err.hidden = false;
+          err.textContent = (r.body && r.body.error) || 'That did not save.';
+          return;
+        }
+        state.recEdit = false;
+        /* Re-read rather than paint back what was typed: what the screen
+           shows should be what was stored. */
+        openContact(id);
+      });
+  }
+
+  function jobWords(j) {
+    var every = { weekly: 'Every week', biweekly: 'Every other week',
+      monthly: 'Every month' }[j.freq] || 'One off';
+    return every + (j.status === 'paused' ? ' · on hold'
+      : j.status === 'done' ? ' · ended' : '');
+  }
+
+  function recLinkHtml(d, c) {
+    var url = d.link_token ? location.origin + '/client.html?t=' + d.link_token : '';
+    return '<section class="rfacts">' +
+      '<h4 class="rfacts__k">Their own page</h4>' +
+      (url
+        ? '<p class="muted rfacts__gap">They can see their visits, what they owe, ' +
+            'and book a time you have put up.</p>' +
+          '<div class="rlink">' +
+            '<a class="btn btn--ghost btn--tiny" href="' + esc(url) + '" target="_blank" ' +
+              'rel="noopener">Open their page</a>' +
+            '<button type="button" class="linkish" data-clink-copy="' + esc(url) + '">' +
+              'Copy link</button>' +
+          '</div>'
+        : '<p class="muted rfacts__gap">They do not have one yet.</p>' +
+          '<button type="button" class="btn btn--ghost btn--tiny" ' +
+            'data-clink-make="' + esc(c.id) + '">Give them a booking link</button>') +
+    '</section>';
+  }
+
+  /* Every place in full. A client with six rentals has six sets of door
+     notes, and one set for all of them is a cleaner at the wrong door. */
+  function recPlacesHtml(d) {
+    var places = d.properties || [];
+    if (!places.length) {
+      return '<div class="empty-state"><h3>No addresses yet</h3>' +
+        '<p class="muted">Add where you clean for them and whoever turns up ' +
+        'will know how to get in.</p>' +
+        '<p><button type="button" class="btn btn--primary" data-add-property="' +
+          esc((d.customer || {}).id) + '">Add an address</button></p></div>';
+    }
+    return places.map(function (p) {
+      var done = (p.completeness || {}).have || 0;
+      var all = (p.completeness || {}).total || 0;
+      return '<section class="rplace">' +
+        '<div class="rplace__head">' +
+          '<h3 class="rplace__k">' + esc(p.label || p.address || 'An address') + '</h3>' +
+          '<span class="rchip' + (all && done === all ? ' is-done' : '') + '">' +
+            (all && done === all ? 'All on file' : done + ' of ' + all) + '</span>' +
+        '</div>' +
+        (p.address
+          ? '<p class="rplace__addr">' +
+              esc([p.address, p.city, p.zip].filter(Boolean).join(', ')) +
+              ' <a class="linkish" target="_blank" rel="noopener" href="https://maps.google.com/?q=' +
+              encodeURIComponent([p.address, p.city].filter(Boolean).join(', ')) +
+              '">Directions</a></p>'
+          : '') +
+        factGroupsHtml(p.fact_groups, 'rfacts rfacts--sub') +
+        '<button type="button" class="linkish" data-pfact-edit="' + esc(p.id) + '">' +
+          'Edit what is here</button>' +
+      '</section>';
+    }).join('') +
+      '<p class="rplace__add"><button type="button" class="btn btn--ghost btn--tiny" ' +
+        'data-add-property="' + esc((d.customer || {}).id) + '">Add another address</button></p>';
+  }
+
+  function recMoneyHtml(d) {
+    var invs = d.invoices || [];
+    if (!invs.length) {
+      return '<div class="empty-state"><h3>No invoices yet</h3>' +
+        '<p class="muted">Accept a quote for them and its invoice is raised here.</p></div>';
+    }
+    return '<div class="rmoney">' +
+      '<p class="rmoney__big"><span class="rfig__k">Owed</span>' +
+        '<span>' + (d.outstanding ? money(d.outstanding) : '\u2014') + '</span></p>' +
+      '<ul class="rlist rlist--inv">' + invs.map(function (i) {
+        return '<li><span>' + esc(dayOf(i.created_at)) + '</span>' +
+          '<span class="pill pill--' + esc(INV_TONE[i.state] || 'new') + '">' +
+            esc(INV_WORD[i.state] || i.state) + '</span>' +
+          '<span class="rlist__fig">' + money(i.total) +
+            (i.balance > 0 && i.state !== 'void'
+              ? '<span class="muted"> · ' + money(i.balance) + ' due</span>' : '') +
+          '</span></li>';
+      }).join('') + '</ul>' +
+      '<button type="button" class="btn btn--ghost btn--tiny" data-view="money">' +
+        'Open Money</button>' +
+    '</div>';
+  }
+
+  function recTimelineHtml(items) {
+    if (!items || !items.length) {
+      return '<p class="muted rfacts__gap">Nothing yet.</p>';
+    }
+    return '<ul class="rtime">' + items.map(function (t) {
+      return '<li class="rtime__i rtime__i--' + esc(t.kind || 'note') + '">' +
+        '<span class="rtime__when">' + esc(dayOf(t.at)) + '</span>' +
+        '<span class="rtime__what">' + esc(t.title || t.text || '') +
+          (t.detail ? '<span class="muted"> ' + esc(t.detail) + '</span>' : '') +
+        '</span></li>';
+    }).join('') + '</ul>';
+  }
+
+  function recHistoryHtml(d) {
+    return '<section class="rfacts"><h4 class="rfacts__k">Everything so far</h4>' +
+      recTimelineHtml(d.timeline || []) + '</section>';
   }
 
   function loadToday() {
@@ -5995,12 +6384,20 @@
     if (hit.matches('[data-profile-all]')) {
       state.profileAll = hit.getAttribute('data-profile-all'); render(); return;
     }
+    /* The card used to expand in place, inside a grid it had to share.
+       A record is a screen. */
     if (hit.matches('[data-open-client]')) {
-      var cid = hit.getAttribute('data-open-client');
-      state.openClient = state.openClient === cid ? null : cid;
-      if (state.openClient) loadProfile(state.openClient);
-      else { state.profile = null; state.profileFor = null; }
+      openContact(hit.getAttribute('data-open-client'));
+      return;
+    }
+    if (hit.matches('[data-rec-edit]')) { state.recEdit = true; render(); return; }
+    if (hit.matches('[data-rec-cancel]')) { state.recEdit = false; render(); return; }
+    if (hit.matches('[data-rec-save]')) { recSave(hit.getAttribute('data-rec-save'), hit); return; }
+    if (hit.matches('[data-rtab]')) {
+      state.contactTab = hit.getAttribute('data-rtab');
       render();
+      var body = document.querySelector('.rbody');
+      if (body) scrollTo(body, 'start');
       return;
     }
     /* "Start a quote" from the person it is for. Before this the only way in

@@ -47,7 +47,9 @@ export function attentionFor(data, today) {
     if (i.due_date && isPastDay(i.due_date, now)) {
       out.push({ key: 'invoice:' + i.id, tone: 'overdue',
         title: moneyWords(i.balance) + ' overdue',
-        detail: 'Due ' + dayOf(i.due_date) });
+        /* The day, not a sentence: only the browser knows how the reader
+           expects a date to read. */
+        date: dayOf(i.due_date), detail: '' });
     }
   }
 

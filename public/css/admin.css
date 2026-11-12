@@ -2368,3 +2368,186 @@ select.pf__v:focus {
 /* A regular's standing link, on their card. */
 .clink { margin: 0 0 0.3rem; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 .clink .linkish, .clink .btn { min-height: 44px; display: inline-flex; align-items: center; }
+
+/* ================================================== the contact record
+   One screen that is the whole of somebody. Restrained on purpose: a
+   border and type carry the hierarchy, not fills and shadows. A shadow
+   here would mean the panel floats, and none of these do. */
+
+.rec { display: grid; gap: 0.9rem; }
+.rec__back {
+  appearance: none; background: none; border: 0; font: inherit; cursor: pointer;
+  color: var(--oasis-muted); font-size: 0.82rem; font-weight: 600;
+  padding: 0; min-height: 44px; display: inline-flex; align-items: center;
+  justify-self: start;
+}
+.rec__back:hover { color: var(--oasis-teal); }
+
+.rec__head { display: grid; gap: 0.6rem; }
+.rec__name {
+  margin: 0; font-size: clamp(1.35rem, 5vw, 1.7rem); line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.rec__kick { margin: 0.25rem 0 0; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.rec__co { font-size: 0.85rem; color: var(--oasis-muted); font-weight: 600; }
+.rec__reach { margin: 0; display: flex; gap: 0.45rem; flex-wrap: wrap; }
+
+/* The figures. Each one opens the tab that answers it. */
+.rfigs {
+  display: grid; gap: 0.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+}
+.rfig {
+  appearance: none; cursor: pointer; text-align: left; font: inherit; color: inherit;
+  display: grid; gap: 0.1rem; align-content: start;
+  padding: 0.55rem 0.6rem; background: #fff;
+  border: 1px solid rgba(12, 46, 59, 0.12); border-radius: 12px;
+}
+.rfig:disabled { cursor: default; opacity: 0.75; }
+.rfig:not(:disabled):hover { border-color: var(--oasis-teal); }
+.rfig:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: 2px; }
+.rfig--warn { border-color: rgba(201, 162, 39, 0.55); background: rgba(201, 162, 39, 0.07); }
+.rfig__k {
+  font-size: 0.58rem; font-weight: 800; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--oasis-muted);
+}
+.rfig__v {
+  font-size: 1.02rem; font-weight: 700; color: var(--oasis-navy);
+  font-variant-numeric: tabular-nums; line-height: 1.2;
+}
+.rfig__s { font-size: 0.65rem; color: var(--oasis-muted); line-height: 1.3; }
+
+/* Drawn only when something is wrong. */
+.ratt {
+  padding: 0.8rem 0.9rem; border-radius: 12px;
+  border: 1px solid rgba(201, 162, 39, 0.45); background: rgba(201, 162, 39, 0.1);
+}
+.ratt--overdue { border-color: rgba(176, 58, 46, 0.4); background: rgba(176, 58, 46, 0.08); }
+.ratt__k {
+  margin: 0 0 0.15rem; font-size: 0.6rem; font-weight: 800;
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--oasis-muted);
+}
+.ratt__head { margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.35; }
+.ratt__sub { font-weight: 500; color: var(--oasis-muted); font-size: 0.85rem; }
+.ratt__more { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.ratt__chip {
+  font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-pill); background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(12, 46, 59, 0.12);
+}
+
+/* Tabs. One row, scrollable, masked at both ends so a cut tab reads as
+   "there is more" rather than as a clipped word. */
+.rtabs {
+  display: flex; gap: 0.3rem; overflow-x: auto; scrollbar-width: none;
+  border-bottom: 1px solid rgba(12, 46, 59, 0.12);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12px,
+    #000 calc(100% - 18px), transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 12px,
+    #000 calc(100% - 18px), transparent);
+}
+.rtabs::-webkit-scrollbar { display: none; }
+.rtabs button {
+  appearance: none; background: none; border: 0; cursor: pointer; font: inherit;
+  white-space: nowrap; min-height: 44px; padding: 0 0.75rem;
+  color: var(--oasis-muted); font-size: 0.85rem; font-weight: 600;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.rtabs button.is-on { color: var(--oasis-navy); border-bottom-color: var(--oasis-teal); }
+.rtabs button:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: -3px; }
+@media (min-width: 640px) { .rtabs { -webkit-mask-image: none; mask-image: none; } }
+
+.rgrid { display: grid; gap: 0.8rem; }
+@media (min-width: 820px) { .rgrid { grid-template-columns: 1fr 1fr; align-items: start; } }
+.rcol { display: grid; gap: 0.8rem; align-content: start; }
+
+.rfacts {
+  background: #fff; border: 1px solid rgba(12, 46, 59, 0.12);
+  border-radius: 12px; padding: 0.8rem 0.9rem;
+}
+.rfacts--sub { border-style: dashed; }
+.rfacts__k {
+  margin: 0 0 0.5rem; font-family: var(--font-body);
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.09em;
+  text-transform: uppercase; color: var(--oasis-muted);
+}
+.rfacts__head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.6rem; flex-wrap: wrap;
+}
+.rfacts__head .linkish { min-height: 44px; display: inline-flex; align-items: center; }
+.rfacts__list { margin: 0; display: grid; gap: 0.45rem; }
+/* Label above value at every width: side by side, a long email in a
+   narrow column wraps into a column of three characters. */
+.rfacts__row { display: grid; gap: 0.05rem; }
+.rfacts__row dt {
+  font-size: 0.63rem; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--oasis-muted);
+}
+.rfacts__row dd { margin: 0; font-size: 0.88rem; line-height: 1.4; }
+.rfacts__row dd { overflow-wrap: anywhere; }
+@media (min-width: 480px) {
+  .rfacts__list { grid-template-columns: 1fr 1fr; gap: 0.5rem 0.9rem; }
+  .rfacts__row.is-wide { grid-column: 1 / -1; }
+}
+.rfacts__gap { margin: 0.4rem 0 0; font-size: 0.76rem; }
+
+.rchip {
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem; border-radius: var(--radius-pill);
+  background: rgba(12, 46, 59, 0.07); color: var(--oasis-muted);
+}
+.rchip.is-done { background: rgba(32, 122, 106, 0.14); color: var(--oasis-teal); }
+
+.rnext { margin: 0 0 0.5rem; font-size: 1rem; font-weight: 700; color: var(--oasis-navy); }
+.rlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.rlist li {
+  display: flex; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap;
+  font-size: 0.85rem; padding-bottom: 0.35rem;
+  border-bottom: 1px solid rgba(12, 46, 59, 0.07);
+}
+.rlist li:last-child { border-bottom: 0; padding-bottom: 0; }
+.rlist--inv .rlist__fig { font-variant-numeric: tabular-nums; font-weight: 600; }
+.rlink { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.rlink .linkish { min-height: 44px; display: inline-flex; align-items: center; }
+
+.rplace {
+  background: #fff; border: 1px solid rgba(12, 46, 59, 0.12);
+  border-radius: 12px; padding: 0.85rem; margin-bottom: 0.7rem;
+  display: grid; gap: 0.6rem;
+}
+.rplace__head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.rplace__k { margin: 0; font-size: 1rem; font-family: var(--font-body); }
+.rplace__addr { margin: 0; font-size: 0.85rem; color: var(--oasis-muted); }
+.rplace .linkish { min-height: 44px; display: inline-flex; align-items: center; }
+.rplace__add { margin: 0; }
+
+.rmoney { display: grid; gap: 0.7rem; }
+.rmoney__big { margin: 0; display: grid; gap: 0.1rem; }
+.rmoney__big span:last-child {
+  font-size: 1.8rem; font-weight: 700; color: var(--oasis-navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.rtime { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.rtime__i { display: grid; grid-template-columns: 4.2rem 1fr; gap: 0.6rem; font-size: 0.84rem; }
+.rtime__when { color: var(--oasis-muted); font-size: 0.74rem; padding-top: 0.1rem; }
+.rtime__what { line-height: 1.4; }
+
+/* A person's name is not an inscription. The display face is Roman
+   capitals by design, which is right over a page but shouts over
+   somebody's name, so the record wears the body face. */
+.rec__name {
+  font-family: var(--font-body); text-transform: none;
+  letter-spacing: -0.015em; font-weight: 700;
+}
+
+/* A place's name is a label, not an inscription. */
+.rplace__k { text-transform: none; letter-spacing: -0.005em; font-weight: 700; }
+
+.recedit {
+  background: #fff; border: 1px solid var(--oasis-teal); border-radius: 12px;
+  padding: 0.85rem; display: grid; gap: 0.55rem;
+}
+.recedit input, .recedit textarea { width: 100%; font-size: 1rem; min-height: 44px; }
+.recedit__acts { display: flex; gap: 0.5rem; }

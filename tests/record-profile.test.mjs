@@ -1,8 +1,8 @@
 /* The contact record: what we know, what is wrong, and whether they are
    still live in the book. */
 import assert from 'node:assert/strict';
-import { buildGroup, missingLine, completeness, clientFactGroups, isBlank, factValue }
-  from '../functions/_lib/recordFacts.js';
+import { buildGroup, missingLine, completeness, clientFactGroups, propertyFactGroups,
+  isBlank, factValue } from '../functions/_lib/recordFacts.js';
 import { attentionFor, standingFor, isPastDay, ACTIVE_GRACE_DAYS }
   from '../functions/_lib/attention.js';
 
@@ -49,8 +49,8 @@ test('completeness counts across the groups, so a thin record shows as thin', ()
 });
 
 test('a client with almost nothing on file still groups cleanly', () => {
-  const groups = clientFactGroups({ name: 'Maria Delgado' }, {});
-  assert.equal(groups.length, 4);
+  const groups = clientFactGroups({ name: 'Maria Delgado' });
+  assert.equal(groups.length, 2);
   const reach = groups[0];
   assert.equal(reach.facts.length, 1);
   assert.ok(reach.missing > 0);
@@ -58,11 +58,23 @@ test('a client with almost nothing on file still groups cleanly', () => {
   assert.ok(groups.every((g) => Array.isArray(g.facts)));
 });
 
-test('what the cleaner needs at the door is its own group', () => {
-  const groups = clientFactGroups({ name: 'M' },
+test('what the cleaner needs at the door belongs to the place, not the person', () => {
+  const groups = propertyFactGroups(
     { access: 'Gate 4417', pets: 'Biscuit', warnings: 'Loose step' });
   const door = groups.find((g) => g.title === 'At the door');
   assert.deepEqual(door.facts.map((f) => f.label), ['Getting in', 'Pets', 'Careful']);
+});
+
+test('every place keeps its own door notes', () => {
+  /* The beach house has a lockbox and no dog; the condo has a gate code
+     and a cat that bolts. One set of notes for both is a cleaner at the
+     wrong door with the wrong code. */
+  const beach = propertyFactGroups({ access: 'Lockbox 2231' });
+  const condo = propertyFactGroups({ access: 'Gate 4417', pets: 'Cat, bolts' });
+  const doorOf = (g) => g.find((x) => x.title === 'At the door').facts
+    .map((f) => f.label + ': ' + f.value);
+  assert.deepEqual(doorOf(beach), ['Getting in: Lockbox 2231']);
+  assert.deepEqual(doorOf(condo), ['Getting in: Gate 4417', 'Pets: Cat, bolts']);
 });
 
 /* ---------------------------------------------------------- attention */

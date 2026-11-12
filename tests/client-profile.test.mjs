@@ -269,12 +269,13 @@ await testAsync('the facts arrive grouped, with the blanks counted not printed',
   d._raw.prepare(`INSERT INTO properties (id,customer_id,created_at,address,access,pets)
     VALUES ('p9','c1','2026-01-01','12 Ocean Ave','Gate 4417','Biscuit')`).run();
   const b = await profileOf(d, 'c1');
-  const titles = b.fact_groups.map((g) => g.title);
-  assert.deepEqual(titles, ['How to reach them', 'The place', 'At the door', 'The arrangement']);
-  const door = b.fact_groups.find((g) => g.title === 'At the door');
+  assert.deepEqual(b.fact_groups.map((g) => g.title), ['How to reach them', 'About them']);
+  /* Every place carries its own, however many there are. */
+  const place = b.properties.find((p) => p.id === 'p9');
+  const door = place.fact_groups.find((g) => g.title === 'At the door');
   assert.deepEqual(door.facts.map((f) => f.label), ['Getting in', 'Pets']);
   assert.ok(door.missing > 0, 'the rest is counted');
-  assert.ok(b.completeness.total > b.completeness.have);
+  assert.ok(place.completeness.total > place.completeness.have);
 });
 
 await testAsync('the profile carries the money, worked out from the payments', async () => {
