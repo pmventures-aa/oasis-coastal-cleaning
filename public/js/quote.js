@@ -841,8 +841,12 @@ var state = { step: 0, leadId: null };
             '<button type="button" class="btn btn--ghost" data-follow="call">Ask her to call me</button>' +
             '<button type="button" class="btn btn--ghost" data-follow="visit">Book a walkthrough</button>' +
           '</div>' +
-          '<p class="hint">A walkthrough takes about fifteen minutes and turns the estimate into ' +
-            'a fixed price. No charge either way.</p>' +
+          /* This used to say the walkthrough "turns the estimate into a fixed
+             price". Nobody has an estimate at this point -- they have just
+             sent the form and the number has not been written yet, and this
+             site quotes every job individually rather than publishing one. */
+          '<p class="hint">A walkthrough takes about fifteen minutes, and means the number ' +
+            'she sends is a fixed price rather than a range. No charge either way.</p>' +
           '<p class="followup__done" hidden></p>' +
         '</div>' +
       '</div>';

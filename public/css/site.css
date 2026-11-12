@@ -62,8 +62,12 @@ body { padding-bottom: 4.75rem; }
   .nav a[aria-current="page"] { color: var(--oasis-teal); border-bottom-color: var(--oasis-gold); }
 }
 .topbar .btn { padding: 0.7em 1.35em; font-size: 0.72rem; white-space: nowrap; }
-.topbar__cta { display: none; }
-@media (min-width: 560px) { .topbar__cta { display: inline-block; } }
+/* Hidden on the narrowest screens, where the sticky bar carries this action
+   instead. inline-flex rather than inline-block so the 44px minimum can centre
+   its label; this used to be an inline-block here and an inline-flex 1,185
+   lines further down, which is one rule too many to find when it misbehaves. */
+.topbar__cta { display: none; min-height: 44px; align-items: center; }
+@media (min-width: 560px) { .topbar__cta { display: inline-flex; } }
 
 .navtoggle {
   display: inline-flex; align-items: center; justify-content: center;
@@ -1247,8 +1251,6 @@ h2 { line-height: 1.18; }
   display: inline-flex; align-items: center; min-height: 44px;
   padding: 0 1.2em;
 }
-.topbar__cta { min-height: 44px; align-items: center; }
-@media (min-width: 560px) { .topbar__cta { display: inline-flex; } }
 
 /* The desktop nav links were 34px of clickable area inside a much taller
    header row. Giving them the full height costs nothing visually — the
