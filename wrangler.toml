@@ -64,3 +64,10 @@ migrations_dir = "migrations"
 #
 # Environment changes only apply to a NEW deployment. After adding them, go to
 # Deployments and retry the latest one.
+
+# Photos from a visit. The bucket exists; Pages will not let a binding be
+# added in the dashboard for a project configured from this file, so it
+# goes here and arrives with the next deploy.
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "oasis-photos"

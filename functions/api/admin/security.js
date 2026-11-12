@@ -10,6 +10,7 @@ import { gate } from '../../_lib/guard.js';
 import { applySchema } from '../../_lib/schema.js';
 import { hashPassword, verifyPassword, ROLES } from '../../_lib/auth.js';
 import { logSecurity, recentSecurity, KINDS } from '../../_lib/security.js';
+import { MIN_PASSWORD } from './users.js';
 
 const soft = (p) => p.then((r) => r, () => ({ results: [] }));
 
@@ -104,8 +105,8 @@ export async function onRequestPatch({ request, env }) {
     }
     const current = clean(body.current, 200);
     const next = clean(body.password, 200);
-    if (next.length < 10) {
-      return json({ error: 'Make it at least 10 characters.' }, 400);
+    if (next.length < MIN_PASSWORD) {
+      return json({ error: 'Make it at least ' + MIN_PASSWORD + ' characters.' }, 400);
     }
     const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?')
       .bind(g.user.id).first().catch(() => null);

@@ -16,6 +16,9 @@ import { applySchema } from '../../_lib/schema.js';
 
 const SETUP = 'Apply migration 0014 in D1 → oasis → Console.';
 
+/* One number, so the two forms cannot drift apart again. */
+export const MIN_PASSWORD = 10;
+
 async function hasTable(db) {
   try { await db.prepare('SELECT 1 FROM users LIMIT 1').first(); return true; }
   catch {
@@ -64,9 +67,12 @@ export async function onRequestPost({ request, env }) {
 
   if (!name) return json({ error: 'What is their name?' }, 400);
   if (!isEmail(email)) return json({ error: 'That email address does not look right.' }, 400);
-  /* Long enough to be worth hashing. Their own, not one she reuses. */
-  if (password.length < 8) {
-    return json({ error: 'Give them a password of at least 8 characters.' }, 400);
+  /* Ten, the same as the Security screen asks for when someone changes
+     their own. The two forms disagreed -- 8 here, 10 there -- which meant
+     a password accepted on the way in could be refused on the way back. */
+  if (password.length < MIN_PASSWORD) {
+    return json({ error: 'Give them a password of at least ' + MIN_PASSWORD +
+      ' characters.' }, 400);
   }
 
   const taken = await env.DB.prepare(
@@ -132,7 +138,10 @@ export async function onRequestPatch({ request, env }) {
 
   if (body.password !== undefined) {
     const pw = clean(body.password, 200);
-    if (pw.length < 8) return json({ error: 'A password needs at least 8 characters.' }, 400);
+    if (pw.length < MIN_PASSWORD) {
+      return json({ error: 'A password needs at least ' + MIN_PASSWORD +
+        ' characters.' }, 400);
+    }
     const h = await hashPassword(pw);
     sets.push('password_hash = ?', 'password_salt = ?', 'iterations = ?');
     vals.push(h.hash, h.salt, h.iterations);

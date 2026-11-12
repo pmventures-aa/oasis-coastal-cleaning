@@ -173,8 +173,10 @@
 
   function viewCount(id, counts, activeTotal) {
     if (id === 'active') return activeTotal;
-    if (id === 'settings' || id === 'clients' || id === 'schedule' ||
-        id === 'home' || id === 'money') return null;
+    /* A tab with nothing to count shows nothing. Anything not named here
+       fell through to the pipeline map and printed a zero, so Security
+       and Services each wore a "0" that counted nothing at all. */
+    if (id !== 'quotes' && !{ pending: 1, accepted: 1, paid: 1 }[id]) return null;
     var p = state.pipelineCounts || {};
     /* The Quotes tab now stands for four stages, so it counts all four. */
     if (id === 'quotes') {
@@ -1969,7 +1971,7 @@
           }).join('') + '</select></label>' +
       '<label class="bfield"><span>' + (editing ? 'New password (leave blank to keep it)' : 'Their password') + '</span>' +
         '<input type="text" class="bfield__in" data-uf="password" value="" ' +
-          'placeholder="At least 8 characters" autocomplete="off"></label>' +
+          'placeholder="At least 10 characters" autocomplete="off"></label>' +
       (editing
         ? '<label class="btoggle"><input type="checkbox" data-uf="active"' +
           (f.active ? ' checked' : '') + '><span>They can sign in</span></label>'
@@ -6245,6 +6247,18 @@
       state.emailConfigured = status.emailConfigured !== false;
       /* Who is signed in and what they may see. The screen mirrors this;
          every route checks it again for itself. */
+      /* Signing in as somebody else in the same page leaves the last
+         person's answers in memory. The Security screen then drew "you
+         are signed in with the shared password" at Kristina, because
+         that payload was fetched before she signed in and nothing threw
+         it away. Anything that describes who you are goes when who you
+         are changes. */
+      var wasWho = state.me ? (state.me.id || 'shared') : null;
+      var nowWho = status.me ? (status.me.id || 'shared') : 'shared';
+      if (wasWho !== null && wasWho !== nowWho) {
+        state.security = null; state.users = null; state.userForm = null;
+        state.issues = null; state.issuesFor = null; state.issueCats = null;
+      }
       state.me = status.me || null;
       state.can = status.can || null;
       /* A cleaner lands on the diary rather than on a Requests tab that
