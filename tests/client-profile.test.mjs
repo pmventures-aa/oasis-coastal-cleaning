@@ -244,6 +244,39 @@ function profDb() {
 }
 const profileOf = async (d, id) => (await call(d, id)).json();
 
+await testAsync('the profile says what is wrong and whether they are live', async () => {
+  const d = profDb();
+  d._raw.exec(`CREATE TABLE visit_issues (id TEXT PRIMARY KEY, created_at TEXT,
+    appointment_id TEXT, customer_id TEXT, category_id TEXT, category_label TEXT,
+    severity TEXT, body TEXT, reported_by TEXT, approved_at TEXT, approved_by TEXT,
+    sent_at TEXT, resolved_at TEXT, archived_at TEXT)`);
+  d._raw.prepare(`INSERT INTO visit_issues (id,created_at,appointment_id,customer_id,
+    category_label,severity) VALUES ('s1','2026-11-01','a1','c1','Damage','urgent')`).run();
+  d._raw.prepare(`INSERT INTO invoices (id,created_at,customer_id,total,status,line_items)
+    VALUES ('i1','2026-11-01','c1',28500,'sent','[]')`).run();
+
+  const b = await profileOf(d, 'c1');
+  assert.ok(Array.isArray(b.attention), 'attention must come back');
+  assert.ok(b.attention.some((a) => /Urgent: Damage/.test(a.title)),
+    'an urgent find the cleaner reported belongs here');
+  assert.ok(b.attention.some((a) => /outstanding/.test(a.title)));
+  assert.equal(b.standing, 'active', 'money owed keeps them live');
+  assert.ok(b.standing_words && b.standing_words.label);
+});
+
+await testAsync('the facts arrive grouped, with the blanks counted not printed', async () => {
+  const d = profDb();
+  d._raw.prepare(`INSERT INTO properties (id,customer_id,created_at,address,access,pets)
+    VALUES ('p9','c1','2026-01-01','12 Ocean Ave','Gate 4417','Biscuit')`).run();
+  const b = await profileOf(d, 'c1');
+  const titles = b.fact_groups.map((g) => g.title);
+  assert.deepEqual(titles, ['How to reach them', 'The place', 'At the door', 'The arrangement']);
+  const door = b.fact_groups.find((g) => g.title === 'At the door');
+  assert.deepEqual(door.facts.map((f) => f.label), ['Getting in', 'Pets']);
+  assert.ok(door.missing > 0, 'the rest is counted');
+  assert.ok(b.completeness.total > b.completeness.have);
+});
+
 await testAsync('the profile carries the money, worked out from the payments', async () => {
   const d = profDb();
   d._raw.prepare(`INSERT INTO invoices (id,created_at,customer_id,total,status,line_items)

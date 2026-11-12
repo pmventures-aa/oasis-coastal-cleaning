@@ -12,6 +12,8 @@
  */
 import { json, clean } from '../../../_lib/util.js';
 import { statusFor, balanceOf, paidTotal } from '../../../_lib/invoices.js';
+import { clientFactGroups, completeness } from '../../../_lib/recordFacts.js';
+import { attentionFor, standingFor, STANDING_WORDS } from '../../../_lib/attention.js';
 import { gate } from '../../../_lib/guard.js';
 import { isSignedIn } from '../../../_lib/auth.js';
 
@@ -145,9 +147,32 @@ export async function onRequestGet({ request, env, params }) {
   const next = visits.find((v) =>
     v.status !== 'cancelled' && String(v.start_at || v.start_date || '') >= now.slice(0, 10)) || null;
 
+  /* What a cleaner found and she has not dealt with, which is the other
+     half of "is anything wrong with this one". */
+  const issues = (await soft(env.DB.prepare(
+    `SELECT id, severity, category_label, approved_at, resolved_at, created_at
+       FROM visit_issues WHERE customer_id = ? AND archived_at IS NULL
+        AND resolved_at IS NULL ORDER BY created_at DESC LIMIT 20`
+  ).bind(id).all())).results || [];
+
+  /* One module answers this for the record and for Today alike, so the
+     two can never disagree about whether something is late. */
+  const signals = { invoices, visits, issues, jobs, closed_at: customer.closed_at || null };
+  const attention = attentionFor(signals, now);
+  const standing = standingFor(signals, now);
+
+  /* Her first address is the one the facts describe. A client with six
+     rentals gets the rest in the places list rather than flattened into
+     one set of access notes. */
+  const factGroups = clientFactGroups(customer, properties[0] || {});
+
   return json({ ok: true,
     customer, properties, timeline: feed,
-    invoices, outstanding, lifetime, jobs,
+    invoices, outstanding, lifetime, jobs, issues,
+    attention,
+    standing, standing_words: STANDING_WORDS[standing] || null,
+    fact_groups: factGroups,
+    completeness: completeness(factGroups),
     next_visit: next,
     /* Their standing link, so she can hand it over from the profile
        rather than hunting for it. */
