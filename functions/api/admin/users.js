@@ -35,7 +35,10 @@ async function hasTable(db) {
 const slim = (u) => ({
   id: u.id, name: u.name, email: u.email, phone: u.phone || '',
   role: u.role, active: !!u.active, created_at: u.created_at,
-  last_seen_at: u.last_seen_at || null
+  last_seen_at: u.last_seen_at || null,
+  /* The link itself, because she is the one who hands it over. It is a
+     password for their diary, so it goes no further than this screen. */
+  feed_token: u.feed_token || null
 });
 
 export async function onRequestGet({ request, env }) {
@@ -101,6 +104,14 @@ export async function onRequestPost({ request, env }) {
   }
 }
 
+/* A person's own calendar link. Unguessable, replaceable for one person
+   without touching anybody else's phone, and never shown to anyone but
+   whoever can manage people. */
+function newFeedToken() {
+  const b = crypto.getRandomValues(new Uint8Array(24));
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+}
+
 export async function onRequestPatch({ request, env }) {
   const g = await gate(request, env, 'manageUsers');
   if (g.response) return g.response;
@@ -114,6 +125,21 @@ export async function onRequestPatch({ request, env }) {
   const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first()
     .catch(() => null);
   if (!row) return json({ error: 'That person is not here.' }, 404);
+
+  /* Give them a calendar link, or take the old one back. Replacing it
+     stops the old one working the moment it is written, which is the
+     point of being able to replace it. */
+  if (body.action === 'feed_link' || body.action === 'feed_revoke') {
+    const token = body.action === 'feed_link' ? newFeedToken() : null;
+    try {
+      await env.DB.prepare('UPDATE users SET feed_token = ? WHERE id = ?')
+        .bind(token, id).run();
+    } catch (err) {
+      return json({ error: 'Could not change their calendar link.',
+        detail: String(err && err.message || err) }, 503);
+    }
+    return json({ ok: true, action: body.action, feed_token: token });
+  }
 
   const sets = [], vals = [];
   const wantsRole = body.role !== undefined && ROLES.includes(body.role);

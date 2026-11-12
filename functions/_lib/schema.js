@@ -151,6 +151,8 @@ const TABLES = [
 /* Columns added to tables that already existed. SQLite has no
    ADD COLUMN IF NOT EXISTS, so each is tried and a duplicate is ignored. */
 const COLUMNS = [
+  /* A cleaner's own calendar feed (0024). */
+  ['users', 'feed_token', 'TEXT'],
   /* What the cleaner reads at the door (0021). */
   ['properties', 'bins', 'TEXT'],
   ['properties', 'supplies', 'TEXT'],

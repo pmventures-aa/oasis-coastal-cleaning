@@ -16,6 +16,7 @@
  */
 import { clean, safeEqual } from '../../_lib/util.js';
 import { readSecret } from '../../_lib/settings.js';
+import { can } from '../../_lib/auth.js';
 import { expandBlock, spanOf, localDateOf, addDays, todayLocal } from '../../_lib/schedule.js';
 
 const CRLF = '\r\n';
@@ -60,7 +61,21 @@ export async function onRequestGet({ request, params, env }) {
      taking it back does not stop her own phone updating. */
   const isStaff = !isMine && staff && safeEqual(given, staff);
   const isShared = !isMine && !isStaff && shared && safeEqual(given, shared);
-  if (!isMine && !isStaff && !isShared) return new Response('Not found', { status: 404 });
+  /* A cleaner's own link. The three above are the business's; this one
+     belongs to one person and carries only the visits assigned to them,
+     so subscribing does not hand them the whole book of work. */
+  let onlyFor = null;
+  if (!isMine && !isStaff && !isShared) {
+    const who = await env.DB.prepare(
+      'SELECT id, name, role, active FROM users WHERE feed_token = ?'
+    ).bind(given).first().catch(() => null);
+    if (!who || !who.active) return new Response('Not found', { status: 404 });
+    /* An owner or office person with their own link still sees the lot;
+       it is the cleaner whose view is narrowed. */
+    onlyFor = can(who, 'everyoneSchedule') ? null : who.id;
+    var feedName = who.name;
+  }
+  const isPersonal = !isMine && !isStaff && !isShared;
   const busyOnly = !!isShared;
 
   /* A window, not everything: a phone does not need last year. */
@@ -74,8 +89,10 @@ export async function onRequestGet({ request, params, env }) {
       `SELECT * FROM appointments
         WHERE archived_at IS NULL AND status != 'cancelled'
           AND ( (all_day = 0 AND start_at >= ? AND start_at <= ?)
-             OR (all_day = 1 AND start_date >= ? AND start_date <= ?) )`
-    ).bind(from + 'T00:00:00.000Z', to + 'T23:59:59.999Z', from, to).all();
+             OR (all_day = 1 AND start_date >= ? AND start_date <= ?) )
+          ${onlyFor ? 'AND assigned_to = ?' : ''}`
+    ).bind(...[from + 'T00:00:00.000Z', to + 'T23:59:59.999Z', from, to,
+      ...(onlyFor ? [onlyFor] : [])]).all();
     blockRows = await env.DB.prepare(
       'SELECT * FROM availability_blocks WHERE archived_at IS NULL'
     ).all();
@@ -88,6 +105,9 @@ export async function onRequestGet({ request, params, env }) {
     'PRODID:-//Oasis Coastal Cleaning//Schedule//EN',
     'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
     busyOnly ? 'X-WR-CALNAME:Kristina — when she is busy'
+    : isPersonal ? 'X-WR-CALNAME:' + esc(
+        (onlyFor ? (feedName ? feedName.split(' ')[0] + '\u2019s cleans' : 'My cleans')
+                 : 'Oasis Coastal Cleaning'))
     : isStaff ? 'X-WR-CALNAME:Oasis Coastal Cleaning — the schedule'
              : 'X-WR-CALNAME:Oasis Coastal Cleaning',
     'X-WR-TIMEZONE:America/New_York',
@@ -120,6 +140,14 @@ export async function onRequestGet({ request, params, env }) {
     const where = [row.address, row.city, row.zip].filter(Boolean).join(', ');
     if (where) out.push(`LOCATION:${esc(where)}`);
     if (row.status === 'tentative') out.push('STATUS:TENTATIVE');
+    /* The phone cannot be pushed to when something changes here -- a
+       subscription is fetched when the calendar app feels like it. What
+       it can do is ring before the visit, from the copy it already has,
+       with no signal needed. An hour is enough to set off. */
+    if (!row.all_day) {
+      out.push('BEGIN:VALARM', 'ACTION:DISPLAY',
+        `DESCRIPTION:${esc(summary)}`, 'TRIGGER:-PT1H', 'END:VALARM');
+    }
     out.push('END:VEVENT');
     return out;
   };
@@ -132,7 +160,8 @@ export async function onRequestGet({ request, params, env }) {
       a.status === 'tentative' ? title + ' (tentative)' : title, detail));
   }
 
-  for (const b of blockRows.results || []) {
+  /* Her days off are hers. A cleaner's feed is the jobs they are going to. */
+  for (const b of (onlyFor ? [] : blockRows.results || [])) {
     for (const occ of expandBlock(b, from, to)) {
       if (!spanOf(occ)) continue;
       const when = occ.all_day ? occ.start_date : localDateOf(new Date(occ.start_at));

@@ -1941,6 +1941,7 @@
       (p.last_seen_at !== undefined
         ? '<span class="urow__seen muted">Last in ' + esc(whenWords(p.last_seen_at)) + '</span>'
         : '') +
+      feedRowHtml(p) +
       '<div class="urow__acts">' +
         '<button type="button" class="linkish" data-user-edit="' + esc(p.id) + '">Change</button>' +
         (p.active
@@ -1949,6 +1950,61 @@
           : '') +
       '</div>' +
     '</li>';
+  }
+
+  /* Their calendar, on their phone, in one tap.
+
+     webcal:// is what an iPhone answers by opening Calendar and offering
+     to subscribe -- the same link over https just downloads a file that
+     shows today and never updates again. So the button is webcal and the
+     copyable text is there for anyone on a laptop.
+
+     What this cannot do, and the screen says so: push. A subscription is
+     fetched when the calendar app decides to, Apple quickly and Google
+     often hours later, and nothing done on their phone comes back here.
+     What it does do is ring an hour before each visit, from the copy
+     already on the phone. */
+  function feedRowHtml(p) {
+    if (!p.feed_token) {
+      return '<span class="ufeed">' +
+        '<button type="button" class="linkish" data-feed-make="' + esc(p.id) + '">' +
+          'Give them a calendar link</button></span>';
+    }
+    var https = location.origin + '/api/calendar/' + p.feed_token;
+    var webcal = 'webcal://' + location.host + '/api/calendar/' + p.feed_token;
+    return '<span class="ufeed ufeed--on">' +
+      '<a class="btn btn--ghost btn--tiny" href="' + esc(webcal) + '">Add to their phone</a>' +
+      '<button type="button" class="linkish" data-feed-copy="' + esc(https) + '">Copy link</button>' +
+      '<button type="button" class="linkish" data-feed-new="' + esc(p.id) + '">Replace</button>' +
+      '<span class="ufeed__note muted">Their visits only. Rings an hour before. ' +
+        'Updates when their phone checks, not the moment you change something.</span>' +
+    '</span>';
+  }
+
+  function feedSet(id, make, btn) {
+    if (!make && !window.confirm('Replace their calendar link? The one on ' +
+      'their phone stops working and they will need the new one.')) return;
+    btn.disabled = true;
+    api('/api/admin/users', { method: 'PATCH',
+      body: JSON.stringify({ id: id, action: 'feed_link' }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not work.'); return; }
+        loadUsers();
+      });
+  }
+
+  function copyText(text, btn) {
+    var done = function () {
+      var was = btn.textContent;
+      btn.textContent = 'Copied';
+      window.setTimeout(function () { btn.textContent = was; }, 1400);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy this:', text); });
+      return;
+    }
+    window.prompt('Copy this:', text);
   }
 
   function userFormHtml() {
@@ -5566,6 +5622,9 @@
     /* These four were in the markup from the day the users screen was
        written and never had a listener, so "+ Add someone" did nothing at
        all. saveUser() was there the whole time, waiting to be called. */
+    if (hit.matches('[data-feed-make]')) { feedSet(hit.getAttribute('data-feed-make'), true, hit); return; }
+    if (hit.matches('[data-feed-new]')) { feedSet(hit.getAttribute('data-feed-new'), false, hit); return; }
+    if (hit.matches('[data-feed-copy]')) { copyText(hit.getAttribute('data-feed-copy'), hit); return; }
     if (hit.matches('[data-user-new]')) {
       state.userForm = { role: 'cleaner', active: true };
       state.userNote = '';

@@ -2337,3 +2337,8 @@ select.pf__v:focus {
 /* The button is a label wrapping a hidden file input, which is what lets
    an iPhone open the camera straight from it. */
 .phbtn { cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; }
+
+/* A person's calendar link, on the row for that person. */
+.ufeed { flex-basis: 100%; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+.ufeed .linkish, .ufeed .btn { min-height: 44px; display: inline-flex; align-items: center; }
+.ufeed__note { flex-basis: 100%; font-size: 0.72rem; line-height: 1.4; }
