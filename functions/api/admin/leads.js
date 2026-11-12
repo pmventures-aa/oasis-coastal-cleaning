@@ -3,6 +3,7 @@
  * POST  /api/admin/leads          — log a phone/walk-in lead
  * PATCH /api/admin/leads          — edit fields, or action: archive | restore | delete
  */
+import { syncConverted, CONVERTED_STATUS } from '../../_lib/convert.js';
 import { formatPhone } from '../../_lib/format.js';
 import { gate } from '../../_lib/guard.js';
 import { json, clean, newId } from '../../_lib/util.js';
@@ -41,6 +42,18 @@ export async function onRequestGet({ request, env }) {
 
     where.push(showArchived ? 'archived_at IS NOT NULL' : 'archived_at IS NULL');
 
+    /* A request that became a client has left this list. It is not gone
+       -- the whole of it is on their record, where the rest of the
+       relationship lives -- but Requests is what still needs answering,
+       and a list that keeps everything it has ever held stops being a
+       list of work. */
+    const converted = clean(url.searchParams.get('converted'), 10);
+    if (!showArchived && converted !== '1') {
+      where.push('converted_at IS NULL');
+    } else if (converted === '1') {
+      where.push('converted_at IS NOT NULL');
+    }
+
     if (status && STATUSES.includes(status)) {
       where.push('status = ?');
       binds.push(status);
@@ -63,6 +76,12 @@ export async function onRequestGet({ request, env }) {
         'SELECT status, COUNT(*) n FROM leads WHERE archived_at IS NULL GROUP BY status'
       ).all();
       (active.results || []).forEach((r) => { counts[r.status] = r.n; });
+      /* Counted so the screen can offer them without pretending they are
+         still waiting on her. */
+      const conv = await env.DB.prepare(
+        'SELECT COUNT(*) n FROM leads WHERE archived_at IS NULL AND converted_at IS NOT NULL'
+      ).first().catch(() => null);
+      counts.converted = (conv && conv.n) || 0;
       const arch = await env.DB.prepare(
         'SELECT COUNT(*) n FROM leads WHERE archived_at IS NOT NULL'
       ).first();
@@ -188,10 +207,12 @@ export async function onRequestPatch({ request, env }) {
 
   const sets = [], values = [];
 
+  let movedTo = null;
   if (body.status !== undefined) {
     const status = clean(body.status, 20);
     if (!STATUSES.includes(status)) return json({ error: 'Unknown status.' }, 400);
     sets.push('status = ?'); values.push(status);
+    movedTo = status;
   }
 
   for (const [col, max] of Object.entries(EDITABLE)) {
@@ -212,5 +233,9 @@ export async function onRequestPatch({ request, env }) {
   values.push(id);
 
   await env.DB.prepare(`UPDATE leads SET ${sets.join(', ')} WHERE id = ?`).bind(...values).run();
-  return json({ ok: true });
+  /* Moving it to booked is the conversion; moving it back off undoes
+     that, because she will mis-tap and a request back in play belongs
+     back in the list. */
+  if (movedTo) await syncConverted(env.DB, id, movedTo);
+  return json({ ok: true, converted: movedTo === CONVERTED_STATUS });
 }

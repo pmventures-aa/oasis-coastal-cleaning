@@ -80,6 +80,12 @@ export async function onRequestGet({ request, env, params }) {
     timeline.push(ev(l.created_at, 'request', 'Request came in',
       [l.service_label || l.service, l.city].filter(Boolean).join(' · '),
       { kind: 'lead', id: l.id }));
+    /* The moment the request became a client, said out loud. Without it
+       the story reads as one continuous stream that inexplicably changes
+       vocabulary halfway down: enquiries at the top, cleans at the
+       bottom, and nothing marking where one became the other. */
+    timeline.push(ev(l.converted_at, 'converted', 'Became a client',
+      l.service_label || ''));
   }
   for (const q of quotes) {
     timeline.push(ev(q.sent_at, 'quote', 'Quote sent', money(q.total), { kind: 'quote', id: q.id }));

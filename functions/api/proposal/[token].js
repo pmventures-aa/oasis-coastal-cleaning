@@ -232,6 +232,7 @@ export async function onRequestPost({ request, env, params }) {
   await env.DB.prepare(
     `UPDATE leads SET status = 'booked', updated_at = ? WHERE id = ?`
   ).bind(now, quote.lead_id).run();
+  await syncConverted(env.DB, quote.lead_id, 'booked', now);
 
   try {
     const to = alertTarget(await loadSettings(env.DB), env, 'accept');

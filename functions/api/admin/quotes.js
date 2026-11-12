@@ -3,6 +3,7 @@
  * POST  /api/admin/quotes            — create a draft quote
  * PATCH /api/admin/quotes            — update a draft quote
  */
+import { syncConverted } from '../../_lib/convert.js';
 import { json, clean, newId } from '../../_lib/util.js';
 import { gate } from '../../_lib/guard.js';
 import { isSignedIn } from '../../_lib/auth.js';
@@ -202,6 +203,7 @@ export async function onRequestPatch({ request, env }) {
     ).bind(at, at, id).run();
     await env.DB.prepare('UPDATE leads SET status = ?, updated_at = ? WHERE id = ?')
       .bind('closed', at, existing.lead_id).run().catch(() => {});
+    await syncConverted(env.DB, existing.lead_id, 'closed', at);
     await logQuoteEvent(env.DB, id, 'declined',
       { by: 'staff', ...(note ? { note } : {}) });
     return json({ ok: true, action: 'declined' });

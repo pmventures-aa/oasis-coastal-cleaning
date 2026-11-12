@@ -2551,3 +2551,17 @@ select.pf__v:focus {
 }
 .recedit input, .recedit textarea { width: 100%; font-size: 1rem; min-height: 44px; }
 .recedit__acts { display: flex; gap: 0.5rem; }
+
+/* A request she has already won. It is a person now, so the row opens
+   their record rather than the quote workflow. */
+.lead--won .lead__head {
+  appearance: none; background: none; border: 0; font: inherit; color: inherit;
+  cursor: pointer; text-align: left; width: 100%;
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  min-height: 56px; padding: 0.6rem 0.85rem;
+}
+.lead--won { background: #fff; border: 1px solid rgba(12, 46, 59, 0.12); border-radius: 12px; }
+.lead--won .lead__head:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: -2px; }
+.lead--won .lead__name { font-weight: 700; }
+.lead--won .lead__meta { font-size: 0.8rem; flex-basis: 100%; }
+.lead--won .lead__go { margin-left: auto; color: var(--oasis-muted); font-size: 1.1rem; }

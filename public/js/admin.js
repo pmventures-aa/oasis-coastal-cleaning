@@ -732,6 +732,24 @@
   }
 
   function row(l) {
+    /* A request she has already won is a person, not an enquiry. The row
+       stops offering the quote workflow and offers their record. */
+    if (l.converted_at && l.customer_id) {
+      return '<article class="lead lead--won">' +
+        '<button type="button" class="lead__head" data-open-client="' + esc(l.customer_id) + '">' +
+          '<span class="lead__name">' + esc(l.name || 'No name') + '</span>' +
+          '<span class="pill pill--booked">Client</span>' +
+          '<span class="lead__meta muted">' +
+            esc([l.service_label, l.city].filter(Boolean).join(' · ')) + '</span>' +
+          '<span class="lead__go" aria-hidden="true">\u203a</span>' +
+          '<span class="sr-only">Open their record</span>' +
+        '</button>' +
+      '</article>';
+    }
+    return rowEnquiry(l);
+  }
+
+  function rowEnquiry(l) {
     var flag = l.followup && l.followup !== 'none'
       ? '<span class="pill pill--flag">' + (l.followup === 'visit' ? 'Wants a visit' : 'Wants a call') + '</span>' : '';
     var qBadge = '';
@@ -854,6 +872,11 @@
             }).join('') + '</select></label>' +
             '<button type="button" class="toolbar__filter' + (state.followup ? ' is-on' : '') +
               '" data-followup-filter>Follow-ups</button>' +
+            ((state.counts && state.counts.converted)
+              ? '<button type="button" class="toolbar__filter' +
+                (state.showConverted ? ' is-on' : '') + '" data-converted-filter>' +
+                'Won (' + state.counts.converted + ')</button>'
+              : '') +
             '<div class="toolbar__actions">' +
               '<button type="button" class="btn btn--ghost btn--new-lead" data-new-lead>+ New request</button>' +
               '<button type="button" class="btn btn--primary btn--new-quote" data-new-quote>+ New quote</button>' +
@@ -6390,6 +6413,12 @@
       openContact(hit.getAttribute('data-open-client'));
       return;
     }
+    if (hit.matches('[data-converted-filter]')) {
+      state.showConverted = !state.showConverted;
+      state.open = null;
+      render(); load();
+      return;
+    }
     if (hit.matches('[data-rec-edit]')) { state.recEdit = true; render(); return; }
     if (hit.matches('[data-rec-cancel]')) { state.recEdit = false; render(); return; }
     if (hit.matches('[data-rec-save]')) { recSave(hit.getAttribute('data-rec-save'), hit); return; }
@@ -7023,6 +7052,7 @@
       var qs = '?archived=' + (state.view === 'archived' ? '1' : '0');
       if (state.filter && state.view === 'active') qs += '&status=' + encodeURIComponent(state.filter);
       if (state.followup && state.view === 'active') qs += '&followup=1';
+      if (state.showConverted && state.view === 'active') qs += '&converted=1';
 
       api('/api/admin/leads' + qs).then(function (r) {
         if (r.status === 401) { showSignIn(''); return; }

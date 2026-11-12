@@ -156,6 +156,8 @@ const TABLES = [
 /* Columns added to tables that already existed. SQLite has no
    ADD COLUMN IF NOT EXISTS, so each is tried and a duplicate is ignored. */
 const COLUMNS = [
+  /* When a request became a client (0027). */
+  ['leads', 'converted_at', 'TEXT'],
   /* A regular's standing booking link (0026). */
   ['customers', 'link_token', 'TEXT'],
   /* A cleaner's own calendar feed (0024). */
