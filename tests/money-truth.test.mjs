@@ -133,4 +133,46 @@ await testAsync('the invoices for a set of quotes come back in two reads', async
   assert.equal(byInvoice.i1[0].amount, 60);
 });
 
+await testAsync('a database hiccup does not un-pay a settled job', async () => {
+  /* syncQuotePaid used to turn a failed read into an empty result set. A
+     payments query that hiccuped therefore looked exactly like a job with no
+     payments against it, and the function went on to clear paid_at: a fully
+     settled job silently filed as outstanding, with nothing anywhere saying
+     why. Reading nothing and failing to read are different answers. */
+  const d = db();
+  d._raw.exec(`INSERT INTO quotes (id, total, paid_at, paid_source)
+    VALUES ('q1', 100, '2026-11-01T00:00:00Z', 'invoice')`);
+  d._raw.exec(`INSERT INTO invoices (id, created_at, quote_id, total, status, line_items)
+    VALUES ('i1', '2026-11-11', 'q1', 100, 'sent', '[]')`);
+  d._raw.exec(`INSERT INTO payments (id, invoice_id, created_at, paid_at, amount, method)
+    VALUES ('p1', 'i1', '2026-11-11', '2026-11-11', 100, 'cash')`);
+
+  const flaky = {
+    prepare(sql) {
+      const stmt = d.prepare(sql);
+      if (!/FROM payments/i.test(sql)) return stmt;
+      return { bind: () => ({ all: () => Promise.reject(new Error('D1_ERROR: network')) }) };
+    },
+  };
+
+  await syncQuotePaid(flaky, 'q1');
+  const q = d._raw.prepare('SELECT * FROM quotes WHERE id = ?').get('q1');
+  assert.equal(q.paid_at, '2026-11-01T00:00:00Z');
+  assert.equal(q.paid_source, 'invoice');
+});
+
+await testAsync('a voided payment still clears the cache it wrote', async () => {
+  /* The guard above must not have bought safety by making the function stop
+     writing. With the reads working and the money gone, the flag goes. */
+  const d = db();
+  d._raw.exec(`INSERT INTO quotes (id, total, paid_at, paid_source)
+    VALUES ('q1', 100, '2026-11-01T00:00:00Z', 'invoice')`);
+  d._raw.exec(`INSERT INTO invoices (id, created_at, quote_id, total, status, line_items)
+    VALUES ('i1', '2026-11-11', 'q1', 100, 'sent', '[]')`);
+  await syncQuotePaid(d, 'q1');
+  const q = d._raw.prepare('SELECT * FROM quotes WHERE id = ?').get('q1');
+  assert.equal(q.paid_at, null);
+  assert.equal(q.paid_source, null);
+});
+
 console.log('\n' + n + ' passed');

@@ -28,21 +28,30 @@ async function hasTables(db) {
     catch { return false; }
   }
 }
-const soft = (p) => p.then((r) => r, () => ({ results: [] }));
-
 const lines = (v) => { try { const a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; }
   catch { return []; } };
 
+/* Throws if the read fails. It used to swallow that into an empty map, which
+   on this table is not a harmless default -- "no payments found" and "could
+   not find out" look identical and mean opposite things. Everywhere this is
+   called, the empty answer was taken as fact: the invoice list showed every
+   bill as unpaid, the overpayment check waved through a second payment for
+   money already taken, and finish() wrote amount_paid = 0 and status =
+   'unpaid' over an invoice that was settled. Each caller now decides, and
+   every one of them decides to stop. */
 async function paymentsFor(db, ids) {
   if (!ids.length) return {};
   const marks = ids.map(() => '?').join(',');
-  const rows = (await soft(db.prepare(
+  const rows = (await db.prepare(
     `SELECT * FROM payments WHERE invoice_id IN (${marks}) ORDER BY paid_at`
-  ).bind(...ids).all())).results || [];
+  ).bind(...ids).all()).results || [];
   const by = {};
   for (const r of rows) (by[r.invoice_id] ||= []).push(r);
   return by;
 }
+
+const CANT_READ = 'The money could not be read just now, so nothing here is ' +
+  'reliable. Nothing has been changed. Try again in a moment.';
 
 /* The money is recomputed every time it is read, so a voided payment can
    never leave a stale balance behind. */
@@ -60,14 +69,24 @@ export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const customerId = clean(url.searchParams.get('customer_id'), 60);
 
-  const rows = (await soft(env.DB.prepare(
-    customerId
-      ? `SELECT * FROM invoices WHERE archived_at IS NULL AND customer_id = ?
-           ORDER BY created_at DESC LIMIT 200`
-      : `SELECT * FROM invoices WHERE archived_at IS NULL ORDER BY created_at DESC LIMIT 200`
-  ).bind(...(customerId ? [customerId] : [])).all())).results || [];
+  /* Both reads used to be soft, so a database that did not answer produced
+     an empty list and an outstanding total of zero -- and the screen said
+     "No invoices yet. Accept a quote and you can raise its invoice here."
+     A failure that reads as good news is the worst thing this screen can do:
+     she would see nothing owing and go home. */
+  let rows, pays;
+  try {
+    rows = (await env.DB.prepare(
+      customerId
+        ? `SELECT * FROM invoices WHERE archived_at IS NULL AND customer_id = ?
+             ORDER BY created_at DESC LIMIT 200`
+        : `SELECT * FROM invoices WHERE archived_at IS NULL ORDER BY created_at DESC LIMIT 200`
+    ).bind(...(customerId ? [customerId] : [])).all()).results || [];
+    pays = await paymentsFor(env.DB, rows.map((r) => r.id));
+  } catch {
+    return json({ error: CANT_READ }, 503);
+  }
 
-  const pays = await paymentsFor(env.DB, rows.map((r) => r.id));
   const invoices = rows.map((r) => dress(r, pays[r.id] || []));
   const owed = invoices.filter((i) => i.state !== 'void')
     .reduce((n, i) => n + Math.max(0, i.balance), 0);
@@ -151,7 +170,9 @@ export async function onRequestPatch({ request, env }) {
     .catch(() => null);
   if (!inv) return json({ error: 'That invoice is not here.' }, 404);
 
-  const pays = ((await paymentsFor(env.DB, [id]))[id]) || [];
+  let pays;
+  try { pays = ((await paymentsFor(env.DB, [id]))[id]) || []; }
+  catch { return json({ error: CANT_READ }, 503); }
   const now = new Date().toISOString();
 
   /* Record money that arrived. */
@@ -208,7 +229,14 @@ async function finish(env, id) {
   /* Money moved, so the quote's cache of "have they paid" is restated from
      the payment rows rather than left to drift. */
   if (inv && inv.quote_id) await syncQuotePaid(env.DB, inv.quote_id);
-  const pays = ((await paymentsFor(env.DB, [id]))[id]) || [];
+
+  /* The write that follows is derived entirely from this read. If it did not
+     happen, the derivation is zero and unpaid, and writing that would undo a
+     settled invoice. The change already made is kept; only the cached total
+     is left for the next call to restate. */
+  let pays;
+  try { pays = ((await paymentsFor(env.DB, [id]))[id]) || []; }
+  catch { return json({ error: CANT_READ }, 503); }
   const paid = paidTotal(pays);
   const state = statusFor(inv, pays);
   await env.DB.prepare(

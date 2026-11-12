@@ -727,12 +727,12 @@
         '<button type="button" class="ptabs__btn' + (tab === 'quotes' ? ' is-on' : '') + '" data-ptab="quotes" role="tab">Branded Quotes</button>' +
       '</div>' +
 
-      '<div class="ptab' + (tab === 'intake' ? ' is-on' : '') + '" data-pane="intake">' + intake +
+      '<div class="ptab' + (tab === 'intake' ? ' is-on' : '') + '">' + intake +
         '<div class="profile__next">' +
           '<button type="button" class="btn btn--primary" data-start-quote>Build branded quote →</button>' +
         '</div></div>' +
 
-      '<div class="ptab' + (tab === 'quotes' ? ' is-on' : '') + '" data-pane="quotes" data-quote-panel="' + esc(l.id) + '">' +
+      '<div class="ptab' + (tab === 'quotes' ? ' is-on' : '') + '" data-quote-panel="' + esc(l.id) + '">' +
         '<div class="quote-property-bar">' +
           '<div class="quote-property-bar__text">' +
             '<strong>Property</strong> ' +
@@ -2679,7 +2679,7 @@
     var second = c.company && c.name && c.company !== c.name ? c.name : '';
     var open = state.openClient === c.id;
 
-    return '<article class="ccard' + (open ? ' is-open' : '') + '" data-customer-id="' + esc(c.id) + '">' +
+    return '<article class="ccard' + (open ? ' is-open' : '') + '">' +
       /* The name stays a heading so the list is still navigable by heading,
          and the button inside it is what opens the profile. */
       '<h3 class="ccard__h">' +
@@ -3711,7 +3711,7 @@
             'Block time</button>' +
         '</div>' +
       '</div>' +
-      '<p class="sched__title" data-step="' + step + '">' + esc(title) +
+      '<p class="sched__title">' + esc(title) +
         '<span class="muted sched__tz"> · all times Florida time</span></p>' +
       blockFormHtml() +
       unscheduledHtml() +
@@ -4066,9 +4066,22 @@
     if (!inv) return '<p class="empty">Loading…</p>';
     if (inv.error) {
       var b = inv.body || {};
-      return '<div class="empty-state"><h3>Invoices are not switched on yet</h3>' +
-        '<p class="muted">' + esc(b.error || 'They could not be loaded.') +
-        (b.setup ? ' ' + esc(b.setup) : '') + '</p></div>';
+      /* Two different problems wearing one message. The route says which:
+         needsSetup means the tables are not there yet and there is something
+         to do about it, anything else means the read failed and the only
+         honest thing to report is that we do not know. Telling her the
+         feature is switched off when the database hiccuped sends her looking
+         in the wrong place -- and the screen it replaced said "No invoices
+         yet", which looked like there was no money outstanding at all. */
+      if (b.needsSetup) {
+        return '<div class="empty-state"><h3>Invoices are not switched on yet</h3>' +
+          '<p class="muted">' + esc(b.error || 'They could not be loaded.') +
+          (b.setup ? ' ' + esc(b.setup) : '') + '</p></div>';
+      }
+      return '<div class="empty-state"><h3>The money would not load</h3>' +
+        '<p class="muted">' + esc(b.error || 'It could not be read just now. ' +
+          'Nothing has been changed.') + '</p>' +
+        '<p><button class="btn" data-act="reload">Try again</button></p></div>';
     }
     var list = inv.invoices || [];
     if (!list.length) {
@@ -4381,7 +4394,7 @@
     var isNew = !i;
     i = i || {};
     var units = (state.catalogue && state.catalogue.units) || ['each', 'hour', 'room', 'sqft'];
-    return '<div class="catform" data-cat-form="' + esc(i.id || 'new') + '">' +
+    return '<div class="catform">' +
       '<label class="bfield"><span>What is it called?</span>' +
         '<input type="text" class="bfield__in" data-cf="label" value="' +
           esc(i.label || '') + '" placeholder="Inside the oven"></label>' +
@@ -5542,8 +5555,21 @@
     var quote = n === 1 ? 'quote' : 'quotes';
     var head = '';
     if (view === 'accepted') {
-      var owed = state.pipelineCounts.outstanding_cents || sum;
-      head = esc(money(owed)) + ' still to collect across ' + n + ' ' + job;
+      /* Added up from the same figure the cards below show. It used to read
+         pipelineCounts.outstanding_cents, which is SUM(total) over quotes with
+         no paid_at -- the cached flag, and the whole total at that. A job
+         invoiced at $500 with $400 already in counted as $500 here and $100
+         on its own card, two different answers on one screen. Anything the
+         server could not price is left out of the sum and said out loud
+         rather than quietly counted as nothing. */
+      var owed = 0, unpriced = 0;
+      list.forEach(function (q) {
+        if (q.money && typeof q.money.balance === 'number') { owed += q.money.balance; }
+        else { unpriced++; }
+      });
+      head = esc(money(owed)) + ' still to collect across ' +
+        (n - unpriced) + ' ' + ((n - unpriced) === 1 ? 'job' : 'jobs') +
+        (unpriced ? ' · ' + unpriced + ' not counted, no figure came back' : '');
     } else if (view === 'pending' && n) {
       var unopened = list.filter(function (q) { return !Number(q.view_count); }).length;
       head = esc(money(sum)) + ' out with ' + n + ' ' + (n === 1 ? 'customer' : 'customers') +
@@ -5999,6 +6025,7 @@
        and let the branches ask about that. */
     var hit = e.target.closest('button, a, [data-toggle], [role="tab"]') || e.target;
 
+    if (hit.matches('[data-act="reload"]')) { refreshCurrent(); return; }
     if (hit.matches('[data-view]')) { goView(hit.dataset.view); return; }
     if (hit.matches('[data-new-lead]')) {
       state.composingLead = true; state.composing = false; state.open = null;

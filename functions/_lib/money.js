@@ -83,16 +83,28 @@ export async function invoicesForQuotes(db, quoteIds) {
  */
 export async function syncQuotePaid(db, quoteId) {
   if (!quoteId) return;
-  const soft = (p) => p.then((r) => r, () => ({ results: [] }));
-  const invs = (await soft(db.prepare(
+
+  /* A read that fails is not a read that found nothing, and the difference
+     decides whether a paid job stays paid. This used to swallow both into an
+     empty list: if the payments query hiccuped, the quote looked unpaid, fell
+     through to the branch below and had its paid_at cleared -- a settled job
+     marked outstanding by a transient error, with nothing to say it happened.
+     A failure now returns null and the function stops without writing. */
+  const soft = (p) => p.then((r) => r, () => null);
+
+  const invRead = await soft(db.prepare(
     'SELECT * FROM invoices WHERE archived_at IS NULL AND quote_id = ?'
-  ).bind(quoteId).all())).results || [];
+  ).bind(quoteId).all());
+  if (!invRead) return;
+  const invs = invRead.results || [];
   if (!invs.length) return;
 
   const im = invs.map(() => '?').join(',');
-  const pays = (await soft(db.prepare(
+  const payRead = await soft(db.prepare(
     `SELECT * FROM payments WHERE invoice_id IN (${im})`
-  ).bind(...invs.map((i) => i.id)).all())).results || [];
+  ).bind(...invs.map((i) => i.id)).all());
+  if (!payRead) return;
+  const pays = payRead.results || [];
   const byInvoice = {};
   for (const p of pays) (byInvoice[p.invoice_id] ||= []).push(p);
 
