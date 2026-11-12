@@ -85,6 +85,22 @@ await pg.locator('[data-act="next"]').click(); await pg.waitForTimeout(250);
 await pg.locator('[data-act="back"]').click(); await pg.waitForTimeout(250);
 ok('the tick survives Back', await pg.locator('details.addon-group input:checked').count() === 1);
 ok('and its group reopens itself', await pg.locator('details.addon-group:has(input:checked)').first().evaluate(d => d.open));
+
+// Nothing a scroll lands on may sit behind the fixed bar at the bottom. It
+// covered the whole Next button once, and a tap there opened the dialler.
+await pg.evaluate(() => document.querySelector('.wiz__nav').scrollIntoView({ block: 'end' }));
+await pg.waitForTimeout(300);
+const clear = await pg.evaluate(() => {
+  const n = document.querySelector('[data-act="next"]').getBoundingClientRect();
+  const bar = document.querySelector('.stickybar').getBoundingClientRect();
+  return Math.round(Math.max(0, n.bottom - bar.top));
+});
+ok(`Next is clear of the sticky bar when scrolled to it (overlap ${clear}px)`, clear === 0);
+ok('and a tap at its own coordinates reaches it', await pg.evaluate(() => {
+  const r = document.querySelector('[data-act="next"]').getBoundingClientRect();
+  const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  return !!(hit && hit.closest('[data-act="next"]'));
+}));
 await ctx.close();
 ok('no page errors with JS on', errs.length === 0);
 if (errs.length) console.log('   ', errs.join(' | '));

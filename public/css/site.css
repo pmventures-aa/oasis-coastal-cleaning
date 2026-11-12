@@ -559,7 +559,10 @@ details.addon-group > summary > span:first-child { flex: 1; }
 }
 .addon-group__count[hidden] { display: none; }
 details.addon-group > summary + .addon-grid { margin-top: 0.75rem; }
-details.addon-group + details.addon-group { margin-top: 1rem; }
+/* No margin between them: .wiz__body is a grid and its gap already separates
+   them. Stacked, the two came to 88px per folded row and pushed Back and Next
+   off the bottom of a phone -- which is most of what folding them was for. */
+details.addon-group + details.addon-group { margin-top: 0; }
 @media (min-width: 640px) { .addon-grid { grid-template-columns: repeat(2, 1fr); } }
 
 .checkrow.addon {
@@ -985,6 +988,18 @@ h1, h2, h3, .wiz__title { text-wrap: balance; }
   html { scroll-behavior: smooth; }
   .card[id]:target { animation: oasis-land 1.6s cubic-bezier(.22, .61, .36, 1) both; }
 }
+
+/* The other end of the same problem. The sticky bar is fixed over the bottom
+   of the viewport, so anything a scroll parks there is behind it -- and a tap
+   where the control appears to be hits CALL instead. Scrolling the quote
+   form's nav row into view put Next entirely underneath it: 62px of bar over
+   a 44px button, and the tap opened the phone dialler. body already reserves
+   room at the end of the document so the footer clears the bar; this is the
+   same reservation for a scroll that stops in the middle of one. It applies
+   to anchors, to scrollIntoView and to the browser scrolling a focused field
+   into view, which is the one that matters on a form. */
+html { scroll-padding-bottom: calc(4.75rem + env(safe-area-inset-bottom)); }
+@media (min-width: 860px) { html { scroll-padding-bottom: 0; } }
 @keyframes oasis-land {
   0%   { box-shadow: 0 0 0 3px var(--oasis-gold), 0 18px 44px rgba(9, 64, 69, 0.14); }
   60%  { box-shadow: 0 0 0 3px var(--oasis-gold), 0 18px 44px rgba(9, 64, 69, 0.14); }
