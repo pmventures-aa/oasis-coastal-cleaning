@@ -2295,3 +2295,45 @@ select.pf__v:focus {
 .icatadd { display: flex; gap: 0.5rem; align-items: center; }
 .icatadd .bfield { flex: 1 1 auto; margin: 0; }
 .icatadd input { font-size: 1rem; min-height: 44px; width: 100%; }
+
+/* =============================================================== photos */
+.photos { display: grid; gap: 0.5rem; margin-top: 0.3rem; }
+.phgrid {
+  display: grid; gap: 0.4rem;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+}
+.phcell {
+  margin: 0; border-radius: 10px; overflow: hidden;
+  border: 1px solid rgba(12, 46, 59, 0.14); background: #fff;
+  display: grid; grid-template-rows: auto auto;
+}
+.phcell.is-shared { border-color: var(--oasis-teal); }
+.phcell img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.phcell figcaption {
+  display: flex; align-items: center; gap: 0.2rem;
+  padding: 0.1rem 0.1rem 0.1rem 0.3rem;
+}
+/* Whether a client can see it is the thing to read at a glance, and it
+   says which it is rather than relying on the border colour. */
+.phcell__gate, .phcell__state {
+  flex: 1 1 auto; min-width: 0; font: inherit; text-align: left;
+  font-size: 0.62rem; font-weight: 700; line-height: 1.2;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--oasis-muted); background: none; border: 0; cursor: pointer;
+  min-height: 36px; display: flex; align-items: center;
+}
+.phcell.is-shared .phcell__gate, .phcell.is-shared .phcell__state { color: var(--oasis-teal); }
+.phcell__gate:focus-visible { outline: 2px solid var(--oasis-gold); outline-offset: -2px; }
+.phcell__del {
+  flex: none; width: 36px; min-height: 36px; font-size: 1rem; line-height: 1;
+  background: none; border: 0; cursor: pointer; color: var(--oasis-muted);
+}
+.phcell--busy {
+  display: grid; place-items: center; aspect-ratio: 1;
+  font-size: 0.72rem; color: var(--oasis-muted);
+  border: 1px dashed rgba(12, 46, 59, 0.25); border-radius: 10px;
+}
+.phadd { margin: 0; }
+/* The button is a label wrapping a hidden file input, which is what lets
+   an iPhone open the camera straight from it. */
+.phbtn { cursor: pointer; display: inline-flex; align-items: center; min-height: 44px; }

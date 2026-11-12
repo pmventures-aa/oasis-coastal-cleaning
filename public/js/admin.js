@@ -2900,6 +2900,125 @@
       });
   }
 
+  /* --------------------------------------------------------- photos
+
+     capture="environment" on the input is what makes an iPhone open the
+     back camera straight from the button rather than the photo library.
+     The section is not drawn at all when there are none, which is what
+     "optional, and does not display unless there are any" means. */
+
+  function loadPhotos(apptId) {
+    api('/api/admin/photos?appointment_id=' + encodeURIComponent(apptId))
+      .then(function (r) {
+        state.photos = r.ok ? r.body : { error: true, body: r.body || {} };
+        state.photosFor = apptId;
+        render();
+      });
+  }
+
+  function photosHtml(a) {
+    var box = state.photos;
+    var ready = box && !box.error && state.photosFor === a.id;
+    var list = ready ? (box.photos || []) : [];
+    var busy = state.photoBusy === a.id;
+
+    /* Nothing taken and nothing happening: one quiet button, no section. */
+    if (!list.length && !busy) {
+      return '<p class="phadd">' + photoButtonHtml(a, 'Add a photo') +
+        (box && box.error
+          ? '<span class="muted secmini"> ' +
+            esc((box.body && box.body.error) || 'Photos are not available.') + '</span>'
+          : '') +
+      '</p>';
+    }
+
+    return '<div class="photos">' +
+      '<h4 class="work__k">Photos</h4>' +
+      '<div class="phgrid">' +
+        list.map(function (p) {
+          return '<figure class="phcell' + (p.client_visible ? ' is-shared' : '') + '">' +
+            '<img src="/api/admin/photos?id=' + esc(p.id) + '&file=1" alt="' +
+              esc(p.caption || 'Photo from this visit') + '" loading="lazy">' +
+            '<figcaption>' +
+              (box.can_approve
+                ? '<button type="button" class="phcell__gate" data-ph-gate="' + esc(p.id) + '" ' +
+                  'data-ph-to="' + (p.client_visible ? '0' : '1') + '">' +
+                  (p.client_visible ? '\u2713 They can see it' : 'Only us') + '</button>'
+                : '<span class="phcell__state">' +
+                  (p.client_visible ? '\u2713 They can see it' : 'Only us') + '</span>') +
+              '<button type="button" class="phcell__del" data-ph-del="' + esc(p.id) + '" ' +
+                'aria-label="Delete this photo">\u00d7</button>' +
+            '</figcaption>' +
+          '</figure>';
+        }).join('') +
+        (busy ? '<div class="phcell phcell--busy">Adding\u2026</div>' : '') +
+      '</div>' +
+      '<p class="phadd">' + photoButtonHtml(a, '+ Another') + '</p>' +
+    '</div>';
+  }
+
+  function photoButtonHtml(a, label) {
+    return '<label class="btn btn--ghost btn--tiny phbtn">' + esc(label) +
+      '<input type="file" accept="image/jpeg,image/png" capture="environment" ' +
+        'data-ph-pick="' + esc(a.id) + '" hidden></label>';
+  }
+
+  function photoPick(input) {
+    var apptId = input.getAttribute('data-ph-pick');
+    var file = input.files && input.files[0];
+    if (!file) return;
+    state.photoBusy = apptId;
+    render();
+
+    var fd = new FormData();
+    fd.append('appointment_id', apptId);
+    fd.append('file', file);
+    /* No Content-Type header: the browser sets the multipart boundary and
+       overriding it makes the body unreadable at the other end. */
+    fetch('/api/admin/photos', { method: 'POST', body: fd })
+      .then(function (r) {
+        return r.json().catch(function () {
+          return { error: 'The server answered with an error (' + r.status + ').' };
+        }).then(function (j) { return { ok: r.ok, body: j }; });
+      })
+      .then(function (r) {
+        state.photoBusy = null;
+        if (!r.ok) {
+          window.alert((r.body && r.body.error) || 'That photo did not save.');
+          render();
+          return;
+        }
+        loadPhotos(apptId);
+      })
+      .catch(function () {
+        state.photoBusy = null;
+        window.alert('That photo did not save — check your signal and try again.');
+        render();
+      });
+  }
+
+  function photoGate(id, on, btn) {
+    btn.disabled = true;
+    api('/api/admin/photos', { method: 'PATCH',
+      body: JSON.stringify({ id: id, client_visible: on }) })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not save.'); return; }
+        loadPhotos(state.photosFor);
+      });
+  }
+
+  function photoDelete(id, btn) {
+    if (!window.confirm('Delete this photo? It goes for good.')) return;
+    btn.disabled = true;
+    api('/api/admin/photos?id=' + encodeURIComponent(id), { method: 'DELETE' })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not work.'); return; }
+        loadPhotos(state.photosFor);
+      });
+  }
+
   function workHtml(a) {
     var items = parseList(a.checklist);
     var done = items.filter(function (i) { return i.done; }).length;
@@ -2952,6 +3071,8 @@
           'data-note-kind="client_summary" placeholder="Goes in the all-done email">' +
           esc(a.client_summary || '') + '</textarea></label>' +
       '<p class="work__saved" data-note-saved="' + esc(a.id) + '" hidden>Saved</p>' +
+
+      photosHtml(a) +
 
       '<div class="work__issues">' +
         '<h4 class="work__k">What you found</h4>' +
@@ -5416,7 +5537,7 @@
     if (hit.matches('[data-open-appt]')) {
       var aid = hit.getAttribute('data-open-appt');
       state.openAppt = state.openAppt === aid ? null : aid;
-      if (state.openAppt) loadIssues(state.openAppt);
+      if (state.openAppt) { loadIssues(state.openAppt); loadPhotos(state.openAppt); }
       render(); return;
     }
     if (hit.matches('[data-appt-lead]')) {
@@ -5478,6 +5599,12 @@
     if (hit.matches('[data-icat-off]')) {
       issueCatOff(hit.getAttribute('data-icat-off'), hit); return;
     }
+    if (hit.matches('[data-ph-gate]')) {
+      photoGate(hit.getAttribute('data-ph-gate'),
+        hit.getAttribute('data-ph-to') === '1', hit);
+      return;
+    }
+    if (hit.matches('[data-ph-del]')) { photoDelete(hit.getAttribute('data-ph-del'), hit); return; }
     if (hit.matches('[data-iss-open]')) {
       state.issueFor = hit.getAttribute('data-iss-open');
       render();
@@ -6190,6 +6317,8 @@
   /* "Other" is the only method that needs a word with it, so the box
      appears when it is chosen rather than sitting there empty. */
   root.addEventListener('change', function (e) {
+    var pick = e.target.closest ? e.target.closest('[data-ph-pick]') : null;
+    if (pick) { photoPick(pick); return; }
     var box = e.target.closest ? e.target.closest('[data-ck-appt]') : null;
     if (box) {
       toggleCheck(box.getAttribute('data-ck-appt'),

@@ -13,6 +13,11 @@
  */
 
 const TABLES = [
+  ['visit_photos', `CREATE TABLE IF NOT EXISTS visit_photos (
+    id TEXT PRIMARY KEY, created_at TEXT NOT NULL, appointment_id TEXT NOT NULL,
+    customer_id TEXT, object_key TEXT NOT NULL, file_name TEXT, content_type TEXT,
+    size_bytes INTEGER, caption TEXT, client_visible INTEGER NOT NULL DEFAULT 0,
+    approved_at TEXT, approved_by TEXT, uploaded_by TEXT, archived_at TEXT)`],
   ['issue_categories', `CREATE TABLE IF NOT EXISTS issue_categories (
     id TEXT PRIMARY KEY, created_at TEXT NOT NULL, label TEXT NOT NULL,
     note TEXT, sort INTEGER NOT NULL DEFAULT 100, active INTEGER NOT NULL DEFAULT 1)`],
