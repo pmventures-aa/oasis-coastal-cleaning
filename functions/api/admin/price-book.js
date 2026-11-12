@@ -41,11 +41,22 @@ export async function onRequestGet({ request, env }) {
      screen wants everything, because bringing a retired line back is
      impossible if it cannot be seen. */
   const all = new URL(request.url).searchParams.get('all') === '1';
-  const r = await env.DB.prepare(
-    all
-      ? 'SELECT * FROM price_book ORDER BY active DESC, grp, sort, label'
-      : 'SELECT * FROM price_book WHERE active = 1 ORDER BY grp, sort, label'
-  ).all().catch(() => ({ results: [] }));
+  /* This used to swallow a failed read into an empty list, and an empty list
+     is not a neutral answer on this screen: it reports the book as never
+     filled and offers to start it from the service catalogue. A database that
+     hiccuped would have shown her a blank price book and a Seed button over
+     the top of everything she has ever priced. */
+  let r;
+  try {
+    r = await env.DB.prepare(
+      all
+        ? 'SELECT * FROM price_book ORDER BY active DESC, grp, sort, label'
+        : 'SELECT * FROM price_book WHERE active = 1 ORDER BY grp, sort, label'
+    ).all();
+  } catch {
+    return json({ error: 'The price book could not be read just now. ' +
+      'Nothing has been changed. Try again in a moment.' }, 503);
+  }
   const items = r.results || [];
   return json({ ok: true, units: UNITS, items,
     /* An empty book is not a broken one -- it has never been filled. The
@@ -69,8 +80,17 @@ export async function onRequestPost({ request, env }) {
      fills those in as she goes, and an item with no price asks to be
      quoted rather than pretending to be free. */
   if (body.action === 'seed') {
-    const existing = await env.DB.prepare('SELECT COUNT(*) AS n FROM price_book').first()
-      .catch(() => ({ n: 0 }));
+    /* The count is the only thing standing between this and a second copy of
+       every line she has. Reading it as zero because the read failed is how
+       that happens, so a failure refuses instead. Retired lines count: they
+       are still on the Services screen and can be brought back, which is the
+       right way to restore one, rather than seeding over the top. */
+    let existing;
+    try { existing = await env.DB.prepare('SELECT COUNT(*) AS n FROM price_book').first(); }
+    catch {
+      return json({ error: 'Could not check whether there is already a price book. ' +
+        'Nothing has been added. Try again in a moment.' }, 503);
+    }
     if (Number(existing && existing.n)) {
       return json({ error: 'There is already a price book here.' }, 409);
     }

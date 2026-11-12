@@ -4323,9 +4323,22 @@
     if (!c) return '<p class="empty">Loading…</p>';
     if (c.error) {
       var b = c.body || {};
-      return '<div class="empty-state"><h3>Your services are not set up yet</h3>' +
-        '<p class="muted">' + esc(b.error || 'They could not be loaded.') +
-        (b.setup ? ' ' + esc(b.setup) : '') + '</p></div>';
+      /* The same two problems the Money screen used to wear one message for:
+         the table is not there and there is something to do about it, or the
+         read failed and the only honest thing to say is that we do not know.
+         It matters more here than almost anywhere, because the screen under
+         this one offers to seed the book from the service catalogue -- so a
+         read reported as "nothing here" is a short step from a second copy
+         of everything she has ever priced. */
+      if (b.needsSetup) {
+        return '<div class="empty-state"><h3>Your services are not set up yet</h3>' +
+          '<p class="muted">' + esc(b.error || 'They could not be loaded.') +
+          (b.setup ? ' ' + esc(b.setup) : '') + '</p></div>';
+      }
+      return '<div class="empty-state"><h3>Your services would not load</h3>' +
+        '<p class="muted">' + esc(b.error || 'They could not be read just now. ' +
+          'Nothing has been changed.') + '</p>' +
+        '<p><button class="btn" data-act="reload">Try again</button></p></div>';
     }
     var items = c.items || [];
 

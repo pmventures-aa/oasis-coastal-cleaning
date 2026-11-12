@@ -96,6 +96,31 @@ async function page(invoicesReply, pipelineReply) {
   await ctx.close();
 }
 
+// 4. the Services screen: a failed read must not look like an empty book,
+//    because the empty state offers to seed one over the top of it
+for (const [label, reply, expect] of [
+  ['a failed read', { status: 503, contentType: 'application/json',
+    body: JSON.stringify({ error: 'The price book could not be read just now. Nothing has been changed. Try again in a moment.' }) },
+    { bad: /Nothing on the list yet|not set up yet/i, good: /would not load|could not be read/i }],
+  ['a missing table', { status: 503, contentType: 'application/json',
+    body: JSON.stringify({ error: 'The price book is not set up yet.', setup: 'Apply migration 0016.', needsSetup: true }) },
+    { bad: /would not load/i, good: /not set up yet/i }],
+]) {
+  const ctx = await b.newContext({ viewport: { width: 375, height: 900 } });
+  const p = await ctx.newPage();
+  await p.route('**', r => r.request().url().startsWith('http://127.0.0.1') ? r.continue() : r.abort());
+  await p.route('**/api/**', r => r.fulfill({ status:200, contentType:'application/json', body:'{"ok":true}' }));
+  await p.route('**/api/admin/status**', r => r.fulfill({ status:200, contentType:'application/json', body: JSON.stringify(STATUS) }));
+  await p.route('**/api/admin/price-book**', r => r.fulfill(reply));
+  await p.goto('http://127.0.0.1:9928/admin/index.html', { waitUntil: 'networkidle' });
+  await p.evaluate(() => document.querySelector('[data-view="catalogue"]')?.click());
+  await p.waitForTimeout(400);
+  const t = await p.innerText('body');
+  ok(`services: ${label} is not reported as the other one`, !expect.bad.test(t));
+  ok(`services: ${label} says what it is`, expect.good.test(t));
+  await ctx.close();
+}
+
 await b.close(); srv.close();
 console.log(fails.length ? '\nFAILURES: ' + fails.join('; ') : '\nALL PASS');
 process.exit(fails.length ? 1 : 0);
