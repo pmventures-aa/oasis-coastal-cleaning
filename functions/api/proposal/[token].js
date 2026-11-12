@@ -4,6 +4,8 @@
  *   { action: 'accept'|'decline', add_ons?: string[], reason?: string }
  */
 import { json, clean, sendEmail } from '../../_lib/util.js';
+import { takeSlot, openSlots } from '../../_lib/booking.js';
+import { raiseInvoiceFromQuote } from '../../_lib/invoiceFromQuote.js';
 import {
   quoteFromRow, isExpired, recordQuoteView, logQuoteEvent, looksAutomated, acceptanceTrail
 } from '../../_lib/quotes.js';
@@ -90,6 +92,21 @@ export async function onRequestGet({ request, env, params }) {
         size_label: row.size_label
       },
       available_addons: addons,
+      /* The times she has put up for this one. Only ever times she chose:
+         nothing here is worked out from an empty-looking diary. */
+      slots: quote.status === 'sent'
+        ? await openSlots(env.DB, { quoteId: quote.id })
+        : [],
+      /* Once they have accepted, what the page says next depends on
+         whether a time was taken -- telling somebody who is booked that
+         they will be texted to arrange one is its own small betrayal. */
+      booked: quote.status === 'accepted'
+        ? await env.DB.prepare(
+            `SELECT start_at, end_at FROM appointments
+              WHERE quote_id = ? AND status != 'cancelled' AND archived_at IS NULL
+              ORDER BY start_at LIMIT 1`
+          ).bind(quote.id).first().catch(() => null)
+        : null,
       included_addons: askedFor,
       business: {
         name: 'Oasis Coastal Cleaning',
@@ -243,9 +260,59 @@ export async function onRequestPost({ request, env, params }) {
     console.error('Accept notification email failed:', err);
   }
 
+  /* If they picked one of the times she put up, take it now. Accepting is
+     already written, so a slot that has gone in the meantime leaves them
+     accepted and unbooked rather than losing the yes -- which is the
+     right way round. */
+  let booked = null, bookingProblem = null;
+  const slotId = clean(body.slot_id, 60);
+  if (slotId) {
+    const taken = await takeSlot(env.DB, slotId, {
+      name: quote.customer_name || row.lead_name || null,
+      customer_id: row.customer_id || null,
+      lead_id: quote.lead_id || null,
+      quote_id: quote.id,
+      address: row.address || null,
+      city: row.city || null,
+      service_label: row.service_label || null
+    });
+    if (taken.ok) {
+      booked = { start_at: taken.start_at, end_at: taken.end_at };
+      await logQuoteEvent(env.DB, quote.id, 'booked',
+        { start_at: taken.start_at }).catch(() => {});
+    } else {
+      bookingProblem = taken.error;
+    }
+  }
+
+  /* The invoice comes from the lines they just agreed to, so the figure
+     they owe is the figure they said yes to rather than one retyped
+     later. Optional lines they did not take are left off by the invoice
+     route itself. */
+  let invoiced = null;
+  try {
+    const already = await env.DB.prepare(
+      `SELECT id FROM invoices WHERE quote_id = ? AND archived_at IS NULL LIMIT 1`
+    ).bind(quote.id).first().catch(() => null);
+    if (!already) {
+      const made = await raiseInvoiceFromQuote(env.DB, quote.id);
+      if (made && made.id) invoiced = made.id;
+    }
+  } catch (err) {
+    /* An invoice that did not get raised is hers to raise; it must never
+       cost them their acceptance. */
+    console.error('Invoice from accepted quote failed:', err && err.message || err);
+  }
+
   return json({
     ok: true,
     status: 'accepted',
-    message: 'Thank you — Kristina will be in touch to confirm your first visit.'
+    booked,
+    booking_problem: bookingProblem,
+    message: booked
+      ? 'Thank you — you are booked in. Kristina will see you then.'
+      : bookingProblem
+        ? 'Thank you. That time had just gone, so Kristina will be in touch to fix another.'
+        : 'Thank you — Kristina will be in touch to confirm your first visit.'
   });
 }

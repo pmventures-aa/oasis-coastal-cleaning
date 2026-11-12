@@ -125,6 +125,50 @@
     '</section>';
   }
 
+  /* The times Kristina has put up for this quote. Only ever times she
+     chose: nothing here is worked out from a diary that merely looks
+     empty, because an empty-looking Sunday is not an offer. */
+  function slotWords(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { timeZone: 'America/New_York',
+      weekday: 'long', month: 'long', day: 'numeric' }) + ', ' +
+      d.toLocaleTimeString('en-US', { timeZone: 'America/New_York',
+        hour: 'numeric', minute: '2-digit' });
+  }
+
+  function slotsHtml(slots) {
+    if (!slots.length) return '';
+    return '<section class="slots">' +
+      '<h3 class="slots__k">Pick your first visit</h3>' +
+      '<p class="slots__lead">These are the times Kristina has free. ' +
+        'Choose one and it is booked when you accept.</p>' +
+      '<ul class="slots__list">' +
+        slots.map(function (sl, i) {
+          return '<li class="slots__i">' +
+            '<label>' +
+              '<input type="radio" name="slot" value="' + esc(sl.id) + '"' +
+                (i === 0 ? '' : '') + '>' +
+              '<span class="slots__when">' + esc(slotWords(sl.start_at)) + '</span>' +
+              (sl.note ? '<span class="slots__note">' + esc(sl.note) + '</span>' : '') +
+            '</label>' +
+          '</li>';
+        }).join('') +
+        '<li class="slots__i slots__i--none">' +
+          '<label><input type="radio" name="slot" value="" checked>' +
+            '<span class="slots__when">None of these suit me</span>' +
+            '<span class="slots__note">Kristina will text you to agree a time</span>' +
+          '</label>' +
+        '</li>' +
+      '</ul>' +
+    '</section>';
+  }
+
+  function chosenSlot() {
+    var on = document.querySelector('input[name="slot"]:checked');
+    return on && on.value ? on.value : null;
+  }
+
   function declinePanelHtml() {
     return '<div class="proposal__decline" id="decline-panel" hidden>' +
       '<label class="proposal__decline-label" for="decline-reason">' +
@@ -244,6 +288,7 @@
         includedHtml(included) +
         laterOnHtml(laterOn, true) +
         addonsHtml(addons) +
+        slotsHtml(data.slots || []) +
         declinePanelHtml() +
         '<section class="yes">' +
           '<ul class="yes__points">' +
@@ -255,16 +300,27 @@
             '<button type="button" class="btn btn--primary yes__go" id="accept">' +
               'Yes — let&rsquo;s book it</button>' +
           '</div>' +
-          '<p class="yes__fine">Kristina will text you to agree a first date. ' +
-            'Nothing is charged when you accept.</p>' +
+          '<p class="yes__fine" id="yes-fine">' +
+            ((data.slots || []).length
+              ? 'Pick a time above and it is yours. Nothing is charged when you accept.'
+              : 'Kristina will text you to agree a first date. ' +
+                'Nothing is charged when you accept.') + '</p>' +
           '<p class="yes__no"><button type="button" class="linkish" id="decline">' +
             'Not right now</button></p>' +
         '</section>';
     } else if (status === 'accepted') {
+      var when = data.booked && data.booked.start_at
+        ? slotWords(data.booked.start_at) : '';
       actions = '<div class="proposal__done proposal__done--ok">' +
-        '<p class="proposal__done-k">You are booked in</p>' +
-        '<p>Thank you, ' + esc(first) + '. Kristina has this and will text you shortly to agree a first date. ' +
-        'Anything you need before then:</p>' + reachHer('') + '</div>' +
+        '<p class="proposal__done-k">' +
+          (when ? 'You are booked in' : 'Thank you') + '</p>' +
+        (when
+          ? '<p class="proposal__when">' + esc(when) + '</p>' +
+            '<p>Thank you, ' + esc(first) + '. That time is yours and it is in ' +
+            'Kristina\u2019s diary. Anything you need before then:</p>'
+          : '<p>Thank you, ' + esc(first) + '. Kristina has this and will text you shortly ' +
+            'to agree a first date. Anything you need before then:</p>') +
+        reachHer('') + '</div>' +
         includedHtml(included) +
         laterOnHtml(laterOn, false);
     } else if (status === 'declined') {
@@ -383,7 +439,8 @@
 
     if (acceptBtn) {
       acceptBtn.addEventListener('click', function () {
-        respond('accept', acceptBtn, { add_ons: selectedAddons(), later_on: selectedLaterOn() });
+        respond('accept', acceptBtn, { add_ons: selectedAddons(),
+          later_on: selectedLaterOn(), slot_id: chosenSlot() });
       });
     }
     if (declineBtn && declinePanel) {

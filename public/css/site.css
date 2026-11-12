@@ -1504,3 +1504,22 @@ button.btn, a.btn { display: inline-flex; align-items: center; justify-content: 
 .done__lead:empty { display: none; margin: 0; }
 .done__acts { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; }
 
+
+/* The times Kristina has put up, on a quote. */
+.slots { margin: 1.5rem 0; }
+.slots__k { margin: 0 0 0.3rem; font-size: 1.05rem; }
+.slots__lead { margin: 0 0 0.75rem; color: var(--oasis-muted); font-size: 0.9rem; }
+.slots__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.slots__i label {
+  display: flex; align-items: center; gap: 0.7rem; cursor: pointer;
+  min-height: 56px; padding: 0.6rem 0.85rem;
+  border: 1px solid rgba(12, 46, 59, 0.18); border-radius: 12px; background: #fff;
+}
+.slots__i input { width: 22px; height: 22px; flex: none; accent-color: var(--oasis-teal); }
+.slots__i label:has(input:checked) { border-color: var(--oasis-teal); border-width: 2px; }
+.slots__when { font-weight: 600; font-size: 0.95rem; }
+.slots__note { font-size: 0.8rem; color: var(--oasis-muted); margin-left: auto; text-align: right; }
+.slots__i--none label { background: none; border-style: dashed; }
+.proposal__when {
+  margin: 0 0 0.5rem; font-size: 1.05rem; font-weight: 700; color: var(--oasis-teal);
+}

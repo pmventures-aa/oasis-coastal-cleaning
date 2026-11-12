@@ -2342,3 +2342,25 @@ select.pf__v:focus {
 .ufeed { flex-basis: 100%; display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 .ufeed .linkish, .ufeed .btn { min-height: 44px; display: inline-flex; align-items: center; }
 .ufeed__note { flex-basis: 100%; font-size: 0.72rem; line-height: 1.4; }
+
+/* Times she puts up against a quote. */
+.slotp { margin: 0.5rem 0; }
+.slotp--open {
+  padding: 0.75rem; border-radius: 12px; background: rgba(12, 46, 59, 0.04);
+  display: grid; gap: 0.5rem;
+}
+.slotp__k { margin: 0; font-size: 0.78rem; font-weight: 700; color: var(--oasis-muted); }
+.slotp__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.slotp__i {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  min-height: 44px; font-size: 0.85rem;
+  border-bottom: 1px solid rgba(12, 46, 59, 0.08);
+}
+.slotp__i:last-child { border-bottom: 0; }
+.slotp__i.is-taken { color: var(--oasis-muted); }
+.slotp__taken { font-size: 0.74rem; font-weight: 700; color: var(--oasis-teal); }
+.slotp__add { display: flex; gap: 0.4rem; }
+.slotp__add .bfield { flex: 1 1 0; min-width: 0; margin: 0; }
+.slotp__add input { width: 100%; font-size: 1rem; min-height: 44px; }
+.slotp__acts { display: flex; gap: 0.6rem; align-items: center; }
+.slotp .linkish { min-height: 44px; display: inline-flex; align-items: center; }

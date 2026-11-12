@@ -1820,6 +1820,9 @@
             '</span>'
           : '') +
         (to ? '<p class="quote-card-mini__track muted">To ' + esc(to) + '</p>' : '') +
+        /* A quote that is out is one somebody may want to book from, so
+           the times she can offer belong here beside its link. */
+        (q.status === 'sent' ? slotsPanelHtml(q.id) : '') +
         summary +
         quoteTimeline(q) +
         '<div class="quote-card-mini__acts">' + acts + '</div></div></details>';
@@ -4429,6 +4432,115 @@
       });
   }
 
+  /* ------------------------------------------------- times she puts up
+
+     Nothing computed. There is no record of when she works, so offering
+     a client a Sunday morning because the diary looked empty would be a
+     business rule I invented. She picks the times; those are the only
+     ones anybody is shown. */
+
+  function loadSlots(quoteId) {
+    api('/api/admin/slots?quote_id=' + encodeURIComponent(quoteId))
+      .then(function (r) {
+        state.slots = r.ok ? (r.body.slots || []) : [];
+        state.slotsFor = quoteId;
+        render();
+      });
+  }
+
+  function slotWhen(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { timeZone: 'America/New_York',
+      weekday: 'short', month: 'short', day: 'numeric' }) + ' · ' +
+      d.toLocaleTimeString('en-US', { timeZone: 'America/New_York',
+        hour: 'numeric', minute: '2-digit' });
+  }
+
+  function slotsPanelHtml(quoteId) {
+    var mine = state.slotsFor === quoteId ? (state.slots || []) : null;
+    if (mine === null) {
+      return '<p class="slotp"><button type="button" class="linkish" ' +
+        'data-slots-open="' + esc(quoteId) + '">Offer them a time</button></p>';
+    }
+    return '<div class="slotp slotp--open">' +
+      '<p class="slotp__k">Times they can book</p>' +
+      (mine.length
+        ? '<ul class="slotp__list">' + mine.map(function (sl) {
+            return '<li class="slotp__i' + (sl.booked_at ? ' is-taken' : '') + '">' +
+              '<span>' + esc(slotWhen(sl.start_at)) + '</span>' +
+              (sl.booked_at
+                ? '<span class="slotp__taken">Taken' +
+                  (sl.booked_name ? ' by ' + esc(sl.booked_name) : '') + '</span>'
+                : '<button type="button" class="linkish" data-slot-del="' + esc(sl.id) +
+                  '">Take down</button>') +
+            '</li>'; }).join('') + '</ul>'
+        : '<p class="muted secmini">None yet. Until you put one up, the quote ' +
+          'says you will text them to agree a date.</p>') +
+      '<div class="slotp__add">' +
+        '<label class="bfield"><span>Date</span>' +
+          '<input type="date" class="bfield__in" data-slot-date></label>' +
+        '<label class="bfield"><span>Start</span>' +
+          '<input type="time" class="bfield__in" data-slot-time value="09:00"></label>' +
+        '<label class="bfield"><span>Hours</span>' +
+          '<input type="number" class="bfield__in" data-slot-hours value="2" ' +
+            'min="1" max="8" step="0.5"></label>' +
+      '</div>' +
+      '<div class="slotp__err form-status form-status--err" hidden role="alert"></div>' +
+      '<div class="slotp__acts">' +
+        '<button type="button" class="btn btn--ghost btn--tiny" ' +
+          'data-slot-add="' + esc(quoteId) + '">Put this time up</button>' +
+        '<button type="button" class="linkish" data-slots-close>Done</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function slotAdd(quoteId, btn) {
+    var box = btn.closest('.slotp');
+    var err = box.querySelector('.slotp__err');
+    var date = box.querySelector('[data-slot-date]').value;
+    var time = box.querySelector('[data-slot-time]').value;
+    var hours = Number(box.querySelector('[data-slot-hours]').value) || 2;
+    err.hidden = true;
+    if (!date || !time) {
+      err.hidden = false; err.textContent = 'Which day and what time?';
+      return;
+    }
+    /* Typed in her time, sent as an instant, so the client's phone shows
+       it in whatever zone the client is standing in. */
+    var start = new Date(date + 'T' + time + ':00');
+    if (isNaN(start.getTime())) {
+      err.hidden = false; err.textContent = 'That date did not make sense.';
+      return;
+    }
+    var end = new Date(start.getTime() + hours * 3600000);
+
+    btn.disabled = true;
+    var was = btn.textContent;
+    btn.textContent = 'Putting it up…';
+    api('/api/admin/slots', { method: 'POST', body: JSON.stringify({
+      quote_id: quoteId, start_at: start.toISOString(), end_at: end.toISOString() }) })
+      .then(function (r) {
+        btn.disabled = false; btn.textContent = was;
+        if (!r.ok) {
+          err.hidden = false;
+          err.textContent = (r.body && r.body.error) || 'That did not save.';
+          return;
+        }
+        loadSlots(quoteId);
+      });
+  }
+
+  function slotRemove(id, btn) {
+    btn.disabled = true;
+    api('/api/admin/slots?id=' + encodeURIComponent(id), { method: 'DELETE' })
+      .then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not work.'); return; }
+        loadSlots(state.slotsFor);
+      });
+  }
+
   function loadToday() {
     var d = isoDateET(new Date());
     api('/api/admin/schedule?from=' + d + '&to=' + d).then(function (r) {
@@ -5658,6 +5770,14 @@
     if (hit.matches('[data-icat-off]')) {
       issueCatOff(hit.getAttribute('data-icat-off'), hit); return;
     }
+    if (hit.matches('[data-slots-open]')) {
+      loadSlots(hit.getAttribute('data-slots-open')); return;
+    }
+    if (hit.matches('[data-slots-close]')) {
+      state.slots = null; state.slotsFor = null; render(); return;
+    }
+    if (hit.matches('[data-slot-add]')) { slotAdd(hit.getAttribute('data-slot-add'), hit); return; }
+    if (hit.matches('[data-slot-del]')) { slotRemove(hit.getAttribute('data-slot-del'), hit); return; }
     if (hit.matches('[data-ph-gate]')) {
       photoGate(hit.getAttribute('data-ph-gate'),
         hit.getAttribute('data-ph-to') === '1', hit);

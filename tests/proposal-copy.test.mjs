@@ -30,7 +30,12 @@ test('every closing state offers a way to reach her', async (t) => {
     await t.test(state + ' calls reachHer()', () => {
       const i = src.indexOf("status === '" + state + "'");
       assert.ok(i !== -1, state + ' branch exists');
-      const block = src.slice(i, i + 700);
+      /* To the end of this branch, not a fixed number of characters. A
+         window measured in bytes fails the moment a branch grows -- which
+         it did when the accepted one started naming the booked time. */
+      const rest = src.slice(i + 10);
+      const next = rest.indexOf("} else if (status ===");
+      const block = next === -1 ? rest.slice(0, 2000) : rest.slice(0, next);
       assert.ok(block.includes('reachHer('),
         state + ' tells them to contact her, so it must give them a way');
     });
