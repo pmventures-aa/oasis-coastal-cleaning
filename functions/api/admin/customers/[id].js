@@ -130,6 +130,9 @@ export async function onRequestGet({ request, env, params }) {
   }
   const invoices = invRows.map((i) => ({
     id: i.id, created_at: i.created_at, total: i.total,
+    /* attentionFor decides "overdue" from this. It was being selected and
+       then left behind here, so every late bill read as "not yet due". */
+    due_date: i.due_date || null,
     paid: paidTotal(paysBy[i.id] || []),
     balance: balanceOf(i, paysBy[i.id] || []),
     state: statusFor(i, paysBy[i.id] || [])
@@ -150,8 +153,16 @@ export async function onRequestGet({ request, env, params }) {
   ).bind(id).all())).results || [];
 
   const now = new Date().toISOString();
-  const next = visits.find((v) =>
-    v.status !== 'cancelled' && String(v.start_at || v.start_date || '') >= now.slice(0, 10)) || null;
+  /* visits is ordered newest first, so find() returned the furthest-away
+     booking: a client with a weekly clean booked out three months read as
+     "next visit 20 Dec" when they were due on Saturday. */
+  const upcoming = visits.filter((v) => v.status !== 'cancelled' &&
+    String(v.start_at || v.start_date || '') >= now.slice(0, 10));
+  const next = upcoming.length
+    ? upcoming.reduce((soonest, v) =>
+        String(v.start_at || v.start_date) < String(soonest.start_at || soonest.start_date)
+          ? v : soonest)
+    : null;
 
   /* What a cleaner found and she has not dealt with, which is the other
      half of "is anything wrong with this one". */

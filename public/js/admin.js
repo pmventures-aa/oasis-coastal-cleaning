@@ -261,9 +261,25 @@
     return null;
   }
 
-  function copyText(text) {
+  /* One of these. There were two -- this, and a later one taking a button
+     -- and a function declaration hoists, so the later one won everywhere
+     and the three call sites doing copyText(...).then(...) threw on every
+     press. The text usually reached the clipboard before the throw, so
+     the only visible symptom was that nothing ever said "Copied".
+
+     Takes the button optionally and always returns a promise, so both
+     shapes of call work. */
+  function copyText(text, btn) {
+    var said = function () {
+      if (!btn) return;
+      var was = btn.textContent;
+      btn.textContent = 'Copied';
+      window.setTimeout(function () { btn.textContent = was; }, 1400);
+    };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(text);
+      return navigator.clipboard.writeText(text).then(said, function () {
+        window.prompt('Copy this:', text);
+      });
     }
     var ta = document.createElement('textarea');
     ta.value = text;
@@ -273,6 +289,7 @@
     ta.select();
     try { document.execCommand('copy'); } catch (e) { /* ignore */ }
     document.body.removeChild(ta);
+    said();
     return Promise.resolve();
   }
 
@@ -776,7 +793,7 @@
      The element is found again by the attribute that identifies it rather
      than by position, because the list it sits in is usually what changed. */
   var FOCUS_KEYS = ['id', 'data-sched-view', 'data-sched-date', 'data-sched-step',
-    'data-view', 'data-bf', 'data-of', 'data-feed-new', 'data-feed-off',
+    'data-view', 'data-bf', 'data-feed-new', 'data-feed-off',
     'data-lead-field', 'data-sched-today', 'data-block-new', 'data-job-new'];
 
   function focusMemo() {
@@ -827,7 +844,11 @@
     var keepFocus = focusMemo();
     signout.hidden = false;
     var counts = state.counts;
-    var activeTotal = STATUSES.reduce(function (n, s) { return n + (counts[s] || 0); }, 0);
+    /* What still needs answering. Booked ones have been won and have left
+       the list, so counting them made the badge overstate the work. */
+    var activeTotal = STATUSES.reduce(function (n, s) {
+      return s === 'booked' ? n : n + (counts[s] || 0);
+    }, 0);
 
     root.innerHTML =
       (!state.emailConfigured
@@ -866,7 +887,10 @@
         (state.view === 'active'
           ? '<label class="toolbar__select"><span class="sr-only">Status</span><select id="status-filter">' +
             '<option value="">All statuses</option>' +
-            STATUSES.map(function (s) {
+            /* Not booked: a booked request has converted and left this
+               list, so filtering to it always answered "nothing here".
+               The Won button beside this is where those live. */
+            STATUSES.filter(function (s) { return s !== 'booked'; }).map(function (s) {
               return '<option value="' + s + '"' + (state.filter === s ? ' selected' : '') + '>' +
                 s.charAt(0).toUpperCase() + s.slice(1) + ' (' + (counts[s] || 0) + ')</option>';
             }).join('') + '</select></label>' +
@@ -2001,8 +2025,10 @@
     var webcal = 'webcal://' + location.host + '/api/calendar/' + p.feed_token;
     return '<span class="ufeed ufeed--on">' +
       '<a class="btn btn--ghost btn--tiny" href="' + esc(webcal) + '">Add to their phone</a>' +
-      '<button type="button" class="linkish" data-feed-copy="' + esc(https) + '">Copy link</button>' +
-      '<button type="button" class="linkish" data-feed-new="' + esc(p.id) + '">Replace</button>' +
+      '<button type="button" class="linkish" data-user-feed-copy="' + esc(https) +
+        '">Copy link</button>' +
+      '<button type="button" class="linkish" data-user-feed-new="' + esc(p.id) +
+        '">Replace</button>' +
       '<span class="ufeed__note muted">Their visits only. Rings an hour before. ' +
         'Updates when their phone checks, not the moment you change something.</span>' +
     '</span>';
@@ -2019,19 +2045,6 @@
         if (!r.ok) { window.alert((r.body && r.body.error) || 'That did not work.'); return; }
         loadUsers();
       });
-  }
-
-  function copyText(text, btn) {
-    var done = function () {
-      var was = btn.textContent;
-      btn.textContent = 'Copied';
-      window.setTimeout(function () { btn.textContent = was; }, 1400);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () { window.prompt('Copy this:', text); });
-      return;
-    }
-    window.prompt('Copy this:', text);
   }
 
   function userFormHtml() {
@@ -6176,8 +6189,16 @@
        written and never had a listener, so "+ Add someone" did nothing at
        all. saveUser() was there the whole time, waiting to be called. */
     if (hit.matches('[data-feed-make]')) { feedSet(hit.getAttribute('data-feed-make'), true, hit); return; }
-    if (hit.matches('[data-feed-new]')) { feedSet(hit.getAttribute('data-feed-new'), false, hit); return; }
-    if (hit.matches('[data-feed-copy]')) { copyText(hit.getAttribute('data-feed-copy'), hit); return; }
+    /* Named apart from the Schedule screen's feed box, which has used the
+       bare data-feed-copy/new since before this screen existed. Sharing a
+       name meant whichever branch came first in this listener answered
+       for both, and this one came first. */
+    if (hit.matches('[data-user-feed-new]')) {
+      feedSet(hit.getAttribute('data-user-feed-new'), false, hit); return;
+    }
+    if (hit.matches('[data-user-feed-copy]')) {
+      copyText(hit.getAttribute('data-user-feed-copy'), hit); return;
+    }
     if (hit.matches('[data-user-new]')) {
       state.userForm = { role: 'cleaner', active: true };
       state.userNote = '';

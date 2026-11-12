@@ -48,6 +48,17 @@ export async function onRequestGet({ request, env }) {
 
   let issues = [];
   if (apptId) {
+    /* Whoever is on the visit, or whoever can see the whole diary. This
+       check was missing: the POST on this same route has it, and
+       photos.js has it on both its read paths, so the rule existed twice
+       and this was the copy that forgot. */
+    if (!can(g.user, 'everyoneSchedule')) {
+      const appt = await env.DB.prepare('SELECT assigned_to FROM appointments WHERE id = ?')
+        .bind(apptId).first().catch(() => null);
+      if (!appt || appt.assigned_to !== g.user.id) {
+        return json({ error: 'That visit is not yours.' }, 403);
+      }
+    }
     issues = ((await soft(env.DB.prepare(
       `SELECT * FROM visit_issues WHERE appointment_id = ? AND archived_at IS NULL
         ORDER BY created_at DESC`

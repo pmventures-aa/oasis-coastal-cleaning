@@ -76,6 +76,10 @@ export async function onRequestGet({ request, env }) {
         'SELECT status, COUNT(*) n FROM leads WHERE archived_at IS NULL GROUP BY status'
       ).all();
       (active.results || []).forEach((r) => { counts[r.status] = r.n; });
+      /* Booked and converted are the same set, and converted ones have
+         left this list -- so counting them here offered her a "Booked (7)"
+         that always came back empty. They are counted once, as "Won". */
+      counts.booked = 0;
       /* Counted so the screen can offer them without pretending they are
          still waiting on her. */
       const conv = await env.DB.prepare(

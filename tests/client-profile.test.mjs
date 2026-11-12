@@ -244,6 +244,35 @@ function profDb() {
 }
 const profileOf = async (d, id) => (await call(d, id)).json();
 
+await testAsync('next visit is the soonest one, not the furthest', async () => {
+  /* The visit list is ordered newest first, so finding the first future
+     one returned the last booking: a client cleaned weekly and booked out
+     three months read as due in December when they were due Saturday. */
+  const d = profDb();
+  const soon = new Date(Date.now() + 2 * 86400000).toISOString();
+  const far = new Date(Date.now() + 60 * 86400000).toISOString();
+  d._raw.prepare(`INSERT INTO appointments (id,created_at,status,all_day,start_at,end_at,
+    customer_id) VALUES ('a-far','2026-01-01','confirmed',0,?,?,'c1')`).run(far, far);
+  d._raw.prepare(`INSERT INTO appointments (id,created_at,status,all_day,start_at,end_at,
+    customer_id) VALUES ('a-soon','2026-01-01','confirmed',0,?,?,'c1')`).run(soon, soon);
+  const b = await profileOf(d, 'c1');
+  assert.equal(b.next_visit.id, 'a-soon');
+});
+
+await testAsync('a late invoice reads as overdue, not as "not yet due"', async () => {
+  /* due_date was selected and then dropped before attention saw it, so
+     nothing could ever be overdue on a profile however late it was. */
+  const d = profDb();
+  d._raw.exec(`ALTER TABLE invoices ADD COLUMN due_date TEXT`);
+  d._raw.prepare(`INSERT INTO invoices (id,created_at,customer_id,total,status,line_items,due_date)
+    VALUES ('i1','2026-01-01','c1',28500,'sent','[]','2020-01-01')`).run();
+  const b = await profileOf(d, 'c1');
+  const late = b.attention.find((a) => /overdue/.test(a.title));
+  assert.ok(late, 'a bill years late must say so');
+  assert.equal(late.tone, 'overdue');
+  assert.equal(late.date, '2020-01-01');
+});
+
 await testAsync('the profile says what is wrong and whether they are live', async () => {
   const d = profDb();
   d._raw.exec(`CREATE TABLE visit_issues (id TEXT PRIMARY KEY, created_at TEXT,

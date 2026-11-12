@@ -20,7 +20,11 @@ export async function onRequestGet({ request, env }) {
     can: me ? {
       money: can(me, 'money'), everyoneSchedule: can(me, 'everyoneSchedule'),
       clientList: can(me, 'clientList'), sendMail: can(me, 'sendMail'),
-      manageUsers: can(me, 'manageUsers'), settings: can(me, 'settings')
+      manageUsers: can(me, 'manageUsers'), settings: can(me, 'settings'),
+      /* The Services screen is gated on this. Leaving it out of the
+         payload hid that screen from everybody, the owner included, while
+         the server went on granting her the capability. */
+      priceBook: can(me, 'priceBook')
     } : null
   });
 }
