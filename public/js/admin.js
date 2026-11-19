@@ -748,6 +748,85 @@
         (l.updated_at ? ' · edited ' + esc(when(l.updated_at)) : '') + '</p></div>';
   }
 
+  /* How long it has been, always in words. The list used to use when(),
+     which counts in minutes, hours and days for a week and then gives up and
+     prints a date: "Oct 8" on a request that has been sitting for 41 days.
+     The date is the one thing she cannot act on. The age is. */
+  function ageWords(iso) {
+    var d = new Date(iso);
+    if (isNaN(d)) { return ''; }
+    var days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    if (days <= 0) { return 'today'; }
+    if (days === 1) { return 'yesterday'; }
+    if (days < 14) { return days + ' days'; }
+    if (days < 60) { return Math.round(days / 7) + ' weeks'; }
+    return Math.round(days / 30) + ' months';
+  }
+
+  function ageDays(iso) {
+    var d = new Date(iso);
+    return isNaN(d) ? 0 : Math.floor((Date.now() - d.getTime()) / 86400000);
+  }
+
+  /* Anything quoted and silent this long is not a live conversation. */
+  var GONE_QUIET_DAYS = 30;
+
+  /* The list was one run of identical cards, newest first. A request nobody
+     had answered in twelve days looked exactly like one from nineteen minutes
+     ago, and the only thing separating them was a date most of the way down
+     the card. These are the three questions she actually opens this to
+     answer, in the order she can act on them.
+
+     Oldest first inside the two waiting bands, which is the opposite of what
+     the list did. Everything in "waiting on you" is unanswered, so the one at
+     risk is the one that has been there longest -- and the band is short
+     enough that a request from this morning is still on screen. */
+  var BANDS = [
+    { key: 'you',   match: function (l) { return l.status === 'new' || l.status === 'contacted'; },
+      label: 'Waiting on you',   note: 'Nobody has replied to these yet.', oldestFirst: true },
+    { key: 'them',  match: function (l) { return l.status === 'quoted'; },
+      label: 'Waiting on them',  note: 'Quoted. The ball is in their court.', oldestFirst: true },
+    { key: 'won',   match: function (l) { return l.status === 'booked'; },
+      label: 'Booked',           note: '', oldestFirst: false },
+    { key: 'done',  match: function (l) { return l.status === 'closed'; },
+      label: 'Closed',           note: '', oldestFirst: false }
+  ];
+
+  function leadBands(list) {
+    var out = [];
+    BANDS.forEach(function (b) {
+      var items = list.filter(b.match);
+      if (!items.length) { return; }
+      items.sort(function (x, y) {
+        var dx = ageDays(x.created_at), dy = ageDays(y.created_at);
+        return b.oldestFirst ? dy - dx : dx - dy;
+      });
+      out.push({ band: b, items: items });
+    });
+    /* Anything with a status the bands do not name still has to appear. */
+    var placed = {};
+    out.forEach(function (g) { g.items.forEach(function (l) { placed[l.id] = 1; }); });
+    var rest = list.filter(function (l) { return !placed[l.id]; });
+    if (rest.length) { out.push({ band: { key: 'other', label: 'Everything else', note: '' }, items: rest }); }
+    return out;
+  }
+
+  function bandsHtml(list) {
+    return leadBands(list).map(function (g) {
+      var oldest = g.band.oldestFirst && g.items.length
+        ? ageWords(g.items[0].created_at) : '';
+      return '<section class="band" data-band="' + g.band.key + '">' +
+          '<h2 class="band__head">' +
+            '<span class="band__n">' + g.items.length + '</span>' +
+            '<span class="band__label">' + esc(g.band.label) + '</span>' +
+            (oldest ? '<span class="band__oldest">longest ' + esc(oldest) + '</span>' : '') +
+          '</h2>' +
+          (g.band.note ? '<p class="band__note">' + esc(g.band.note) + '</p>' : '') +
+          '<div class="leads">' + g.items.map(row).join('') + '</div>' +
+        '</section>';
+    }).join('');
+  }
+
   function row(l) {
     /* A request she has already won is a person, not an enquiry. The row
        stops offering the quote workflow and offers their record. */
@@ -774,13 +853,33 @@
       qBadge = '<span class="pill pill--quoted">' + esc(QUOTE_STATUS_LABELS[l.latest_quote_status] || l.latest_quote_status) + '</span>';
     }
     var open = state.open === l.id;
-    return '<article class="lead' + (open ? ' is-open' : '') + '" data-id="' + esc(l.id) + '">' +
+    /* Quoted and silent for a month is not a live conversation, and it should
+       not read like one. The row recedes and says so, rather than sitting
+       there at full strength looking like today's work. */
+    var quiet = l.status === 'quoted' && ageDays(l.created_at) >= GONE_QUIET_DAYS;
+    return '<article class="lead' + (open ? ' is-open' : '') + (quiet ? ' lead--quiet' : '') +
+        '" data-id="' + esc(l.id) + '">' +
+      /* Three fixed columns -- chevron, the person, the age -- so every card
+         is the same shape. These used to be seven children of one wrapping
+         flex row, so the age landed beside the name on a short card and on a
+         line of its own on a long one, and nothing down the list lined up
+         with anything else. */
       '<button type="button" class="lead__head" data-toggle aria-expanded="' + open + '">' +
         '<span class="lead__chev" aria-hidden="true"></span>' +
-        '<span class="lead__name">' + esc(l.name) + '</span>' + pill(l.status) + flag + qBadge +
-        '<span class="lead__meta">' + esc(l.service_label || l.service) + (l.city ? ' · ' + esc(l.city) : '') + '</span>' +
-        (l.quoted_amount ? '<span class="lead__quote">' + esc(l.quoted_amount) + '</span>' : '') +
-        '<span class="lead__when">' + esc(when(l.created_at)) + '</span></button>' +
+        '<span class="lead__main">' +
+          '<span class="lead__top">' +
+            '<span class="lead__name">' + esc(l.name) + '</span>' + flag + qBadge +
+          '</span>' +
+          '<span class="lead__meta">' + esc(l.service_label || l.service) +
+            (l.city ? ' · ' + esc(l.city) : '') +
+            (l.quoted_amount ? '<span class="lead__quote">' + esc(l.quoted_amount) + '</span>' : '') +
+          '</span>' +
+        '</span>' +
+        /* The age, not the date. The band already says what state it is in,
+           so the status pill that used to sit here said the same word on
+           every card in the band. */
+        '<span class="lead__when' + (quiet ? ' is-quiet' : '') + '">' + esc(ageWords(l.created_at)) +
+          (quiet ? '<small>quiet</small>' : '') + '</span></button>' +
       (open ? '<div class="lead__body">' + detail(l) + '</div>' : '') + '</article>';
   }
 
@@ -930,7 +1029,7 @@
         : STAGE_FOR_VIEW[state.view] ? stageTabsHtml() + pipelineHtml(state.view)
         : state.leadsError ? leadsErrorHtml()
         : state.leads.length
-          ? '<div class="leads">' + state.leads.map(row).join('') + '</div>' +
+          ? bandsHtml(state.leads) +
             '<p id="search-empty" class="empty" hidden>Nothing matches.</p>'
           : '<p class="empty">' + (state.view === 'archived' ? 'Nothing archived.' : 'No requests yet. They will appear here the moment someone sends one.') + '</p>');
 
@@ -976,6 +1075,13 @@
       el.hidden = !match;
       if (match) shown += 1;
     });
+    /* The cards sit in bands now, and a band header over nothing reads as a
+       count that does not match what is under it. */
+    Array.prototype.forEach.call(root.querySelectorAll('.band'), function (band) {
+      var any = Array.prototype.some.call(band.querySelectorAll('.lead'), function (el) { return !el.hidden; });
+      band.hidden = !any;
+    });
+
     var empty = document.getElementById('search-empty');
     if (empty) empty.hidden = !q.trim() || shown > 0 || !leads.length;
   }
