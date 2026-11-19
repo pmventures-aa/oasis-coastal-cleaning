@@ -928,6 +928,7 @@
         : state.view === 'money' ? moneyHtml()
         : state.view === 'clients' ? clientsHtml()
         : STAGE_FOR_VIEW[state.view] ? stageTabsHtml() + pipelineHtml(state.view)
+        : state.leadsError ? leadsErrorHtml()
         : state.leads.length
           ? '<div class="leads">' + state.leads.map(row).join('') + '</div>' +
             '<p id="search-empty" class="empty" hidden>Nothing matches.</p>'
@@ -4318,6 +4319,49 @@
     });
   }
 
+  /* When the requests list cannot be read. It says what actually went wrong,
+     offers the thing that usually fixes it, and sits inside the app so the
+     rest of the portal is still there behind it. */
+  function leadsErrorHtml() {
+    var e = state.leadsError || {};
+    return '<div class="empty-state">' +
+      '<h3>' + esc(e.error || 'The requests list could not be read.') + '</h3>' +
+      (e.detail
+        ? '<p class="muted">The database said: ' + esc(e.detail) + '</p>'
+        : '') +
+      (e.canSetUp && state.can && state.can.settings
+        ? '<p class="muted">This usually means the database is behind this version ' +
+          'of the site. Bringing it up to date is safe to do twice and adds only ' +
+          'what is missing.</p>' +
+          '<p><button type="button" class="btn btn--primary" data-db-setup>' +
+            'Bring the database up to date</button></p>'
+        : '<p><button type="button" class="btn" data-act="reload">Try again</button></p>') +
+      '<p class="setup__said" hidden></p>' +
+    '</div>';
+  }
+
+  function dbSetUp(btn) {
+    var said = btn.closest('.empty-state').querySelector('.setup__said');
+    var was = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Setting up…';
+    api('/api/admin/setup', { method: 'POST' }).then(function (r) {
+      btn.disabled = false;
+      btn.textContent = was;
+      if (!r.ok) {
+        said.hidden = false;
+        said.textContent = (r.body && r.body.error) || 'That did not work.';
+        return;
+      }
+      said.hidden = false;
+      said.textContent = (r.body && r.body.message) || 'Done.';
+      /* Re-read rather than assume it worked: the list coming back is the
+         only proof worth showing her. */
+      state.leadsError = null;
+      load();
+    });
+  }
+
   function catalogueHtml() {
     var c = state.catalogue;
     if (!c) return '<p class="empty">Loading…</p>';
@@ -6089,6 +6133,7 @@
     var hit = e.target.closest('button, a, [data-toggle], [role="tab"]') || e.target;
 
     if (hit.matches('[data-act="reload"]')) { refreshCurrent(); return; }
+    if (hit.matches('[data-db-setup]')) { dbSetUp(hit); return; }
     if (hit.matches('[data-view]')) { goView(hit.dataset.view); return; }
     if (hit.matches('[data-new-lead]')) {
       state.composingLead = true; state.composing = false; state.open = null;
@@ -7169,10 +7214,21 @@
       api('/api/admin/leads' + qs).then(function (r) {
         if (r.status === 401) { showSignIn(''); return; }
         if (!r.ok) {
-          root.innerHTML = '<div class="card setup"><h2>Database not ready</h2><p>' +
-            esc(r.body.error || '') + '</p><p class="muted">Run: <code>npx wrangler d1 migrations apply oasis --remote</code></p></div>';
+          /* This used to write the error over root, which is the whole
+             application -- nav included. One query that could not run took
+             away Today, Money, the diary, Settings and the Set them up button
+             that would have fixed it, and told her to run a terminal command
+             instead. The Requests list is also the first thing the portal
+             loads, so that was the entire portal, gone.
+
+             It is a message where the list goes now. Everything else keeps
+             working. */
+          state.leadsError = r.body || { error: 'The requests list could not be read.' };
+          state.leads = [];
+          render();
           return;
         }
+        state.leadsError = null;
         state.leads = r.body.leads || [];
         state.counts = r.body.counts || {};
         render();

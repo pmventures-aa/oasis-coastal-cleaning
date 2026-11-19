@@ -9,6 +9,7 @@ import { gate } from '../../_lib/guard.js';
 import { json, clean, newId } from '../../_lib/util.js';
 import { isSignedIn } from '../../_lib/auth.js';
 import { linkLead } from '../../_lib/customers.js';
+import { applySchema } from '../../_lib/schema.js';
 
 const STATUSES = ['new', 'contacted', 'quoted', 'booked', 'closed'];
 
@@ -68,7 +69,29 @@ export async function onRequestGet({ request, env }) {
       (SELECT q.status FROM quotes q WHERE q.lead_id = l.id AND q.archived_at IS NULL
        ORDER BY q.created_at DESC LIMIT 1) AS latest_quote_status
       FROM leads l WHERE ${where.join(' AND ')} ORDER BY l.created_at DESC LIMIT ?`;
-    const { results } = await env.DB.prepare(sql).bind(...binds).all();
+
+    /* This query names columns from several migrations -- converted_at from
+       0027, archived_at on both tables -- and a database that is behind on any
+       one of them fails the whole read. There is no wrangler token in the
+       deploy environment, so applying migrations from a terminal is not a step
+       anybody here can take; applySchema is how this project brings a database
+       up to date, and ten other routes already call it for exactly this
+       reason. It creates missing tables and adds missing columns, ignores what
+       is already there, and is safe to run twice.
+
+       Doing it from a GET is a side effect on a read, which is worth being
+       uneasy about. The alternative is what happened: the Requests list is the
+       first thing the portal loads, so one missing column locked Kristina out
+       of the entire portal and the message told her to run a command she has
+       no way to run. It runs once, only after a failure. */
+    let results;
+    try {
+      ({ results } = await env.DB.prepare(sql).bind(...binds).all());
+    } catch (first) {
+      await applySchema(env.DB).catch(() => {});
+      ({ results } = await env.DB.prepare(sql).bind(...binds).all()
+        .catch(() => { throw first; }));   // report the original cause, not the retry's
+    }
 
     const counts = { active: 0, archived: 0 };
     try {
@@ -94,9 +117,21 @@ export async function onRequestGet({ request, env }) {
 
     return json({ leads: results || [], counts, view: showArchived ? 'archived' : 'active' });
   } catch (err) {
+    /* This used to report every failure here as "the leads table is missing"
+       and tell her to run a wrangler command. The table was there; a column
+       added by a later migration was not, and the real reason sat in a detail
+       field the screen never showed. A message that names one cause for every
+       failure is a guess printed as a fact. */
+    const detail = String(err && err.message || err);
+    const missingTable = /no such table/i.test(detail);
     return json({
-      error: 'The leads table is missing. Apply migrations with `npx wrangler d1 migrations apply oasis --remote`.',
-      detail: String(err && err.message || err)
+      error: missingTable
+        ? 'The requests table is not there yet.'
+        : 'The requests list could not be read. The database may be behind this ' +
+          'version of the site.',
+      detail,
+      /* So the screen can offer the button instead of a command line. */
+      canSetUp: true
     }, 503);
   }
 }
