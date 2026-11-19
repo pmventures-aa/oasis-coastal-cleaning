@@ -781,26 +781,41 @@
      the list did. Everything in "waiting on you" is unanswered, so the one at
      risk is the one that has been there longest -- and the band is short
      enough that a request from this morning is still on screen. */
+  /* Newest first in every band. An earlier version sorted the unanswered ones
+     oldest first, on the reasoning that the forgotten one is the one at risk.
+     It put a request that had just come in at the bottom of the screen, which
+     is wrong twice over: answering quickly is how the job is won, and somebody
+     who has just submitted and gone looking for it should find it at the top.
+     Age is a flag on the row now, not a sort order -- the band heading still
+     says the longest wait, and anything that has been sitting says so in a
+     colour that does not let it blend in. */
   var BANDS = [
     { key: 'you',   match: function (l) { return l.status === 'new' || l.status === 'contacted'; },
-      label: 'Waiting on you',   note: 'Nobody has replied to these yet.', oldestFirst: true },
+      label: 'Waiting on you',   note: 'Nobody has replied to these yet.', open: true },
     { key: 'them',  match: function (l) { return l.status === 'quoted'; },
-      label: 'Waiting on them',  note: 'Quoted. The ball is in their court.', oldestFirst: true },
+      label: 'Waiting on them',  note: 'Quoted. The ball is in their court.', open: false },
     { key: 'won',   match: function (l) { return l.status === 'booked'; },
-      label: 'Booked',           note: '', oldestFirst: false },
+      label: 'Booked',           note: '', open: false },
     { key: 'done',  match: function (l) { return l.status === 'closed'; },
-      label: 'Closed',           note: '', oldestFirst: false }
+      label: 'Closed',           note: '', open: false }
   ];
+
+  /* An unanswered request older than this has stopped being new. */
+  var CHASE_DAYS = 3;
+
+  function bandOpen(key) {
+    if (state.q && state.q.trim()) { return true; }   // searching looks everywhere
+    if (state.bandOpen && key in state.bandOpen) { return state.bandOpen[key]; }
+    var b = BANDS.filter(function (x) { return x.key === key; })[0];
+    return b ? b.open : true;
+  }
 
   function leadBands(list) {
     var out = [];
     BANDS.forEach(function (b) {
       var items = list.filter(b.match);
       if (!items.length) { return; }
-      items.sort(function (x, y) {
-        var dx = ageDays(x.created_at), dy = ageDays(y.created_at);
-        return b.oldestFirst ? dy - dx : dx - dy;
-      });
+      items.sort(function (x, y) { return ageDays(x.created_at) - ageDays(y.created_at); });
       out.push({ band: b, items: items });
     });
     /* Anything with a status the bands do not name still has to appear. */
@@ -811,18 +826,34 @@
     return out;
   }
 
+  /* The bands fold. Twenty-one cards in a row was four screens of scrolling
+     to reach the bottom of a list most of which needs nothing from her today.
+     What is waiting on her is open; what is waiting on somebody else is a
+     heading and a count until she asks for it. A search opens everything,
+     because a result hidden inside a folded band is a search that lies. */
   function bandsHtml(list) {
     return leadBands(list).map(function (g) {
-      var oldest = g.band.oldestFirst && g.items.length
-        ? ageWords(g.items[0].created_at) : '';
-      return '<section class="band" data-band="' + g.band.key + '">' +
-          '<h2 class="band__head">' +
-            '<span class="band__n">' + g.items.length + '</span>' +
-            '<span class="band__label">' + esc(g.band.label) + '</span>' +
-            (oldest ? '<span class="band__oldest">longest ' + esc(oldest) + '</span>' : '') +
+      /* Newest first means the longest wait is the last item, not the first. */
+      var oldestDays = 0;
+      g.items.forEach(function (l) { oldestDays = Math.max(oldestDays, ageDays(l.created_at)); });
+      var open = bandOpen(g.band.key);
+      return '<section class="band" data-band="' + g.band.key + '"' + (open ? ' data-open' : '') + '>' +
+          '<h2 class="band__h">' +
+            '<button type="button" class="band__head" data-band-toggle="' + g.band.key + '" ' +
+              'aria-expanded="' + open + '">' +
+              '<span class="band__n">' + g.items.length + '</span>' +
+              '<span class="band__label">' + esc(g.band.label) + '</span>' +
+              (oldestDays >= CHASE_DAYS
+                ? '<span class="band__oldest">longest ' + esc(ageWords(
+                    g.items.reduce(function (a, b) {
+                      return ageDays(a.created_at) >= ageDays(b.created_at) ? a : b;
+                    }).created_at)) + '</span>'
+                : '') +
+              '<span class="band__chev" aria-hidden="true"></span>' +
+            '</button>' +
           '</h2>' +
-          (g.band.note ? '<p class="band__note">' + esc(g.band.note) + '</p>' : '') +
-          '<div class="leads">' + g.items.map(row).join('') + '</div>' +
+          (open && g.band.note ? '<p class="band__note">' + esc(g.band.note) + '</p>' : '') +
+          '<div class="leads"' + (open ? '' : ' hidden') + '>' + g.items.map(row).join('') + '</div>' +
         '</section>';
     }).join('');
   }
@@ -857,8 +888,11 @@
        not read like one. The row recedes and says so, rather than sitting
        there at full strength looking like today's work. */
     var quiet = l.status === 'quoted' && ageDays(l.created_at) >= GONE_QUIET_DAYS;
+    /* Unanswered and no longer new. The list is newest first, so this is what
+       stops an old one disappearing quietly under the ones that came after. */
+    var chase = (l.status === 'new' || l.status === 'contacted') && ageDays(l.created_at) >= CHASE_DAYS;
     return '<article class="lead' + (open ? ' is-open' : '') + (quiet ? ' lead--quiet' : '') +
-        '" data-id="' + esc(l.id) + '">' +
+        (chase ? ' lead--chase' : '') + '" data-id="' + esc(l.id) + '">' +
       /* Three fixed columns -- chevron, the person, the age -- so every card
          is the same shape. These used to be seven children of one wrapping
          flex row, so the age landed beside the name on a short card and on a
@@ -878,8 +912,10 @@
         /* The age, not the date. The band already says what state it is in,
            so the status pill that used to sit here said the same word on
            every card in the band. */
-        '<span class="lead__when' + (quiet ? ' is-quiet' : '') + '">' + esc(ageWords(l.created_at)) +
-          (quiet ? '<small>quiet</small>' : '') + '</span></button>' +
+        '<span class="lead__when' + (quiet ? ' is-quiet' : '') + (chase ? ' is-chase' : '') + '">' +
+          esc(ageWords(l.created_at)) +
+          (quiet ? '<small>quiet</small>' : '') +
+          (chase ? '<small>no reply</small>' : '') + '</span></button>' +
       (open ? '<div class="lead__body">' + detail(l) + '</div>' : '') + '</article>';
   }
 
@@ -984,16 +1020,13 @@
               (n === null ? '' : ' (' + n + ')') + '</option>';
           }).join('') + '</select></label>') +
         (state.view === 'active'
-          ? '<label class="toolbar__select"><span class="sr-only">Status</span><select id="status-filter">' +
-            '<option value="">All statuses</option>' +
-            /* Not booked: a booked request has converted and left this
-               list, so filtering to it always answered "nothing here".
-               The Won button beside this is where those live. */
-            STATUSES.filter(function (s) { return s !== 'booked'; }).map(function (s) {
-              return '<option value="' + s + '"' + (state.filter === s ? ' selected' : '') + '>' +
-                s.charAt(0).toUpperCase() + s.slice(1) + ' (' + (counts[s] || 0) + ')</option>';
-            }).join('') + '</select></label>' +
-            '<button type="button" class="toolbar__filter' + (state.followup ? ' is-on' : '') +
+          /* The status dropdown used to sit here offering "New (6)",
+             "Quoted (12)", "Closed (0)". That is the same grouping the bands
+             below now do, in the words the database uses rather than the ones
+             she does -- two controls for one idea, disagreeing about what to
+             call it, and one of them listing states that are always empty.
+             The band headings fold, so they are the filter. */
+          ? '<button type="button" class="toolbar__filter' + (state.followup ? ' is-on' : '') +
               '" data-followup-filter>Follow-ups</button>' +
             ((state.counts && state.counts.converted)
               ? '<button type="button" class="toolbar__filter' +
@@ -1075,10 +1108,27 @@
       el.hidden = !match;
       if (match) shown += 1;
     });
-    /* The cards sit in bands now, and a band header over nothing reads as a
-       count that does not match what is under it. */
+    /* The cards sit in folding bands now, and this runs without a re-render,
+       so two things have to be kept true by hand.
+
+       A band folded shut still has its cards in the page with the container
+       hidden. Searching has to open it, or a match inside "waiting on them"
+       is a result the search found and refused to show -- and the count in
+       the heading would be the only hint it was there. Clearing the search
+       folds it back to however she left it.
+
+       And a heading over nothing reads as a count that disagrees with what
+       is under it, so a band with no matches goes entirely. */
+    var searching = !!q.trim();
     Array.prototype.forEach.call(root.querySelectorAll('.band'), function (band) {
+      var key = band.getAttribute('data-band');
       var any = Array.prototype.some.call(band.querySelectorAll('.lead'), function (el) { return !el.hidden; });
+      var show = searching || bandOpen(key);
+      var cards = band.querySelector('.leads');
+      if (cards) { cards.hidden = !show; }
+      band.toggleAttribute('data-open', show);
+      var head = band.querySelector('.band__head');
+      if (head) { head.setAttribute('aria-expanded', String(show)); }
       band.hidden = !any;
     });
 
@@ -6240,6 +6290,13 @@
 
     if (hit.matches('[data-act="reload"]')) { refreshCurrent(); return; }
     if (hit.matches('[data-db-setup]')) { dbSetUp(hit); return; }
+    if (hit.matches('[data-band-toggle]')) {
+      var bk = hit.getAttribute('data-band-toggle');
+      state.bandOpen = state.bandOpen || {};
+      state.bandOpen[bk] = !bandOpen(bk);
+      render();
+      return;
+    }
     if (hit.matches('[data-view]')) { goView(hit.dataset.view); return; }
     if (hit.matches('[data-new-lead]')) {
       state.composingLead = true; state.composing = false; state.open = null;
@@ -6838,7 +6895,6 @@
       var qed = e.target.closest('.quote-editor');
       if (qed) updateQuoteTotal(qed);
     }
-    if (e.target.id === 'status-filter') { state.filter = e.target.value; state.open = null; load(); }
     if (e.target.matches('select[data-col]')) saveField(e.target);
     if (e.target.matches('[data-zip-lookup]')) {
       clearTimeout(zipLookupTimer);
@@ -7313,6 +7369,9 @@
       }
 
       var qs = '?archived=' + (state.view === 'archived' ? '1' : '0');
+      /* state.filter was set by a status dropdown that the band headings
+         replaced. The route still takes &status=, so this stays as the way
+         in if a control ever wants it again -- but nothing sets it today. */
       if (state.filter && state.view === 'active') qs += '&status=' + encodeURIComponent(state.filter);
       if (state.followup && state.view === 'active') qs += '&followup=1';
       if (state.showConverted && state.view === 'active') qs += '&converted=1';

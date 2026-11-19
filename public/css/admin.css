@@ -106,13 +106,25 @@ body.admin-theme {
    "6 waiting on you" is the sentence she opens the app to read. */
 .band + .band { margin-top: 1.75rem; }
 .band[hidden] { display: none; }
+.band__h { margin: 0 0 0.15rem; }
+/* The whole heading is the control that folds the band, so it is a button at
+   full width rather than a chevron somebody has to aim at. */
 .band__head {
-  display: flex; align-items: baseline; gap: 0.55rem; flex-wrap: wrap;
-  margin: 0 0 0.15rem; font-family: var(--font-body);
-  font-size: 0.78rem; font-weight: 700;
+  appearance: none; background: none; border: 0; width: 100%;
+  display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap;
+  padding: 0.55rem 0; cursor: pointer; text-align: left;
+  font-family: var(--font-body); font-size: 0.78rem; font-weight: 700;
   letter-spacing: var(--tracking-caps); text-transform: uppercase;
-  color: var(--oasis-teal);
+  color: var(--oasis-teal); min-height: 44px;
 }
+.band__chev {
+  width: 9px; height: 9px; flex: none;
+  border-right: 2px solid var(--oasis-teal); border-bottom: 2px solid var(--oasis-teal);
+  transform: rotate(45deg); margin-left: 0.15rem;
+  transition: transform 0.18s ease;
+}
+.band[data-open] .band__chev { transform: rotate(-135deg); }
+@media (prefers-reduced-motion: reduce) { .band__chev { transition: none; } }
 .band__n {
   display: inline-grid; place-items: center; min-width: 1.6rem; height: 1.6rem;
   padding: 0 0.4rem; border-radius: var(--radius-pill);
@@ -121,7 +133,7 @@ body.admin-theme {
 }
 .band__oldest {
   margin-left: auto; text-transform: none; letter-spacing: 0;
-  font-weight: 600; font-size: 0.72rem; color: var(--oasis-gold-text, var(--oasis-gold));
+  font-weight: 600; font-size: 0.72rem; color: var(--oasis-gold-ink);
 }
 .band__note {
   margin: 0 0 0.6rem; font-size: 0.78rem; line-height: 1.45;
@@ -130,6 +142,13 @@ body.admin-theme {
 
 /* "Waiting on you" is the band with money leaking out of it. */
 .band[data-band="you"] .band__n { background: var(--oasis-gold); color: var(--oasis-navy); }
+
+/* Unanswered and past its first few days. The list runs newest first, so
+   without this an old one slides down the band as new ones arrive and stops
+   being visible at all. */
+.lead--chase { border-color: var(--oasis-gold); }
+.lead__when.is-chase { color: var(--oasis-gold-ink); font-weight: 700; }
+.lead__when.is-chase small { color: var(--oasis-gold-ink); font-weight: 600; }
 
 /* Quoted a month ago and never heard back. Still there, no longer shouting. */
 .lead--quiet { opacity: 0.72; }
