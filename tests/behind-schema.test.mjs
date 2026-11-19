@@ -133,3 +133,43 @@ test('the screen shows the failure in place of the list, not in place of the app
   assert.match(fn, /data-db-setup/, 'it should offer to bring the database up to date');
   assert.match(js, /\[data-db-setup\]/, 'and something must answer that button');
 });
+
+test('healing a read repairs the schema and leaves her records alone', async () => {
+  /* applySchema does two different kinds of work. Columns and tables change
+     the shape of the database and touch no records. The backfill creates
+     customers and properties out of leads -- real rows, in her lists, grouped
+     by email or phone. That belongs to the button in Settings, which tells her
+     what it did, not to a page load that happened to fail. */
+  const d = makeD1(OLD);
+  d._raw.exec(`CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, created_at TEXT,
+    name TEXT, company TEXT, phone TEXT, email TEXT, contact_pref TEXT, best_time TEXT,
+    notes TEXT, updated_at TEXT, archived_at TEXT)`);
+  d._raw.exec(`INSERT INTO leads (id, created_at, name, phone, email, service)
+    VALUES ('l1','2026-11-19','Maria Delgado','5610000000','m@a.co','home')`);
+
+  const leads = await import('../functions/api/admin/leads.js');
+  const cookie = (await makeSessionCookie(env(d), false)).split(';')[0];
+  const res = await leads.onRequestGet({
+    request: new Request('https://x.test/api/admin/leads', { headers: { Cookie: cookie } }),
+    env: env(d) });
+
+  assert.equal(res.status, 200, 'the list should come back');
+  assert.equal(d._raw.prepare('SELECT COUNT(*) n FROM customers').get().n, 0,
+    'reading a list must not invent clients in her books');
+});
+
+test('the deliberate press still does the whole job', async () => {
+  const { applySchema } = await import('../functions/_lib/schema.js');
+  const d = makeD1(OLD);
+  d._raw.exec(`INSERT INTO leads (id, created_at, name, phone, email, service)
+    VALUES ('l1','2026-11-19','Maria Delgado','5610000000','m@a.co','home')`);
+
+  await applySchema(d);
+  assert.ok(d._raw.prepare('SELECT COUNT(*) n FROM customers').get().n >= 1,
+    'Set them up is where the linking belongs, and it must still happen there');
+  assert.equal(d._raw.prepare('SELECT customer_id FROM leads WHERE id = ?').get('l1').customer_id !== null,
+    true, 'and the lead should be attached to the client it made');
+  /* Not asserting on the returned `linked` count: the SQLite stand-in these
+     tests run against does not fill in meta.changes, so that number is a
+     property of the harness rather than of the code. The rows are the fact. */
+});

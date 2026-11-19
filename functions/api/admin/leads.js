@@ -88,7 +88,11 @@ export async function onRequestGet({ request, env }) {
     try {
       ({ results } = await env.DB.prepare(sql).bind(...binds).all());
     } catch (first) {
-      await applySchema(env.DB).catch(() => {});
+      /* Schema only. applySchema can also build customers and properties out
+         of existing leads, which is real records appearing in her lists --
+         right when she presses Set them up and the screen tells her what it
+         did, wrong for a page load to decide on its own. */
+      await applySchema(env.DB, { backfill: false }).catch(() => {});
       ({ results } = await env.DB.prepare(sql).bind(...binds).all()
         .catch(() => { throw first; }));   // report the original cause, not the retry's
     }

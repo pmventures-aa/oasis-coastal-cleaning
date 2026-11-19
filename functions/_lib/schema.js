@@ -367,7 +367,18 @@ export async function ensureScheduleTables(db) {
   }
 }
 
-export async function applySchema(db) {
+/* `backfill: false` applies the schema and stops there -- no customer or
+   property records are created from existing leads.
+
+   The two halves do different kinds of work. Creating a table or adding a
+   column changes the shape of the database and leaves every record exactly as
+   it was. The backfill below creates customers and properties out of leads:
+   real records, appearing in her lists, grouped by email or phone number. It
+   is the right thing to do when she presses Set them up in Settings and the
+   screen tells her what it did. It is not something a page load should do to
+   her books on its own, however safe the statements are -- so the routes that
+   repair themselves pass false, and only the deliberate press runs it. */
+export async function applySchema(db, { backfill = true } = {}) {
   const created = [], existed = [], failed = [];
   if (!db) return { ok: false, created, existed, failed: ['No database is connected.'] };
 
@@ -400,13 +411,15 @@ export async function applySchema(db) {
   }
 
   let linked = 0;
-  try {
-    for (const sql of BACKFILL) {
-      const res = await db.prepare(sql).run();
-      linked += (res && res.meta && res.meta.changes) || 0;
+  if (backfill) {
+    try {
+      for (const sql of BACKFILL) {
+        const res = await db.prepare(sql).run();
+        linked += (res && res.meta && res.meta.changes) || 0;
+      }
+    } catch (err) {
+      failed.push(`linking existing leads: ${err && err.message || err}`);
     }
-  } catch (err) {
-    failed.push(`linking existing leads: ${err && err.message || err}`);
   }
 
   return { ok: failed.length === 0, created, existed, failed, linked };
